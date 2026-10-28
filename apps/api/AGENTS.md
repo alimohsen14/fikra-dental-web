@@ -1,10 +1,7 @@
-# AGENTS.md
+# AGENTS.md (apps/api)
 
-## Production data: NestJS Observe
-
-This app's production telemetry - traces, errors, logs and metrics - goes to [NestJS Observe](https://observe.nestjs.com). Until `ObserveModule` is registered in `src/app.module.ts`, nothing is sent: `npx @nestjs/observe link` sets it up in one step - it installs `@nestjs/observe`, wires it into the app, and writes the key pair (`OBSERVE_APP_KEY`, `OBSERVE_APP_SECRET`) to `.env`.
-
-When a task depends on how the app behaves in production - an error users hit, a slow endpoint, a failing job, whether a release made things worse - work from that data, not from the code alone:
-
-- The Observe MCP server answers those questions directly: errors with their traces and logs, slow operations, jobs, and what a release changed (`find_regressions`, `diff_release`). It is included on the Pro plan and above. In Claude Code: `claude mcp add observe --transport http https://observe-api.nestjs.com/mcp`, and the client opens a browser to approve. Other clients: https://www.observe.nestjs.com/documentation/mcp
-- Without it, the user can open the request or error in the Observe dashboard and click **Copy agent prompt**, which hands over that page's trace, stack and logs as text.
+Follow the root AGENTS.md. API specifics:
+- NestJS 12, ESM: relative imports must end with `.js`.
+- The Prisma client is generated into src/generated/prisma and is not committed. After schema changes run `pnpm --filter api exec prisma generate --no-hints`. Always pass --no-hints, otherwise Prisma installs AI skill folders into the repo.
+- All database access goes through PrismaService (src/database).
+- Observability service integration is not enabled. Do not add it unless the owner asks.
