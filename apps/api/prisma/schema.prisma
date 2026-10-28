@@ -1,0 +1,362 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------- enums
+enum Role {
+  PLATFORM_ADMIN
+  OWNER
+  DOCTOR
+  SECRETARY
+}
+
+enum ClinicStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+}
+
+enum MessageKind {
+  BOOKING
+  CONFIRMATION
+}
+
+enum MessageStatus {
+  SCHEDULED
+  SENT
+  DELIVERED
+  FAILED
+  CANCELLED
+}
+
+enum MessageResponse {
+  YES
+  NO
+}
+
+enum TreatmentStatus {
+  OPEN
+  CLOSED
+  CANCELLED
+}
+
+enum SessionStatus {
+  PLANNED
+  COMPLETED
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  TRANSFER
+  OTHER
+}
+
+enum PaymentStatus {
+  ACTIVE
+  VOIDED
+}
+
+// ---------------------------------------------------------------- platform
+model Clinic {
+  id                 String       @id @default(uuid()) @db.Uuid
+  name               String
+  logoUrl            String?
+  themeColor         String?
+  currency           String       @default("ILS")
+  timezone           String       @default("Asia/Hebron")
+  status             ClinicStatus @default(ACTIVE)
+  subscriptionEndsAt DateTime?    @db.Timestamptz(3)
+  createdAt          DateTime     @default(now()) @db.Timestamptz(3)
+
+  whatsapp       ClinicWhatsapp?
+  users          User[]
+  doctors        Doctor[]
+  workingPeriods DoctorWorkingPeriod[]
+  patients       Patient[]
+  appointments   Appointment[]
+  messages       MessageLog[]
+  treatmentTypes TreatmentType[]
+  treatments     Treatment[]
+  treatmentTeeth TreatmentTooth[]
+  sessions       Session[]
+  payments       Payment[]
+  auditLogs      AuditLog[]
+}
+
+// WhatsApp credentials per clinic. The token is stored encrypted and never reaches the frontend.
+model ClinicWhatsapp {
+  clinicId          String   @id @db.Uuid
+  phoneNumberId     String
+  businessAccountId String?
+  accessTokenEnc    String
+  updatedAt         DateTime @updatedAt @db.Timestamptz(3)
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+}
+
+// ---------------------------------------------------------------- people
+model User {
+  id                String   @id @default(uuid()) @db.Uuid
+  clinicId          String?  @db.Uuid // null only for PLATFORM_ADMIN
+  username          String   @unique // store lowercase; unique across the whole system
+  passwordHash      String
+  fullName          String
+  phone             String?
+  role              Role
+  canManagePayments Boolean  @default(false)
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now()) @db.Timestamptz(3)
+
+  clinic Clinic? @relation(fields: [clinicId], references: [id])
+  doctor Doctor?
+
+  @@index([clinicId])
+}
+
+model Doctor {
+  id                 String   @id @default(uuid()) @db.Uuid
+  clinicId           String   @db.Uuid
+  userId             String?  @unique @db.Uuid // optional login account (the owner is also a doctor)
+  fullName           String
+  specialty          String?
+  phone              String?
+  appointmentMinutes Int      @default(30)
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now()) @db.Timestamptz(3)
+
+  clinic         Clinic                @relation(fields: [clinicId], references: [id])
+  user           User?                 @relation(fields: [userId], references: [id])
+  workingPeriods DoctorWorkingPeriod[]
+  appointments   Appointment[]
+  treatments     Treatment[]
+
+  @@index([clinicId])
+}
+
+// Several periods per day are allowed (morning and evening).
+model DoctorWorkingPeriod {
+  id          String @id @default(uuid()) @db.Uuid
+  clinicId    String @db.Uuid
+  doctorId    String @db.Uuid
+  weekday     Int // 0 = Sunday ... 6 = Saturday
+  startMinute Int // minutes from midnight, e.g. 540 = 09:00
+  endMinute   Int
+
+  clinic Clinic @relation(fields: [clinicId], references: [id])
+  doctor Doctor @relation(fields: [doctorId], references: [id])
+
+  @@index([clinicId, doctorId])
+}
+
+model Patient {
+  id            String    @id @default(uuid()) @db.Uuid
+  clinicId      String    @db.Uuid
+  fullName      String
+  phone         String // international format, e.g. +970599123456
+  nationalId    String?
+  birthDate     DateTime? @db.Date
+  gender        Gender?
+  region        String?
+  address       String?
+  notes         String?
+  medicalAlerts String?
+  archivedAt    DateTime? @db.Timestamptz(3)
+  createdAt     DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime  @updatedAt @db.Timestamptz(3)
+
+  clinic       Clinic        @relation(fields: [clinicId], references: [id])
+  appointments Appointment[]
+  treatments   Treatment[]
+  payments     Payment[]
+
+  @@unique([clinicId, nationalId])
+  @@index([clinicId, phone])
+  @@index([clinicId, fullName])
+}
+
+// ---------------------------------------------------------------- appointments
+model Appointment {
+  id           String            @id @default(uuid()) @db.Uuid
+  clinicId     String            @db.Uuid
+  patientId    String            @db.Uuid
+  doctorId     String            @db.Uuid
+  startsAt     DateTime          @db.Timestamptz(3)
+  endsAt       DateTime          @db.Timestamptz(3)
+  status       AppointmentStatus @default(PENDING)
+  notes        String?
+  cancelReason String?
+  confirmedAt  DateTime?         @db.Timestamptz(3)
+  completedAt  DateTime?         @db.Timestamptz(3)
+  cancelledAt  DateTime?         @db.Timestamptz(3)
+  createdAt    DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime          @updatedAt @db.Timestamptz(3)
+
+  clinic     Clinic       @relation(fields: [clinicId], references: [id])
+  patient    Patient      @relation(fields: [patientId], references: [id])
+  doctor     Doctor       @relation(fields: [doctorId], references: [id])
+  messages   MessageLog[]
+  session    Session?
+  treatments Treatment[]
+
+  @@index([clinicId, startsAt])
+  @@index([doctorId, startsAt])
+  @@index([patientId])
+}
+
+// One row per message per appointment. Reschedule updates the row, so nothing is sent twice.
+model MessageLog {
+  id            String           @id @default(uuid()) @db.Uuid
+  clinicId      String           @db.Uuid
+  appointmentId String           @db.Uuid
+  kind          MessageKind
+  status        MessageStatus    @default(SCHEDULED)
+  toPhone       String
+  scheduledFor  DateTime         @db.Timestamptz(3)
+  sentAt        DateTime?        @db.Timestamptz(3)
+  waMessageId   String?
+  errorMessage  String?
+  response      MessageResponse?
+  respondedAt   DateTime?        @db.Timestamptz(3)
+  createdAt     DateTime         @default(now()) @db.Timestamptz(3)
+
+  clinic      Clinic      @relation(fields: [clinicId], references: [id])
+  appointment Appointment @relation(fields: [appointmentId], references: [id])
+
+  @@unique([appointmentId, kind])
+  @@index([clinicId, status, scheduledFor])
+}
+
+// ---------------------------------------------------------------- treatments
+model TreatmentType {
+  id        String   @id @default(uuid()) @db.Uuid
+  clinicId  String   @db.Uuid
+  name      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  clinic     Clinic      @relation(fields: [clinicId], references: [id])
+  treatments Treatment[]
+
+  @@unique([clinicId, name])
+}
+
+// One treatment = one type + one or more teeth + ONE total cost + ONE session count.
+model Treatment {
+  id              String          @id @default(uuid()) @db.Uuid
+  clinicId        String          @db.Uuid
+  patientId       String          @db.Uuid
+  doctorId        String          @db.Uuid
+  treatmentTypeId String          @db.Uuid
+  appointmentId   String?         @db.Uuid // set when opened from a booked appointment
+  description     String?
+  totalCost       Int // smallest currency unit (agorot). Never float.
+  plannedSessions Int
+  status          TreatmentStatus @default(OPEN)
+  startedAt       DateTime        @db.Timestamptz(3)
+  closedAt        DateTime?       @db.Timestamptz(3)
+  createdAt       DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime        @updatedAt @db.Timestamptz(3)
+
+  clinic        Clinic           @relation(fields: [clinicId], references: [id])
+  patient       Patient          @relation(fields: [patientId], references: [id])
+  doctor        Doctor           @relation(fields: [doctorId], references: [id])
+  treatmentType TreatmentType    @relation(fields: [treatmentTypeId], references: [id])
+  appointment   Appointment?     @relation(fields: [appointmentId], references: [id])
+  teeth         TreatmentTooth[]
+  sessions      Session[]
+  payments      Payment[]
+
+  @@index([clinicId, patientId])
+  @@index([clinicId, status])
+}
+
+model TreatmentTooth {
+  clinicId    String @db.Uuid
+  treatmentId String @db.Uuid
+  toothCode   Int // FDI numbering: permanent 11-48, primary 51-85
+
+  clinic    Clinic    @relation(fields: [clinicId], references: [id])
+  treatment Treatment @relation(fields: [treatmentId], references: [id])
+
+  @@id([treatmentId, toothCode])
+  @@index([clinicId, toothCode])
+}
+
+model Session {
+  id            String        @id @default(uuid()) @db.Uuid
+  clinicId      String        @db.Uuid
+  treatmentId   String        @db.Uuid
+  number        Int
+  status        SessionStatus @default(PLANNED)
+  appointmentId String?       @unique @db.Uuid
+  completedAt   DateTime?     @db.Timestamptz(3)
+  notes         String?
+  createdAt     DateTime      @default(now()) @db.Timestamptz(3)
+
+  clinic      Clinic       @relation(fields: [clinicId], references: [id])
+  treatment   Treatment    @relation(fields: [treatmentId], references: [id])
+  appointment Appointment? @relation(fields: [appointmentId], references: [id])
+
+  @@unique([treatmentId, number])
+}
+
+// ---------------------------------------------------------------- money
+// Payments are never deleted. A wrong payment is voided with a reason and stays visible.
+model Payment {
+  id              String        @id @default(uuid()) @db.Uuid
+  clinicId        String        @db.Uuid
+  patientId       String        @db.Uuid
+  treatmentId     String        @db.Uuid
+  amount          Int // smallest currency unit, must be > 0
+  method          PaymentMethod
+  paidAt          DateTime      @db.Timestamptz(3)
+  note            String?
+  status          PaymentStatus @default(ACTIVE)
+  voidedAt        DateTime?     @db.Timestamptz(3)
+  voidReason      String?
+  voidedByUserId  String?       @db.Uuid
+  createdByUserId String        @db.Uuid
+  createdAt       DateTime      @default(now()) @db.Timestamptz(3)
+
+  clinic    Clinic    @relation(fields: [clinicId], references: [id])
+  patient   Patient   @relation(fields: [patientId], references: [id])
+  treatment Treatment @relation(fields: [treatmentId], references: [id])
+
+  @@index([clinicId, patientId])
+  @@index([treatmentId])
+  @@index([clinicId, paidAt])
+}
+
+model AuditLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  clinicId    String?  @db.Uuid
+  actorUserId String?  @db.Uuid
+  action      String
+  entityType  String
+  entityId    String
+  before      Json?
+  after       Json?
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+
+  clinic Clinic? @relation(fields: [clinicId], references: [id])
+
+  @@index([clinicId, createdAt])
+  @@index([entityType, entityId])
+}
