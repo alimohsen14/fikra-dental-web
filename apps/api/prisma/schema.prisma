@@ -124,8 +124,15 @@ model User {
   isActive          Boolean  @default(true)
   createdAt         DateTime @default(now()) @db.Timestamptz(3)
 
-  clinic Clinic? @relation(fields: [clinicId], references: [id])
-  doctor Doctor?
+  mustChangePassword         Boolean   @default(false)
+  passwordChangedAt          DateTime? @db.Timestamptz(3)
+  temporaryPasswordExpiresAt DateTime? @db.Timestamptz(3)
+  failedLoginCount           Int       @default(0)
+  lockedUntil                DateTime? @db.Timestamptz(3)
+
+  clinic        Clinic?        @relation(fields: [clinicId], references: [id])
+  doctor        Doctor?
+  refreshTokens RefreshToken[]
 
   @@index([clinicId])
 }
@@ -359,4 +366,22 @@ model AuditLog {
 
   @@index([clinicId, createdAt])
   @@index([entityType, entityId])
+}
+
+// Login sessions. Only a hash of the token is stored. Tokens rotate on every refresh;
+// `familyId` links a chain so a reused (stolen) token revokes the whole chain.
+// Auth tables are read before the clinic is known, so they are exempt from clinicId filtering.
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  familyId  String    @db.Uuid
+  tokenHash String    @unique
+  expiresAt DateTime  @db.Timestamptz(3)
+  revokedAt DateTime? @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([familyId])
 }
