@@ -6,6 +6,7 @@ import { REFRESH_COOKIE, REFRESH_TOKEN_TTL_DAYS } from './auth.constants.js';
 import { AllowMustChange, CurrentUser, Public } from './auth.decorators.js';
 import { changePasswordSchema, loginSchema, parseBody } from './auth.dto.js';
 import { AuthService } from './auth.service.js';
+import { AnyRole } from './roles.decorator.js';
 import type { IssuedSession } from './auth.service.js';
 import type { AuthUser } from './auth.types.js';
 
@@ -57,6 +58,7 @@ export class AuthController {
   }
 
   @AllowMustChange()
+  @AnyRole()
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('change-password')
   @HttpCode(200)
