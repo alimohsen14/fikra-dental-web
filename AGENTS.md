@@ -17,7 +17,7 @@ Multi-tenant web system for dental clinics. Many clinics share one platform; eac
 
 ## Non-negotiable rules
 1. Tenant isolation: every tenant table has `clinicId`. `clinicId` comes from the authenticated token, never from request input. Apply it centrally (Prisma extension or guard), not by hand per query. Add PostgreSQL Row Level Security as a second layer. Every feature needs a test proving clinic A cannot read or write clinic B's data.
-2. Roles: PLATFORM_ADMIN, OWNER, DOCTOR, SECRETARY, plus a separate "can manage payments" permission. PLATFORM_ADMIN never sees patient data. Check permissions on the server, never only in the UI. Doctors see only their own patients; secretaries see patients and appointments but no money.
+2. Roles: PLATFORM_ADMIN, OWNER, DOCTOR, SECRETARY, plus a separate "can manage payments" permission. PLATFORM_ADMIN never sees patient data. Check permissions on the server, never only in the UI. Patient records are shared by the whole clinic: owner, doctors and secretaries all see all patients of their clinic (name and phone are required, because WhatsApp depends on them). Secretaries see patients and appointments but no money.
 3. Money: integers in the smallest currency unit (or Decimal). Never float. Default currency ILS, set per clinic. Balances and debts are computed from payments, never stored.
 4. Payments are never deleted. A wrong payment is voided with a written reason (owner only) and stays visible. A payment cannot exceed the remaining balance. Log financial edits in an audit log.
 5. Never hard-delete patients, doctors or staff that have appointments, treatments or payments. Archive them.

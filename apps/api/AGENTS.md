@@ -9,3 +9,5 @@ Follow the root AGENTS.md. API specifics:
 - The raw `PrismaService` is only for login/tokens (src/auth) and the platform panel.
 - When creating rows, use scalar ids (`patientId: ...`), not relation `connect`. Before linking to another record by id, load it through `tenant.db` first so a foreign clinic's id is rejected.
 - Adding a model with a `clinicId` column requires adding it to TENANT_MODELS in src/tenant/tenant-scope.ts (a test fails if you forget).
+- Two database roles: the owner role (DATABASE_URL) is for login, tokens and the platform panel; `fikra_app` (TENANT_DATABASE_URL) is used only by TenantPrismaService and is restricted by PostgreSQL Row Level Security. After creating the role run once: `ALTER ROLE fikra_app PASSWORD '...'`. Never commit that password.
+- Every new table with a `clinicId` column needs, in its migration: ENABLE ROW LEVEL SECURITY, a `tenant_isolation` policy, and explicit GRANTs to fikra_app (no DELETE on payments, patients, doctors, users). A test in test/rls.e2e-spec.ts fails if one is missing.
