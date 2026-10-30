@@ -9,6 +9,7 @@ import { JwtAuthGuard } from './jwt-auth.guard.js';
 import { RolesGuard } from './roles.guard.js';
 import { PasswordService } from './password.service.js';
 import { TokenService } from './token.service.js';
+import { TotpService } from './totp.service.js';
 
 @Module({
   imports: [
@@ -29,10 +30,11 @@ import { TokenService } from './token.service.js';
     AuthService,
     PasswordService,
     TokenService,
+    TotpService,
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard }, // runs after the throttler
     { provide: APP_GUARD, useClass: RolesGuard }, // default deny: needs @Roles
   ],
-  exports: [PasswordService],
+  exports: [PasswordService, TotpService],
 })
 export class AuthModule {}

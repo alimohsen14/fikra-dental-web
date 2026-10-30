@@ -4,7 +4,7 @@ import type { CookieOptions, Request, Response } from 'express';
 import { isProduction } from '../config/env.js';
 import { REFRESH_COOKIE, REFRESH_TOKEN_TTL_DAYS } from './auth.constants.js';
 import { AllowMustChange, CurrentUser, Public } from './auth.decorators.js';
-import { changePasswordSchema, loginSchema, parseBody } from './auth.dto.js';
+import { changePasswordSchema, loginSchema, parseBody, twoFactorSchema } from './auth.dto.js';
 import { AuthService } from './auth.service.js';
 import { AnyRole } from './roles.decorator.js';
 import type { IssuedSession } from './auth.service.js';
@@ -29,8 +29,19 @@ export class AuthController {
   @HttpCode(200)
   async login(@Body() body: unknown, @Res({ passthrough: true }) res: Response) {
     const dto = parseBody(loginSchema, body);
-    const session = await this.auth.login(dto.username, dto.password);
-    return this.respond(res, session);
+    const result = await this.auth.login(dto.username, dto.password);
+    // Platform admins get a challenge instead of a session: step 2 is POST /auth/2fa/verify.
+    if ('twoFactorRequired' in result) return result;
+    return this.respond(res, result);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Post('2fa/verify')
+  @HttpCode(200)
+  async verifyTwoFactor(@Body() body: unknown, @Res({ passthrough: true }) res: Response) {
+    const dto = parseBody(twoFactorSchema, body);
+    return this.respond(res, await this.auth.verifyTwoFactor(dto.challengeToken, dto.code));
   }
 
   @Public()

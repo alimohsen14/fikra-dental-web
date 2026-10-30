@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { createHash, randomBytes } from 'node:crypto';
-import { ACCESS_TOKEN_TTL_SECONDS } from './auth.constants.js';
+import { getJwtSecret } from '../config/env.js';
+import { ACCESS_TOKEN_TTL_SECONDS, CHALLENGE_TTL_SECONDS } from './auth.constants.js';
 import type { AccessTokenPayload } from './auth.types.js';
 
 @Injectable()
@@ -16,6 +17,29 @@ export class TokenService {
   async verifyAccess(token: string): Promise<AccessTokenPayload | null> {
     try {
       return await this.jwt.verifyAsync<AccessTokenPayload>(token);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * "Password was right, now enter the two-factor code". Signed with a DIFFERENT secret than access
+   * tokens, so it can never be used as a login token.
+   */
+  signChallenge(userId: string): Promise<string> {
+    return this.jwt.signAsync(
+      { sub: userId, typ: 'mfa' },
+      { secret: getJwtSecret() + ':mfa', expiresIn: CHALLENGE_TTL_SECONDS },
+    );
+  }
+
+  /** Returns the user id, or null for any invalid/expired challenge. */
+  async verifyChallenge(token: string): Promise<string | null> {
+    try {
+      const p = await this.jwt.verifyAsync<{ sub: string; typ?: string }>(token, {
+        secret: getJwtSecret() + ':mfa',
+      });
+      return p.typ === 'mfa' ? p.sub : null;
     } catch {
       return null;
     }

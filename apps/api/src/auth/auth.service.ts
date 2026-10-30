@@ -15,9 +15,17 @@ import { ACCESS_DENIED_MESSAGES, checkClinicAccess } from './clinic-access.js';
 import type { SubscriptionWarning } from './clinic-access.js';
 import { PasswordService } from './password.service.js';
 import { TokenService } from './token.service.js';
+import { TotpService } from './totp.service.js';
 
 const GENERIC_LOGIN_ERROR = 'اسم المستخدم أو كلمة المرور غير صحيحة';
+const TWO_FACTOR_ERROR = 'رمز التحقق غير صحيح';
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Platform admins must pass a second step: the 6-digit code from their authenticator app. */
+export interface TwoFactorChallenge {
+  twoFactorRequired: true;
+  challengeToken: string;
+}
 
 export interface IssuedSession {
   accessToken: string;
@@ -36,11 +44,12 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly passwords: PasswordService,
     private readonly tokens: TokenService,
+    private readonly totp: TotpService,
   ) {
     this.dummyHash = this.passwords.hash('not-a-real-password');
   }
 
-  async login(username: string, password: string): Promise<IssuedSession> {
+  async login(username: string, password: string): Promise<IssuedSession | TwoFactorChallenge> {
     const user = await this.prisma.user.findUnique({
       where: { username: username.trim().toLowerCase() },
       include: { clinic: { select: { status: true, subscriptionEndsAt: true } } },
@@ -76,12 +85,66 @@ export class AuthService {
       throw new ForbiddenException({ code: access.reason, message: ACCESS_DENIED_MESSAGES[access.reason] });
     }
 
+    if (user.role === 'PLATFORM_ADMIN') {
+      if (!user.totpEnabledAt || !user.totpSecret) {
+        throw new ForbiddenException({
+          code: 'TWO_FACTOR_NOT_SET_UP',
+          message: 'حساب الأدمن بدون تحقق بخطوتين، أنشئه من جديد بالسكربت',
+        });
+      }
+      // The failed-attempt counter is NOT reset here, only after the code is accepted.
+      // Otherwise someone who knows the password could guess codes forever.
+      return { twoFactorRequired: true, challengeToken: await this.tokens.signChallenge(user.id) };
+    }
+
     await this.prisma.user.update({
       where: { id: user.id },
       data: { failedLoginCount: 0, lockedUntil: null },
     });
 
     return this.issueSession(user, crypto.randomUUID(), access.warning);
+  }
+
+  /** Step 2 for platform admins: the 6-digit app code, or one of the 8 backup recovery codes. */
+  async verifyTwoFactor(challengeToken: string, code: string): Promise<IssuedSession> {
+    const userId = await this.tokens.verifyChallenge(challengeToken);
+    if (!userId) throw new UnauthorizedException(TWO_FACTOR_ERROR);
+
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    const now = new Date();
+    if (
+      !user ||
+      !user.isActive ||
+      user.role !== 'PLATFORM_ADMIN' ||
+      !user.totpSecret ||
+      !user.totpEnabledAt ||
+      (user.lockedUntil && user.lockedUntil > now)
+    ) {
+      throw new UnauthorizedException(TWO_FACTOR_ERROR);
+    }
+
+    const accepted = /^\d{6}$/.test(code.trim())
+      ? await this.acceptAppCode(user.id, user.totpSecret, code.trim(), user.totpLastStep)
+      : await this.acceptRecoveryCode(user.id, code);
+    if (!accepted) {
+      await this.registerFailure(user.id);
+      throw new UnauthorizedException(TWO_FACTOR_ERROR);
+    }
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { failedLoginCount: 0, lockedUntil: null },
+    });
+    await this.prisma.auditLog.create({
+      data: {
+        clinicId: null,
+        actorUserId: user.id,
+        action: 'PLATFORM_ADMIN_LOGIN',
+        entityType: 'User',
+        entityId: user.id,
+      },
+    });
+    return this.issueSession(user, crypto.randomUUID(), null);
   }
 
   async refresh(rawToken: string): Promise<IssuedSession> {
@@ -183,6 +246,30 @@ export class AuthService {
   }
 
   // ------------------------------------------------------------ helpers
+
+  private async acceptAppCode(
+    userId: string,
+    encryptedSecret: string,
+    code: string,
+    lastStep: number | null,
+  ): Promise<boolean> {
+    const step = this.totp.verify(this.totp.decrypt(encryptedSecret), code);
+    if (step === null || (lastStep !== null && step <= lastStep)) return false; // wrong, or already used
+    // Atomic: if two requests try the same code at once, only one wins.
+    const claimed = await this.prisma.user.updateMany({
+      where: { id: userId, OR: [{ totpLastStep: null }, { totpLastStep: { lt: step } }] },
+      data: { totpLastStep: step },
+    });
+    return claimed.count === 1;
+  }
+
+  private async acceptRecoveryCode(userId: string, code: string): Promise<boolean> {
+    const used = await this.prisma.recoveryCode.updateMany({
+      where: { userId, codeHash: this.totp.hashRecoveryCode(code), usedAt: null },
+      data: { usedAt: new Date() },
+    });
+    return used.count === 1;
+  }
 
   private async registerFailure(userId: string): Promise<void> {
     const updated = await this.prisma.user.update({

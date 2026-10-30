@@ -22,3 +22,17 @@ export function getCorsOrigins(): string[] {
     .map((o) => o.trim())
     .filter(Boolean);
 }
+
+// 32 random bytes (base64) used to encrypt two-factor secrets in the database.
+// Generate one with: openssl rand -base64 32
+export function getTotpKey(): Buffer {
+  const raw = process.env.TOTP_ENCRYPTION_KEY;
+  if (!raw) {
+    throw new Error('TOTP_ENCRYPTION_KEY is not set. Check apps/api/.env');
+  }
+  const key = Buffer.from(raw, 'base64');
+  if (key.length !== 32) {
+    throw new Error('TOTP_ENCRYPTION_KEY must be 32 random bytes in base64 (openssl rand -base64 32)');
+  }
+  return key;
+}

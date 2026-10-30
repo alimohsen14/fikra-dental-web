@@ -6,6 +6,10 @@ export const loginSchema = z
   .object({ username: z.string().min(1).max(64), password: z.string().min(1).max(128) })
   .strict();
 
+export const twoFactorSchema = z
+  .object({ challengeToken: z.string().min(10).max(2000), code: z.string().trim().min(6).max(20) })
+  .strict();
+
 export const changePasswordSchema = z
   .object({ currentPassword: z.string().min(1).max(128), newPassword: z.string().min(1).max(128) })
   .strict();
