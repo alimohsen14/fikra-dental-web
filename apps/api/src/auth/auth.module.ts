@@ -18,7 +18,11 @@ import { TokenService } from './token.service.js';
       verifyOptions: { algorithms: ['HS256'] },
     }),
     // Default limit for every route (per IP). Login/refresh/change-password override it.
-    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
+    ThrottlerModule.forRoot({
+      throttlers: [{ ttl: 60_000, limit: 120 }],
+      // Automated tests log in dozens of times from one IP; vitest sets NODE_ENV=test.
+      skipIf: () => process.env.NODE_ENV === 'test',
+    }),
   ],
   controllers: [AuthController],
   providers: [

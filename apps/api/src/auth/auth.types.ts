@@ -1,4 +1,5 @@
 import type { Role } from '../generated/prisma/client.js';
+import type { SubscriptionWarning } from './clinic-access.js';
 
 // What we put inside the access token. clinicId comes from here and nowhere else.
 export interface AccessTokenPayload {
@@ -14,6 +15,9 @@ export interface AuthUser {
   id: string;
   role: Role;
   clinicId: string | null;
+  fullName: string;
   canManagePayments: boolean;
   mustChangePassword: boolean;
+  // Only filled for the clinic OWNER, while the subscription is in its grace days.
+  subscriptionWarning: SubscriptionWarning | null;
 }

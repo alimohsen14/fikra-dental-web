@@ -9,6 +9,7 @@ import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 import { PrismaService } from '../database/prisma.service.js';
 import { ALLOW_MUST_CHANGE, IS_PUBLIC } from './auth.decorators.js';
+import { ACCESS_DENIED_MESSAGES, checkClinicAccess } from './clinic-access.js';
 import type { AuthUser } from './auth.types.js';
 import { TokenService } from './token.service.js';
 
@@ -40,14 +41,19 @@ export class JwtAuthGuard implements CanActivate {
         id: true,
         role: true,
         clinicId: true,
+        fullName: true,
         canManagePayments: true,
         isActive: true,
         mustChangePassword: true,
-        clinic: { select: { status: true } },
+        clinic: { select: { status: true, subscriptionEndsAt: true } },
       },
     });
-    if (!user || !user.isActive || user.clinic?.status === 'SUSPENDED') {
-      throw new UnauthorizedException();
+    if (!user || !user.isActive) throw new UnauthorizedException();
+
+    // Suspended clinic, or subscription ended more than 3 days ago: blocked on the very next request.
+    const access = checkClinicAccess(user.clinic);
+    if (!access.allowed) {
+      throw new ForbiddenException({ code: access.reason, message: ACCESS_DENIED_MESSAGES[access.reason] });
     }
 
     if (
@@ -65,8 +71,10 @@ export class JwtAuthGuard implements CanActivate {
       id: user.id,
       role: user.role,
       clinicId: user.clinicId,
+      fullName: user.fullName,
       canManagePayments: user.canManagePayments,
       mustChangePassword: user.mustChangePassword,
+      subscriptionWarning: user.role === 'OWNER' ? access.warning : null,
     };
     return true;
   }

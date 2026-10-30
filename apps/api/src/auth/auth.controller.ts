@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, Post, Req, Res, UnauthorizedException } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Post, Req, Res, UnauthorizedException } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import type { CookieOptions, Request, Response } from 'express';
 import { isProduction } from '../config/env.js';
@@ -57,6 +57,24 @@ export class AuthController {
     res.clearCookie(REFRESH_COOKIE, cookieOptions());
   }
 
+  /** Who am I? Lets the web app restore the screen (and the owner's banner) after a page reload. */
+  @AllowMustChange()
+  @AnyRole()
+  @Get('me')
+  me(@CurrentUser() user: AuthUser) {
+    return {
+      user: {
+        id: user.id,
+        fullName: user.fullName,
+        role: user.role,
+        clinicId: user.clinicId,
+        canManagePayments: user.canManagePayments,
+      },
+      mustChangePassword: user.mustChangePassword,
+      subscriptionWarning: user.subscriptionWarning,
+    };
+  }
+
   @AllowMustChange()
   @AnyRole()
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
@@ -77,6 +95,11 @@ export class AuthController {
       ...cookieOptions(),
       maxAge: REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000,
     });
-    return { accessToken: s.accessToken, mustChangePassword: s.mustChangePassword, user: s.user };
+    return {
+      accessToken: s.accessToken,
+      mustChangePassword: s.mustChangePassword,
+      subscriptionWarning: s.subscriptionWarning,
+      user: s.user,
+    };
   }
 }

@@ -1,4 +1,9 @@
-import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import type { Role } from '../generated/prisma/client.js';
 import { PrismaService } from '../database/prisma.service.js';
 import {
@@ -6,6 +11,8 @@ import {
   MAX_FAILED_LOGINS,
   REFRESH_TOKEN_TTL_DAYS,
 } from './auth.constants.js';
+import { ACCESS_DENIED_MESSAGES, checkClinicAccess } from './clinic-access.js';
+import type { SubscriptionWarning } from './clinic-access.js';
 import { PasswordService } from './password.service.js';
 import { TokenService } from './token.service.js';
 
@@ -16,6 +23,7 @@ export interface IssuedSession {
   accessToken: string;
   refreshToken: string; // raw value, goes into the httpOnly cookie
   mustChangePassword: boolean;
+  subscriptionWarning: SubscriptionWarning | null; // owner only
   user: { id: string; fullName: string; role: string; clinicId: string | null };
 }
 
@@ -35,7 +43,7 @@ export class AuthService {
   async login(username: string, password: string): Promise<IssuedSession> {
     const user = await this.prisma.user.findUnique({
       where: { username: username.trim().toLowerCase() },
-      include: { clinic: { select: { status: true } } },
+      include: { clinic: { select: { status: true, subscriptionEndsAt: true } } },
     });
 
     if (!user) {
@@ -55,13 +63,17 @@ export class AuthService {
     }
 
     // Correct password, but the account may not be allowed in. Same generic error on purpose.
-    const suspended = user.clinic?.status === 'SUSPENDED';
     const tempExpired =
       user.mustChangePassword &&
       user.temporaryPasswordExpiresAt !== null &&
       user.temporaryPasswordExpiresAt < now;
-    if (!user.isActive || suspended || tempExpired) {
+    if (!user.isActive || tempExpired) {
       throw new UnauthorizedException(GENERIC_LOGIN_ERROR);
+    }
+    // The password is right, so it is safe to tell the person why they cannot enter.
+    const access = checkClinicAccess(user.clinic, now);
+    if (!access.allowed) {
+      throw new ForbiddenException({ code: access.reason, message: ACCESS_DENIED_MESSAGES[access.reason] });
     }
 
     await this.prisma.user.update({
@@ -69,7 +81,7 @@ export class AuthService {
       data: { failedLoginCount: 0, lockedUntil: null },
     });
 
-    return this.issueSession(user, crypto.randomUUID());
+    return this.issueSession(user, crypto.randomUUID(), access.warning);
   }
 
   async refresh(rawToken: string): Promise<IssuedSession> {
@@ -96,14 +108,15 @@ export class AuthService {
 
     const user = await this.prisma.user.findUnique({
       where: { id: stored.userId },
-      include: { clinic: { select: { status: true } } },
+      include: { clinic: { select: { status: true, subscriptionEndsAt: true } } },
     });
-    if (!user || !user.isActive || user.clinic?.status === 'SUSPENDED') {
+    const access = user ? checkClinicAccess(user.clinic) : null;
+    if (!user || !user.isActive || !access?.allowed) {
       await this.revokeFamily(stored.familyId);
       throw new UnauthorizedException();
     }
 
-    return this.issueSession(user, stored.familyId);
+    return this.issueSession(user, stored.familyId, access.warning);
   }
 
   async logout(rawToken: string | undefined): Promise<void> {
@@ -119,7 +132,10 @@ export class AuthService {
     currentPassword: string,
     newPassword: string,
   ): Promise<IssuedSession> {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { clinic: { select: { status: true, subscriptionEndsAt: true } } },
+    });
     if (!user) throw new UnauthorizedException();
 
     const ok = await this.passwords.verify(currentPassword, user.passwordHash);
@@ -162,7 +178,8 @@ export class AuthService {
       return u;
     });
 
-    return this.issueSession(updated, crypto.randomUUID());
+    const access = checkClinicAccess(user.clinic);
+    return this.issueSession(updated, crypto.randomUUID(), access.allowed ? access.warning : null);
   }
 
   // ------------------------------------------------------------ helpers
@@ -200,6 +217,7 @@ export class AuthService {
       mustChangePassword: boolean;
     },
     familyId: string,
+    warning: SubscriptionWarning | null,
   ): Promise<IssuedSession> {
     const accessToken = await this.tokens.signAccess({
       sub: user.id,
@@ -220,6 +238,7 @@ export class AuthService {
       accessToken,
       refreshToken: refresh.raw,
       mustChangePassword: user.mustChangePassword,
+      subscriptionWarning: user.role === 'OWNER' ? warning : null,
       user: { id: user.id, fullName: user.fullName, role: user.role, clinicId: user.clinicId },
     };
   }
