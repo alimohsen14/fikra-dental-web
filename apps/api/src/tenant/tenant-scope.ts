@@ -16,6 +16,8 @@ export const TENANT_MODELS = new Set([
   'Session',
   'Payment',
   'AuditLog',
+  'SubscriptionPeriod',
+  'SubscriptionPayment',
 ]);
 
 type Args = Record<string, unknown>;

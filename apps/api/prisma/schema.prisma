@@ -98,6 +98,9 @@ model Clinic {
   sessions       Session[]
   payments       Payment[]
   auditLogs      AuditLog[]
+
+  subscriptionPeriods  SubscriptionPeriod[]
+  subscriptionPayments SubscriptionPayment[]
 }
 
 // WhatsApp credentials per clinic. The token is stored encrypted and never reaches the frontend.
@@ -403,4 +406,44 @@ model RecoveryCode {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+// What the clinic owes the platform. One period per paid subscription term (created when you
+// create or renew a clinic with a price). `Clinic.subscriptionEndsAt` still decides access;
+// a period only tracks money. Not granted to fikra_app: clinic users can never see it.
+model SubscriptionPeriod {
+  id              String   @id @default(uuid()) @db.Uuid
+  clinicId        String   @db.Uuid
+  months          Int? // null when an exact end date was chosen
+  startsAt        DateTime @db.Timestamptz(3)
+  endsAt          DateTime @db.Timestamptz(3)
+  price           Int // smallest currency unit (agorot), >= 0
+  createdByUserId String?  @db.Uuid
+  createdAt       DateTime @default(now()) @db.Timestamptz(3)
+
+  clinic   Clinic                @relation(fields: [clinicId], references: [id])
+  payments SubscriptionPayment[]
+
+  @@index([clinicId, endsAt])
+}
+
+// Payments are never deleted: a wrong one is voided with a reason.
+model SubscriptionPayment {
+  id              String    @id @default(uuid()) @db.Uuid
+  periodId        String    @db.Uuid
+  clinicId        String    @db.Uuid
+  amount          Int // smallest currency unit, must be > 0
+  paidAt          DateTime  @db.Timestamptz(3)
+  note            String?
+  voidedAt        DateTime? @db.Timestamptz(3)
+  voidReason      String?
+  voidedByUserId  String?   @db.Uuid
+  createdByUserId String?   @db.Uuid
+  createdAt       DateTime  @default(now()) @db.Timestamptz(3)
+
+  period SubscriptionPeriod @relation(fields: [periodId], references: [id])
+  clinic Clinic             @relation(fields: [clinicId], references: [id])
+
+  @@index([periodId])
+  @@index([clinicId, paidAt])
 }
