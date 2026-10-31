@@ -11,6 +11,7 @@ import {
   MAX_FAILED_LOGINS,
   REFRESH_TOKEN_TTL_DAYS,
 } from './auth.constants.js';
+import type { ClinicBrand } from './auth.types.js';
 import { ACCESS_DENIED_MESSAGES, checkClinicAccess } from './clinic-access.js';
 import type { SubscriptionWarning } from './clinic-access.js';
 import { PasswordService } from './password.service.js';
@@ -27,12 +28,22 @@ export interface TwoFactorChallenge {
   challengeToken: string;
 }
 
+// Clinic fields loaded with the user: access check (status, end date) and branding for the web app.
+const CLINIC_SELECT = {
+  name: true,
+  themeColor: true,
+  logoUrl: true,
+  status: true,
+  subscriptionEndsAt: true,
+} as const;
+
 export interface IssuedSession {
   accessToken: string;
   refreshToken: string; // raw value, goes into the httpOnly cookie
   mustChangePassword: boolean;
   subscriptionWarning: SubscriptionWarning | null; // owner only
   user: { id: string; fullName: string; role: string; clinicId: string | null };
+  clinic: ClinicBrand | null;
 }
 
 @Injectable()
@@ -52,7 +63,7 @@ export class AuthService {
   async login(username: string, password: string): Promise<IssuedSession | TwoFactorChallenge> {
     const user = await this.prisma.user.findUnique({
       where: { username: username.trim().toLowerCase() },
-      include: { clinic: { select: { status: true, subscriptionEndsAt: true } } },
+      include: { clinic: { select: CLINIC_SELECT } },
     });
 
     if (!user) {
@@ -144,7 +155,7 @@ export class AuthService {
         entityId: user.id,
       },
     });
-    return this.issueSession(user, crypto.randomUUID(), null);
+    return this.issueSession({ ...user, clinic: null }, crypto.randomUUID(), null);
   }
 
   async refresh(rawToken: string): Promise<IssuedSession> {
@@ -171,7 +182,7 @@ export class AuthService {
 
     const user = await this.prisma.user.findUnique({
       where: { id: stored.userId },
-      include: { clinic: { select: { status: true, subscriptionEndsAt: true } } },
+      include: { clinic: { select: CLINIC_SELECT } },
     });
     const access = user ? checkClinicAccess(user.clinic) : null;
     if (!user || !user.isActive || !access?.allowed) {
@@ -197,7 +208,7 @@ export class AuthService {
   ): Promise<IssuedSession> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      include: { clinic: { select: { status: true, subscriptionEndsAt: true } } },
+      include: { clinic: { select: CLINIC_SELECT } },
     });
     if (!user) throw new UnauthorizedException();
 
@@ -242,7 +253,7 @@ export class AuthService {
     });
 
     const access = checkClinicAccess(user.clinic);
-    return this.issueSession(updated, crypto.randomUUID(), access.allowed ? access.warning : null);
+    return this.issueSession({ ...updated, clinic: user.clinic }, crypto.randomUUID(), access.allowed ? access.warning : null);
   }
 
   // ------------------------------------------------------------ helpers
@@ -302,6 +313,7 @@ export class AuthService {
       role: Role;
       clinicId: string | null;
       mustChangePassword: boolean;
+      clinic: { name: string; themeColor: string | null; logoUrl: string | null } | null;
     },
     familyId: string,
     warning: SubscriptionWarning | null,
@@ -327,6 +339,10 @@ export class AuthService {
       mustChangePassword: user.mustChangePassword,
       subscriptionWarning: user.role === 'OWNER' ? warning : null,
       user: { id: user.id, fullName: user.fullName, role: user.role, clinicId: user.clinicId },
+      clinic:
+        user.clinic && user.clinicId
+          ? { id: user.clinicId, name: user.clinic.name, themeColor: user.clinic.themeColor, logoUrl: user.clinic.logoUrl }
+          : null,
     };
   }
 }

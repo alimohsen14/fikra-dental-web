@@ -81,6 +81,7 @@ export class AuthController {
         clinicId: user.clinicId,
         canManagePayments: user.canManagePayments,
       },
+      clinic: user.clinic,
       mustChangePassword: user.mustChangePassword,
       subscriptionWarning: user.subscriptionWarning,
     };
@@ -111,6 +112,7 @@ export class AuthController {
       mustChangePassword: s.mustChangePassword,
       subscriptionWarning: s.subscriptionWarning,
       user: s.user,
+      clinic: s.clinic,
     };
   }
 }

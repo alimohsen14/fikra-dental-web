@@ -10,6 +10,14 @@ export interface AccessTokenPayload {
   mcp: boolean;
 }
 
+// What the web app needs to look like the clinic: name, accent color and logo.
+export interface ClinicBrand {
+  id: string;
+  name: string;
+  themeColor: string | null;
+  logoUrl: string | null;
+}
+
 // What guards attach to request.user after loading the user from the DB.
 export interface AuthUser {
   id: string;
@@ -18,6 +26,7 @@ export interface AuthUser {
   fullName: string;
   canManagePayments: boolean;
   mustChangePassword: boolean;
+  clinic: ClinicBrand | null; // null for PLATFORM_ADMIN
   // Only filled for the clinic OWNER, while the subscription is in its grace days.
   subscriptionWarning: SubscriptionWarning | null;
 }

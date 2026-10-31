@@ -45,7 +45,9 @@ export class JwtAuthGuard implements CanActivate {
         canManagePayments: true,
         isActive: true,
         mustChangePassword: true,
-        clinic: { select: { status: true, subscriptionEndsAt: true } },
+        clinic: {
+          select: { name: true, themeColor: true, logoUrl: true, status: true, subscriptionEndsAt: true },
+        },
       },
     });
     if (!user || !user.isActive) throw new UnauthorizedException();
@@ -74,6 +76,9 @@ export class JwtAuthGuard implements CanActivate {
       fullName: user.fullName,
       canManagePayments: user.canManagePayments,
       mustChangePassword: user.mustChangePassword,
+      clinic: user.clinic
+        ? { id: user.clinicId!, name: user.clinic.name, themeColor: user.clinic.themeColor, logoUrl: user.clinic.logoUrl }
+        : null,
       subscriptionWarning: user.role === 'OWNER' ? access.warning : null,
     };
     return true;

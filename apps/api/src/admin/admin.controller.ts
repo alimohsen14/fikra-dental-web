@@ -1,8 +1,10 @@
-import { Body, Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
 import { CurrentUser } from '../auth/auth.decorators.js';
 import { parseBody } from '../auth/auth.dto.js';
 import type { AuthUser } from '../auth/auth.types.js';
 import { Roles } from '../auth/roles.decorator.js';
+import { updateClinicSchema } from '../clinic/clinic.dto.js';
+import { ClinicService } from '../clinic/clinic.service.js';
 import {
   addPaymentSchema,
   auditQuerySchema,
@@ -19,7 +21,10 @@ import { AdminService } from './admin.service.js';
 @Roles('PLATFORM_ADMIN')
 @Controller('admin')
 export class AdminController {
-  constructor(private readonly admin: AdminService) {}
+  constructor(
+    private readonly admin: AdminService,
+    private readonly clinics: ClinicService,
+  ) {}
 
   @Post('clinics')
   create(@CurrentUser() actor: AuthUser, @Body() body: unknown) {
@@ -34,6 +39,11 @@ export class AdminController {
   @Get('clinics/:id')
   get(@Param('id') id: string) {
     return this.admin.getClinic(parseBody(idSchema, id));
+  }
+
+  @Patch('clinics/:id')
+  update(@CurrentUser() actor: AuthUser, @Param('id') id: string, @Body() body: unknown) {
+    return this.clinics.update(parseBody(idSchema, id), actor.id, parseBody(updateClinicSchema, body), 'CLINIC_UPDATED');
   }
 
   @Post('clinics/:id/suspend')
