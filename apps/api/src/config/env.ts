@@ -36,3 +36,8 @@ export function getTotpKey(): Buffer {
   }
   return key;
 }
+
+// Where uploaded files (clinic logos) are stored. Must be a persistent disk/volume in production.
+export function getUploadDir(): string {
+  return process.env.UPLOAD_DIR ?? './uploads';
+}

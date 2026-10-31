@@ -1,122 +1,53 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router'
+import { AuthProvider, useAuth } from './auth/AuthContext.tsx'
+import { homePathFor } from './auth/paths.ts'
+import { RequireAuth } from './auth/RequireAuth.tsx'
+import AdminLayout from './layouts/AdminLayout.tsx'
+import ClinicLayout from './layouts/ClinicLayout.tsx'
+import ClinicPage from './pages/admin/ClinicPage.tsx'
+import ClinicsPage from './pages/admin/ClinicsPage.tsx'
+import CreateClinicPage from './pages/admin/CreateClinicPage.tsx'
+import ChangePasswordPage from './pages/ChangePasswordPage.tsx'
+import LoginPage from './pages/LoginPage.tsx'
+import { NewPatientPage, PatientPage } from './pages/PatientFormPage.tsx'
+import PatientsPage from './pages/PatientsPage.tsx'
+import SettingsPage from './pages/SettingsPage.tsx'
 
-function App() {
-  const [count, setCount] = useState(0)
-
-  return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+function HomeRedirect() {
+  const { ready, session } = useAuth()
+  if (!ready) return <p className="p-8 text-muted">جاري التحميل...</p>
+  if (!session) return <Navigate to="/login" replace />
+  if (session.mustChangePassword) return <Navigate to="/change-password" replace />
+  return <Navigate to={homePathFor(session.user.role)} replace />
 }
 
-export default App
+export default function App() {
+  return (
+    <AuthProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/change-password" element={<ChangePasswordPage />} />
+          <Route element={<RequireAuth roles={['PLATFORM_ADMIN']} />}>
+            <Route element={<AdminLayout />}>
+              <Route path="/admin" element={<ClinicsPage />} />
+              <Route path="/admin/clinics/new" element={<CreateClinicPage />} />
+              <Route path="/admin/clinics/:id" element={<ClinicPage />} />
+            </Route>
+          </Route>
+          <Route element={<RequireAuth roles={['OWNER', 'DOCTOR', 'SECRETARY']} />}>
+            <Route element={<ClinicLayout />}>
+              <Route path="/patients" element={<PatientsPage />} />
+              <Route path="/patients/new" element={<NewPatientPage />} />
+              <Route path="/patients/:id" element={<PatientPage />} />
+              <Route element={<RequireAuth roles={['OWNER']} />}>
+                <Route path="/settings" element={<SettingsPage />} />
+              </Route>
+            </Route>
+          </Route>
+          <Route path="*" element={<HomeRedirect />} />
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
+  )
+}
