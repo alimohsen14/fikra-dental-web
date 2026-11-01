@@ -1,0 +1,70 @@
+import { z } from 'zod';
+import { isValidTooth } from './teeth.js';
+
+export const idSchema = z.uuid();
+
+const MAX_MONEY = 100_000_000; // 1,000,000 shekels, in agorot
+const emptyToUndefined = (v: unknown) => (typeof v === 'string' && v.trim() === '' ? undefined : v);
+const emptyToNull = (v: unknown) => (typeof v === 'string' && v.trim() === '' ? null : v);
+
+const toothCodes = z
+  .array(z.number().int().refine(isValidTooth, 'invalid tooth'))
+  .min(1)
+  .max(32)
+  .refine((a) => new Set(a).size === a.length, 'duplicate tooth');
+const money = z.number().int().min(0).max(MAX_MONEY);
+const sessions = z.number().int().min(1).max(50);
+const instant = z.string().datetime({ offset: true }).transform((s) => new Date(s));
+
+export const createTreatmentSchema = z
+  .object({
+    patientId: idSchema,
+    doctorId: idSchema.optional(),
+    treatmentTypeId: idSchema,
+    toothCodes,
+    description: z.preprocess(emptyToUndefined, z.string().trim().max(1000).optional()),
+    totalCost: money,
+    plannedSessions: sessions,
+    appointmentId: idSchema.optional(),
+    startedAt: instant.optional(),
+  })
+  .strict();
+
+export const updateTreatmentSchema = z
+  .object({
+    treatmentTypeId: idSchema.optional(),
+    toothCodes: toothCodes.optional(),
+    description: z.preprocess(emptyToNull, z.string().trim().max(1000).nullable().optional()),
+    totalCost: money.optional(),
+    plannedSessions: sessions.optional(),
+  })
+  .strict()
+  .refine((v) => Object.keys(v).length > 0, { message: 'nothing to change' });
+
+export const listTreatmentsSchema = z
+  .object({ patientId: idSchema.optional(), status: z.enum(['OPEN', 'CLOSED', 'CANCELLED']).optional() })
+  .strict();
+
+export const completeSessionSchema = z.object({ notes: z.preprocess(emptyToUndefined, z.string().trim().max(1000).optional()) }).strict();
+export const cancelTreatmentSchema = z.object({ reason: z.preprocess(emptyToUndefined, z.string().trim().min(2).max(300).optional()) }).strict();
+
+export const createPaymentSchema = z
+  .object({
+    amount: z.number().int().min(1).max(MAX_MONEY),
+    method: z.enum(['CASH', 'CARD', 'TRANSFER', 'OTHER']),
+    paidAt: instant,
+    note: z.preprocess(emptyToUndefined, z.string().trim().max(300).optional()),
+  })
+  .strict();
+export const voidPaymentSchema = z.object({ reason: z.string().trim().min(2).max(300) }).strict();
+
+export const createTypeSchema = z.object({ name: z.string().trim().min(2).max(80) }).strict();
+export const updateTypeSchema = z
+  .object({ name: z.string().trim().min(2).max(80).optional(), isActive: z.boolean().optional() })
+  .strict()
+  .refine((v) => Object.keys(v).length > 0, { message: 'nothing to change' });
+
+export type CreateTreatmentDto = z.infer<typeof createTreatmentSchema>;
+export type UpdateTreatmentDto = z.infer<typeof updateTreatmentSchema>;
+export type ListTreatmentsQuery = z.infer<typeof listTreatmentsSchema>;
+export type CreatePaymentDto = z.infer<typeof createPaymentSchema>;

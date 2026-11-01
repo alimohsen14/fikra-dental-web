@@ -1,0 +1,460 @@
+import 'dotenv/config';
+import { randomUUID } from 'node:crypto';
+import type { INestApplication } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
+import cookieParser from 'cookie-parser';
+import request from 'supertest';
+import { AppModule } from '../src/app.module.js';
+import { PasswordService } from '../src/auth/password.service.js';
+import { TokenService } from '../src/auth/token.service.js';
+import { PrismaService } from '../src/database/prisma.service.js';
+import type { Role } from '../src/generated/prisma/client.js';
+
+// Real database. Creates its own clinics/users with random names and deletes them at the end.
+describe('Treatments, sessions and payments (e2e)', () => {
+  let app: INestApplication;
+  let prisma: PrismaService;
+  const tag = randomUUID().slice(0, 8);
+  const clinicIds: string[] = [];
+  const http = () => request(app.getHttpServer());
+  const bearer = (t: string) => ({ Authorization: `Bearer ${t}` });
+  const now = () => new Date().toISOString();
+
+  async function makeClinic(name: string) {
+    const clinic = await prisma.clinic.create({ data: { name: `${name}-${tag}` } });
+    clinicIds.push(clinic.id);
+    const hash = await app.get(PasswordService).hash('Test-Pass-12345');
+    const users = {} as Record<'OWNER' | 'DOCTOR' | 'DOCTOR2' | 'SECRETARY' | 'KEYHOLDER', { id: string; token: string }>;
+    const defs: [keyof typeof users, Role, boolean][] = [['OWNER', 'OWNER', true], ['DOCTOR', 'DOCTOR', false], ['DOCTOR2', 'DOCTOR', false], ['SECRETARY', 'SECRETARY', false], ['KEYHOLDER', 'SECRETARY', true]];
+    for (const [key, role, canManagePayments] of defs) {
+      const username = `${name}_${key}_${tag}`.toLowerCase();
+      const u = await prisma.user.create({ data: { username, passwordHash: hash, fullName: username, role, clinicId: clinic.id, canManagePayments } });
+      users[key] = { id: u.id, token: await app.get(TokenService).signAccess({ sub: u.id, role, clinicId: clinic.id, mcp: false }) };
+    }
+    const docOwner = await prisma.doctor.create({ data: { clinicId: clinic.id, userId: users.OWNER.id, fullName: 'Owner Doc' } });
+    const doc1 = await prisma.doctor.create({ data: { clinicId: clinic.id, userId: users.DOCTOR.id, fullName: 'Doc One' } });
+    const doc2 = await prisma.doctor.create({ data: { clinicId: clinic.id, userId: users.DOCTOR2.id, fullName: 'Doc Two' } });
+    const patient = await prisma.patient.create({ data: { clinicId: clinic.id, fullName: `Patient ${name}`, phone: '+970599000111' } });
+    const type = await prisma.treatmentType.create({ data: { clinicId: clinic.id, name: 'حشوة' } });
+    return { id: clinic.id, users, docOwner: docOwner.id, doc1: doc1.id, doc2: doc2.id, patient: patient.id, type: type.id };
+  }
+  type Clinic = Awaited<ReturnType<typeof makeClinic>>;
+
+  const body = (c: Clinic, over: Record<string, unknown> = {}) => ({ patientId: c.patient, treatmentTypeId: c.type, toothCodes: [16], totalCost: 100_000, plannedSessions: 2, ...over });
+  const create = (token: string, c: Clinic, over: Record<string, unknown> = {}) => http().post('/treatments').set(bearer(token)).send(body(c, over));
+  const pay = (token: string, id: string, over: Record<string, unknown> = {}) => http().post(`/treatments/${id}/payments`).set(bearer(token)).send({ amount: 10_000, method: 'CASH', paidAt: now(), ...over });
+  const complete = (token: string, id: string, n: number) => http().post(`/treatments/${id}/sessions/${n}/complete`).set(bearer(token)).send({});
+
+  beforeAll(async () => {
+    const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    app = moduleRef.createNestApplication();
+    app.use(cookieParser());
+    await app.init();
+    prisma = app.get(PrismaService);
+  }, 60_000);
+
+  afterAll(async () => {
+    const w = { clinicId: { in: clinicIds } };
+    await prisma.payment.deleteMany({ where: w });
+    await prisma.session.deleteMany({ where: w });
+    await prisma.treatmentTooth.deleteMany({ where: w });
+    await prisma.treatment.deleteMany({ where: w });
+    await prisma.treatmentType.deleteMany({ where: w });
+    await prisma.auditLog.deleteMany({ where: w });
+    await prisma.appointment.deleteMany({ where: w });
+    await prisma.patient.deleteMany({ where: w });
+    await prisma.doctorWorkingPeriod.deleteMany({ where: w });
+    await prisma.doctor.deleteMany({ where: w });
+    await prisma.user.deleteMany({ where: w });
+    await prisma.clinic.deleteMany({ where: { id: { in: clinicIds } } });
+    await app.close();
+  });
+
+  // ---------------------------------------------------------------- treatment types
+  it('treatment types: owner and doctor add, only the owner renames or stops; duplicates refused; isolated per clinic', async () => {
+    const c = await makeClinic('types');
+    const other = await makeClinic('types2');
+    const t = (await http().post('/treatment-types').set(bearer(c.users.DOCTOR.token)).send({ name: 'تقويم' }).expect(201)).body;
+    expect(t).toMatchObject({ name: 'تقويم', isActive: true });
+    await http().post('/treatment-types').set(bearer(c.users.OWNER.token)).send({ name: 'تقويم' }).expect(409);
+    await http().post('/treatment-types').set(bearer(c.users.OWNER.token)).send({ name: 'x' }).expect(400);
+    await http().post('/treatment-types').set(bearer(c.users.OWNER.token)).send({ name: 'خلع', clinicId: other.id }).expect(400);
+    await http().post('/treatment-types').set(bearer(other.users.OWNER.token)).send({ name: 'تقويم' }).expect(201); // same name in another clinic is fine
+    await http().patch(`/treatment-types/${t.id}`).set(bearer(c.users.DOCTOR.token)).send({ isActive: false }).expect(403);
+    await http().patch(`/treatment-types/${t.id}`).set(bearer(other.users.OWNER.token)).send({ isActive: false }).expect(404);
+    const stopped = await http().patch(`/treatment-types/${t.id}`).set(bearer(c.users.OWNER.token)).send({ isActive: false }).expect(200);
+    expect(stopped.body.isActive).toBe(false);
+    await create(c.users.OWNER.token, c, { treatmentTypeId: t.id, doctorId: c.docOwner }).expect(400); // a stopped type cannot be used
+    const list = await http().get('/treatment-types').set(bearer(c.users.OWNER.token)).expect(200);
+    expect(list.body.map((x: { name: string }) => x.name).sort()).toEqual(['تقويم', 'حشوة']);
+    await http().get('/treatment-types').set(bearer(c.users.SECRETARY.token)).expect(403);
+  });
+
+  // ---------------------------------------------------------------- create
+  it('creates a treatment: sessions 1..n are planned automatically, teeth saved, audited, owner defaults to own doctor record', async () => {
+    const c = await makeClinic('create');
+    const res = await create(c.users.OWNER.token, c, { toothCodes: [16, 17, 54], plannedSessions: 3, description: 'حشوة عميقة' }).expect(201);
+    expect(res.body).toMatchObject({
+      status: 'OPEN',
+      totalCost: 100_000,
+      plannedSessions: 3,
+      toothCodes: [16, 17, 54],
+      doctor: { id: c.docOwner },
+      treatmentType: { name: 'حشوة' },
+      paid: 0,
+      remaining: 100_000,
+      payments: [],
+    });
+    expect(res.body.sessions.map((s: { number: number; status: string }) => [s.number, s.status])).toEqual([[1, 'PLANNED'], [2, 'PLANNED'], [3, 'PLANNED']]);
+    expect(await prisma.auditLog.count({ where: { clinicId: c.id, action: 'TREATMENT_CREATED', entityId: res.body.id } })).toBe(1);
+    const got = await http().get(`/treatments/${res.body.id}`).set(bearer(c.users.OWNER.token)).expect(200);
+    expect(got.body.id).toBe(res.body.id);
+    const list = await http().get(`/treatments?patientId=${c.patient}`).set(bearer(c.users.OWNER.token)).expect(200);
+    expect(list.body.map((x: { id: string }) => x.id)).toEqual([res.body.id]);
+  });
+
+  it('refuses bad input: teeth, money, sessions, unknown fields', async () => {
+    const c = await makeClinic('bad');
+    const t = c.users.OWNER.token;
+    for (const over of [
+      { toothCodes: [] }, { toothCodes: [19] }, { toothCodes: [49] }, { toothCodes: [56] }, { toothCodes: [16, 16] }, { toothCodes: ['16'] }, { toothCodes: [16.5] },
+      { totalCost: 150.5 }, { totalCost: -1 }, { totalCost: 100_000_001 }, { totalCost: '1000' },
+      { plannedSessions: 0 }, { plannedSessions: 51 }, { plannedSessions: 1.5 },
+      { clinicId: randomUUID() }, { status: 'CLOSED' }, { patientId: 'nope' },
+    ]) await create(t, c, over).expect(400);
+    await create(t, c, { totalCost: 0 }).expect(201); // a free treatment is allowed
+    expect(await prisma.treatment.count({ where: { clinicId: c.id } })).toBe(1);
+  });
+
+  it('refuses unknown or foreign things, archived patients, stopped doctors, future start dates', async () => {
+    const c = await makeClinic('refs');
+    const other = await makeClinic('refs2');
+    const t = c.users.OWNER.token;
+    await create(t, c, { patientId: randomUUID() }).expect(404);
+    await create(t, c, { patientId: other.patient }).expect(404);
+    await create(t, c, { treatmentTypeId: other.type }).expect(404);
+    await create(t, c, { doctorId: other.docOwner }).expect(404);
+    await create(t, c, { startedAt: new Date(Date.now() + 86_400_000).toISOString() }).expect(400);
+    await prisma.doctor.update({ where: { id: c.doc2 }, data: { isActive: false } });
+    await create(t, c, { doctorId: c.doc2 }).expect(400);
+    await prisma.patient.update({ where: { id: c.patient }, data: { archivedAt: new Date() } });
+    await create(t, c).expect(400);
+    expect(await prisma.treatment.count({ where: { clinicId: c.id } })).toBe(0);
+  });
+
+  it('links to a booked appointment only when it matches patient and doctor, and only once', async () => {
+    const c = await makeClinic('apt');
+    const start = new Date(Date.now() + 86_400_000);
+    const mk = (doctorId: string, status: 'PENDING' | 'CANCELLED' = 'PENDING') => prisma.appointment.create({ data: { clinicId: c.id, patientId: c.patient, doctorId, status, startsAt: start, endsAt: new Date(start.getTime() + 1_800_000) } });
+    const apt = await mk(c.doc1);
+    const t = c.users.DOCTOR.token;
+    await create(t, c, { appointmentId: (await mk(c.doc2)).id }).expect(400); // someone else's appointment
+    const later = new Date(start.getTime() + 7_200_000);
+    const cancelled = await prisma.appointment.create({ data: { clinicId: c.id, patientId: c.patient, doctorId: c.doc1, status: 'CANCELLED', startsAt: later, endsAt: new Date(later.getTime() + 1_800_000) } });
+    await create(t, c, { appointmentId: cancelled.id }).expect(400);
+    const ok = await create(t, c, { appointmentId: apt.id }).expect(201);
+    expect(ok.body.appointmentId).toBe(apt.id);
+    await create(t, c, { appointmentId: apt.id }).expect(409);
+    await create(t, c, { appointmentId: randomUUID() }).expect(404);
+  });
+
+  // ---------------------------------------------------------------- who can do what
+  it('a doctor writes only their own treatments and never sees another doctor\'s', async () => {
+    const c = await makeClinic('docscope');
+    const mine = (await create(c.users.DOCTOR.token, c).expect(201)).body;
+    expect(mine.doctor.id).toBe(c.doc1); // forced to the doctor himself
+    await create(c.users.DOCTOR.token, c, { doctorId: c.doc2 }).expect(403);
+    const theirs = (await create(c.users.OWNER.token, c, { doctorId: c.doc2 }).expect(201)).body;
+
+    const list = await http().get('/treatments').set(bearer(c.users.DOCTOR.token)).expect(200);
+    expect(list.body.map((x: { id: string }) => x.id)).toEqual([mine.id]);
+    expect((await http().get('/treatments').set(bearer(c.users.OWNER.token)).expect(200)).body).toHaveLength(2);
+    const d = c.users.DOCTOR.token;
+    await http().get(`/treatments/${theirs.id}`).set(bearer(d)).expect(404);
+    await http().patch(`/treatments/${theirs.id}`).set(bearer(d)).send({ description: 'x' }).expect(404);
+    await complete(d, theirs.id, 1).expect(404);
+    await http().post(`/treatments/${theirs.id}/cancel`).set(bearer(d)).send({}).expect(404);
+  });
+
+  it('money: a doctor without the payments key sees the agreed cost but no paid/remaining/payments, and cannot record payments', async () => {
+    const c = await makeClinic('nomoney');
+    const t = (await create(c.users.DOCTOR.token, c).expect(201)).body;
+    expect(t).toMatchObject({ totalCost: 100_000 });
+    for (const k of ['paid', 'remaining', 'payments']) expect(t).not.toHaveProperty(k);
+    await pay(c.users.DOCTOR.token, t.id).expect(403);
+    await http().get(`/patients/${c.patient}/finance`).set(bearer(c.users.DOCTOR.token)).expect(403);
+    const list = await http().get('/treatments').set(bearer(c.users.DOCTOR.token)).expect(200);
+    expect(JSON.stringify(list.body)).not.toMatch(/"paid"|"remaining"|"payments"/);
+    await prisma.user.update({ where: { id: c.users.DOCTOR.id }, data: { canManagePayments: true } }); // the owner gives the key
+    await pay(c.users.DOCTOR.token, t.id).expect(201);
+    const after = await http().get(`/treatments/${t.id}`).set(bearer(c.users.DOCTOR.token)).expect(200);
+    expect(after.body).toMatchObject({ paid: 10_000, remaining: 90_000 });
+  });
+
+  it('a secretary: nothing without the key; with the key she sees treatments and records payments, but cannot create or change treatments', async () => {
+    const c = await makeClinic('secretary');
+    const t = (await create(c.users.OWNER.token, c).expect(201)).body;
+    const s = c.users.SECRETARY.token;
+    await http().get('/treatments').set(bearer(s)).expect(403);
+    await http().get(`/treatments/${t.id}`).set(bearer(s)).expect(403);
+    await pay(s, t.id).expect(403);
+    await create(s, c).expect(403);
+
+    const k = c.users.KEYHOLDER.token;
+    const seen = await http().get(`/treatments/${t.id}`).set(bearer(k)).expect(200);
+    expect(seen.body).toMatchObject({ paid: 0, remaining: 100_000 });
+    await pay(k, t.id).expect(201);
+    await create(k, c).expect(403);
+    await http().patch(`/treatments/${t.id}`).set(bearer(k)).send({ totalCost: 5 }).expect(403);
+    await complete(k, t.id, 1).expect(403);
+    await http().post(`/treatments/${t.id}/cancel`).set(bearer(k)).send({}).expect(403);
+    await http().post('/treatment-types').set(bearer(k)).send({ name: 'جديد' }).expect(403);
+  });
+
+  it('platform admin and anonymous are refused everywhere', async () => {
+    const c = await makeClinic('anon');
+    const t = (await create(c.users.OWNER.token, c).expect(201)).body;
+    const admin = await prisma.user.create({ data: { username: `padmin_${tag}`, passwordHash: 'x', fullName: 'A', role: 'PLATFORM_ADMIN' } });
+    const adminToken = await app.get(TokenService).signAccess({ sub: admin.id, role: 'PLATFORM_ADMIN', clinicId: null, mcp: false });
+    for (const path of ['/treatments', `/treatments/${t.id}`, '/treatment-types', `/patients/${c.patient}/finance`]) {
+      await http().get(path).expect(401);
+      await http().get(path).set(bearer(adminToken)).expect(403);
+    }
+    await http().post(`/treatments/${t.id}/payments`).set(bearer(adminToken)).send({ amount: 1, method: 'CASH', paidAt: now() }).expect(403);
+    await http().post(`/payments/${randomUUID()}/void`).set(bearer(adminToken)).send({ reason: 'xx' }).expect(403);
+    await prisma.user.delete({ where: { id: admin.id } });
+  });
+
+  // ---------------------------------------------------------------- payments
+  it('payments: partial, then full; never above the remaining; whole numbers only; no future dates', async () => {
+    const c = await makeClinic('pay');
+    const o = c.users.OWNER.token;
+    const t = (await create(o, c, { totalCost: 50_000, plannedSessions: 1 }).expect(201)).body;
+    const first = await pay(o, t.id, { amount: 20_000, method: 'CARD', note: 'دفعة أولى' }).expect(201);
+    expect(first.body).toMatchObject({ paid: 20_000, remaining: 30_000, status: 'OPEN' });
+    expect(first.body.payments[0]).toMatchObject({ amount: 20_000, method: 'CARD', status: 'ACTIVE', note: 'دفعة أولى' });
+    await pay(o, t.id, { amount: 30_001 }).expect(400);
+    for (const bad of [{ amount: 0 }, { amount: -5 }, { amount: 10.5 }, { amount: '100' }, { method: 'BITCOIN' }, { paidAt: 'yesterday' }, { paidAt: new Date(Date.now() + 86_400_000).toISOString() }, { treatmentId: randomUUID() }]) {
+      await pay(o, t.id, bad).expect(400);
+    }
+    await pay(o, t.id, { amount: 30_000, paidAt: new Date(Date.now() - 5 * 86_400_000).toISOString() }).expect(201); // back-dated is fine
+    expect((await prisma.payment.count({ where: { treatmentId: t.id } }))).toBe(2);
+    expect(await prisma.auditLog.count({ where: { clinicId: c.id, action: 'PAYMENT_CREATED' } })).toBe(2);
+    await pay(o, t.id, { amount: 1 }).expect(400); // nothing left to pay
+  });
+
+  it('several payments at the same moment can never add up to more than the cost', async () => {
+    const c = await makeClinic('race');
+    const t = (await create(c.users.OWNER.token, c, { totalCost: 10_000 }).expect(201)).body;
+    const results = await Promise.all(Array.from({ length: 8 }, () => pay(c.users.OWNER.token, t.id, { amount: 5_000 })));
+    const codes = results.map((r) => r.status).sort((a, b) => a - b);
+    expect(codes.filter((x) => x === 201)).toHaveLength(2);
+    expect(codes.filter((x) => x !== 201).every((x) => x === 400 || x === 409)).toBe(true);
+    const sum = await prisma.payment.aggregate({ where: { treatmentId: t.id, status: 'ACTIVE' }, _sum: { amount: true } });
+    expect(sum._sum.amount).toBe(10_000);
+  });
+
+  it('a cancelled treatment takes no payments', async () => {
+    const c = await makeClinic('paycancel');
+    const t = (await create(c.users.OWNER.token, c).expect(201)).body;
+    await http().post(`/treatments/${t.id}/cancel`).set(bearer(c.users.OWNER.token)).send({ reason: 'غيّر رأيه' }).expect(200);
+    await pay(c.users.OWNER.token, t.id).expect(409);
+  });
+
+  // ---------------------------------------------------------------- sessions and closing
+  it('closes only when fully paid AND every session is done, in either order', async () => {
+    const c = await makeClinic('close');
+    const d = c.users.DOCTOR.token;
+    await prisma.user.update({ where: { id: c.users.DOCTOR.id }, data: { canManagePayments: true } });
+
+    // paid first, then sessions
+    const a = (await create(d, c, { totalCost: 20_000, plannedSessions: 2 }).expect(201)).body;
+    expect((await pay(d, a.id, { amount: 20_000 }).expect(201)).body.status).toBe('OPEN'); // sessions still missing
+    const half = await complete(d, a.id, 1).expect(200);
+    expect(half.body.status).toBe('OPEN');
+    expect(half.body.sessions[0]).toMatchObject({ status: 'COMPLETED' });
+    expect(half.body.sessions[0].completedAt).toBeTruthy();
+    const done = await complete(d, a.id, 2).expect(200);
+    expect(done.body.status).toBe('CLOSED');
+    expect(done.body.closedAt).toBeTruthy();
+    await pay(d, a.id, { amount: 1 }).expect(409);
+    await complete(d, a.id, 1).expect(409);
+    await http().patch(`/treatments/${a.id}`).set(bearer(d)).send({ description: 'x' }).expect(409);
+
+    // sessions first, then money
+    const b = (await create(d, c, { totalCost: 20_000, plannedSessions: 1 }).expect(201)).body;
+    expect((await complete(d, b.id, 1).expect(200)).body.status).toBe('OPEN'); // still owed
+    expect((await pay(d, b.id, { amount: 19_999 }).expect(201)).body.status).toBe('OPEN');
+    expect((await pay(d, b.id, { amount: 1 }).expect(201)).body.status).toBe('CLOSED');
+    expect(await prisma.auditLog.count({ where: { clinicId: c.id, action: 'TREATMENT_CLOSED' } })).toBe(2);
+  });
+
+  it('sessions: notes are kept, a session finishes once, unknown numbers are 404', async () => {
+    const c = await makeClinic('sessions');
+    const t = (await create(c.users.OWNER.token, c, { plannedSessions: 3 }).expect(201)).body;
+    const o = c.users.OWNER.token;
+    const res = await http().post(`/treatments/${t.id}/sessions/2/complete`).set(bearer(o)).send({ notes: 'تم الحشو' }).expect(200);
+    expect(res.body.sessions[1]).toMatchObject({ number: 2, status: 'COMPLETED', notes: 'تم الحشو' });
+    await complete(o, t.id, 2).expect(409);
+    await complete(o, t.id, 9).expect(404);
+    await http().post(`/treatments/${t.id}/sessions/abc/complete`).set(bearer(o)).send({}).expect(400);
+    await http().post(`/treatments/${t.id}/sessions/1/complete`).set(bearer(o)).send({ status: 'x' }).expect(400);
+  });
+
+  // ---------------------------------------------------------------- editing
+  it('editing: cost can never go below what was paid; sessions can grow, and shrink only while still planned; teeth replaced', async () => {
+    const c = await makeClinic('edit');
+    const o = c.users.OWNER.token;
+    const t = (await create(o, c, { totalCost: 50_000, plannedSessions: 3 }).expect(201)).body;
+    await pay(o, t.id, { amount: 30_000 }).expect(201);
+    const patch = (b: Record<string, unknown>) => http().patch(`/treatments/${t.id}`).set(bearer(o)).send(b);
+
+    await patch({ totalCost: 29_999 }).expect(400);
+    const cheaper = await patch({ totalCost: 30_000 }).expect(200);
+    expect(cheaper.body).toMatchObject({ totalCost: 30_000, remaining: 0 });
+
+    await patch({ plannedSessions: 5 }).expect(200);
+    expect((await prisma.session.count({ where: { treatmentId: t.id } }))).toBe(5);
+    await complete(o, t.id, 4).expect(200);
+    await patch({ plannedSessions: 3 }).expect(400); // session 4 is already done
+    await patch({ plannedSessions: 4 }).expect(200); // session 5 was still planned: it goes
+    expect(await prisma.session.count({ where: { treatmentId: t.id } })).toBe(4);
+
+    const swapped = await patch({ toothCodes: [26, 27], description: 'عصب' }).expect(200);
+    expect(swapped.body).toMatchObject({ toothCodes: [26, 27], description: 'عصب' });
+    expect(await prisma.treatmentTooth.count({ where: { treatmentId: t.id } })).toBe(2);
+    expect((await patch({ description: '' }).expect(200)).body.description).toBeNull();
+    const type2 = await prisma.treatmentType.create({ data: { clinicId: c.id, name: 'تنظيف' } });
+    expect((await patch({ treatmentTypeId: type2.id }).expect(200)).body.treatmentType.name).toBe('تنظيف');
+
+    for (const bad of [{}, { status: 'CLOSED' }, { patientId: randomUUID() }, { doctorId: c.doc1 }, { toothCodes: [] }, { totalCost: 1.5 }, { plannedSessions: 0 }]) await patch(bad).expect(400);
+    await patch({ treatmentTypeId: randomUUID() }).expect(404);
+    expect(await prisma.auditLog.count({ where: { clinicId: c.id, action: 'TREATMENT_UPDATED', entityId: t.id } })).toBeGreaterThanOrEqual(4);
+  });
+
+  it('lowering the cost to what is already paid, with every session done, closes the treatment', async () => {
+    const c = await makeClinic('editclose');
+    const o = c.users.OWNER.token;
+    const t = (await create(o, c, { totalCost: 50_000, plannedSessions: 1 }).expect(201)).body;
+    await pay(o, t.id, { amount: 20_000 }).expect(201);
+    await complete(o, t.id, 1).expect(200);
+    const res = await http().patch(`/treatments/${t.id}`).set(bearer(o)).send({ totalCost: 20_000 }).expect(200);
+    expect(res.body).toMatchObject({ status: 'CLOSED', remaining: 0 });
+  });
+
+  // ---------------------------------------------------------------- voiding payments
+  it('voiding: owner only, with a reason; the payment stays visible; the money is owed again and a closed treatment reopens', async () => {
+    const c = await makeClinic('void');
+    const o = c.users.OWNER.token;
+    await prisma.user.update({ where: { id: c.users.DOCTOR.id }, data: { canManagePayments: true } });
+    const t = (await create(o, c, { totalCost: 10_000, plannedSessions: 1 }).expect(201)).body;
+    const paid = (await pay(o, t.id, { amount: 10_000 }).expect(201)).body;
+    await complete(o, t.id, 1).expect(200);
+    expect((await http().get(`/treatments/${t.id}`).set(bearer(o))).body.status).toBe('CLOSED');
+    const paymentId = paid.payments[0].id;
+
+    await http().post(`/payments/${paymentId}/void`).set(bearer(c.users.DOCTOR.token)).send({ reason: 'غلط بالمبلغ' }).expect(403); // even with the key
+    await http().post(`/payments/${paymentId}/void`).set(bearer(c.users.KEYHOLDER.token)).send({ reason: 'غلط بالمبلغ' }).expect(403);
+    await http().post(`/payments/${paymentId}/void`).set(bearer(o)).send({}).expect(400);
+    await http().post(`/payments/${paymentId}/void`).set(bearer(o)).send({ reason: 'x' }).expect(400);
+    await http().post(`/payments/${randomUUID()}/void`).set(bearer(o)).send({ reason: 'غلط بالمبلغ' }).expect(404);
+
+    const res = await http().post(`/payments/${paymentId}/void`).set(bearer(o)).send({ reason: 'غلط بالمبلغ' }).expect(200);
+    expect(res.body).toMatchObject({ status: 'OPEN', closedAt: null, paid: 0, remaining: 10_000 });
+    expect(res.body.payments).toHaveLength(1); // never deleted
+    expect(res.body.payments[0]).toMatchObject({ status: 'VOIDED', voidReason: 'غلط بالمبلغ' });
+    expect(res.body.payments[0].voidedAt).toBeTruthy();
+    const row = await prisma.payment.findUnique({ where: { id: paymentId } });
+    expect(row).toMatchObject({ status: 'VOIDED', voidedByUserId: c.users.OWNER.id });
+    await http().post(`/payments/${paymentId}/void`).set(bearer(o)).send({ reason: 'مرة ثانية' }).expect(409);
+    const audit = await prisma.auditLog.findFirst({ where: { clinicId: c.id, action: 'PAYMENT_VOIDED', entityId: paymentId } });
+    expect(audit).toBeTruthy();
+
+    // the same money can be paid again, and a voided payment does not count
+    expect((await pay(o, t.id, { amount: 10_000 }).expect(201)).body).toMatchObject({ status: 'CLOSED', paid: 10_000 });
+    expect(await prisma.payment.count({ where: { treatmentId: t.id } })).toBe(2);
+  });
+
+  it('even the database refuses to delete a payment', async () => {
+    const c = await makeClinic('nodelete');
+    const t = (await create(c.users.OWNER.token, c).expect(201)).body;
+    const p = (await pay(c.users.OWNER.token, t.id).expect(201)).body.payments[0];
+    expect(await prisma.payment.count({ where: { id: p.id } })).toBe(1);
+    const { default: pg } = await import('pg');
+    const pool = new pg.Pool({ connectionString: process.env.TENANT_DATABASE_URL });
+    try {
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query(`SELECT set_config('app.clinic_id', $1, TRUE)`, [c.id]);
+        await expect(client.query('DELETE FROM "Payment" WHERE id = $1', [p.id])).rejects.toThrow();
+      } finally {
+        await client.query('ROLLBACK').catch(() => undefined);
+        client.release();
+      }
+    } finally {
+      await pool.end();
+    }
+    expect(await prisma.payment.count({ where: { id: p.id } })).toBe(1);
+  });
+
+  // ---------------------------------------------------------------- cancel
+  it('cancelling: only an open treatment with no active payments; voided payments do not block it', async () => {
+    const c = await makeClinic('cancel');
+    const o = c.users.OWNER.token;
+    const t = (await create(o, c).expect(201)).body;
+    const p = (await pay(o, t.id).expect(201)).body.payments[0];
+    await http().post(`/treatments/${t.id}/cancel`).set(bearer(o)).send({}).expect(409);
+    await http().post(`/payments/${p.id}/void`).set(bearer(o)).send({ reason: 'ما دفع' }).expect(200);
+    const res = await http().post(`/treatments/${t.id}/cancel`).set(bearer(o)).send({ reason: 'غيّر رأيه' }).expect(200);
+    expect(res.body.status).toBe('CANCELLED');
+    expect(res.body.closedAt).toBeTruthy();
+    await http().post(`/treatments/${t.id}/cancel`).set(bearer(o)).send({}).expect(409);
+    await http().patch(`/treatments/${t.id}`).set(bearer(o)).send({ description: 'x' }).expect(409);
+    await complete(o, t.id, 1).expect(409);
+    expect(await prisma.auditLog.count({ where: { clinicId: c.id, action: 'TREATMENT_CANCELLED', entityId: t.id } })).toBe(1);
+  });
+
+  // ---------------------------------------------------------------- patient money summary
+  it('patient summary: total, paid, remaining over live treatments; cancelled ones and voided payments do not count', async () => {
+    const c = await makeClinic('finance');
+    const o = c.users.OWNER.token;
+    const a = (await create(o, c, { totalCost: 30_000 }).expect(201)).body;
+    const b = (await create(o, c, { totalCost: 20_000 }).expect(201)).body;
+    const gone = (await create(o, c, { totalCost: 99_000 }).expect(201)).body;
+    await http().post(`/treatments/${gone.id}/cancel`).set(bearer(o)).send({}).expect(200);
+    await pay(o, a.id, { amount: 10_000 }).expect(201);
+    const wrong = (await pay(o, b.id, { amount: 5_000 }).expect(201)).body.payments[0];
+    await http().post(`/payments/${wrong.id}/void`).set(bearer(o)).send({ reason: 'غلط' }).expect(200);
+    const res = await http().get(`/patients/${c.patient}/finance`).set(bearer(o)).expect(200);
+    expect(res.body).toEqual({ treatments: 2, openTreatments: 2, total: 50_000, paid: 10_000, remaining: 40_000 });
+    await http().get(`/patients/${randomUUID()}/finance`).set(bearer(o)).expect(404);
+    await http().get('/patients/nope/finance').set(bearer(o)).expect(400);
+  });
+
+  // ---------------------------------------------------------------- isolation
+  it("clinic B can neither see nor touch clinic A's treatments, payments or sessions", async () => {
+    const a = await makeClinic('isoa');
+    const b = await makeClinic('isob');
+    const t = (await create(a.users.OWNER.token, a).expect(201)).body;
+    const p = (await pay(a.users.OWNER.token, t.id).expect(201)).body.payments[0];
+    const o = b.users.OWNER.token;
+
+    expect((await http().get('/treatments').set(bearer(o)).expect(200)).body).toEqual([]);
+    expect((await http().get(`/treatments?patientId=${a.patient}`).set(bearer(o)).expect(200)).body).toEqual([]);
+    await http().get(`/treatments/${t.id}`).set(bearer(o)).expect(404);
+    await http().patch(`/treatments/${t.id}`).set(bearer(o)).send({ totalCost: 1 }).expect(404);
+    await complete(o, t.id, 1).expect(404);
+    await pay(o, t.id).expect(404);
+    await http().post(`/treatments/${t.id}/cancel`).set(bearer(o)).send({}).expect(404);
+    await http().post(`/payments/${p.id}/void`).set(bearer(o)).send({ reason: 'اختراق' }).expect(404);
+    await http().get(`/patients/${a.patient}/finance`).set(bearer(o)).expect(404);
+    await create(o, b, { patientId: a.patient }).expect(404);
+    await create(o, b, { treatmentTypeId: a.type }).expect(404);
+
+    const row = await prisma.treatment.findUnique({ where: { id: t.id }, include: { payments: true, sessions: true } });
+    expect(row).toMatchObject({ totalCost: 100_000, status: 'OPEN' });
+    expect(row!.payments.every((x) => x.status === 'ACTIVE')).toBe(true);
+    expect(row!.sessions.every((x) => x.status === 'PLANNED')).toBe(true);
+  });
+});
