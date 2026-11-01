@@ -7,11 +7,12 @@ const MAX_MONEY = 100_000_000; // 1,000,000 shekels, in agorot
 const emptyToUndefined = (v: unknown) => (typeof v === 'string' && v.trim() === '' ? undefined : v);
 const emptyToNull = (v: unknown) => (typeof v === 'string' && v.trim() === '' ? null : v);
 
-const toothCodes = z
-  .array(z.number().int().refine(isValidTooth, 'invalid tooth'))
+// Every tooth carries its own treatment type; cost and sessions belong to the whole treatment.
+const teeth = z
+  .array(z.object({ toothCode: z.number().int().refine(isValidTooth, 'invalid tooth'), treatmentTypeId: idSchema }).strict())
   .min(1)
-  .max(32)
-  .refine((a) => new Set(a).size === a.length, 'duplicate tooth');
+  .max(52)
+  .refine((a) => new Set(a.map((t) => t.toothCode)).size === a.length, 'duplicate tooth');
 const money = z.number().int().min(0).max(MAX_MONEY);
 const sessions = z.number().int().min(1).max(50);
 const instant = z.string().datetime({ offset: true }).transform((s) => new Date(s));
@@ -20,8 +21,7 @@ export const createTreatmentSchema = z
   .object({
     patientId: idSchema,
     doctorId: idSchema.optional(),
-    treatmentTypeId: idSchema,
-    toothCodes,
+    teeth,
     description: z.preprocess(emptyToUndefined, z.string().trim().max(1000).optional()),
     totalCost: money,
     plannedSessions: sessions,
@@ -32,8 +32,7 @@ export const createTreatmentSchema = z
 
 export const updateTreatmentSchema = z
   .object({
-    treatmentTypeId: idSchema.optional(),
-    toothCodes: toothCodes.optional(),
+    teeth: teeth.optional(),
     description: z.preprocess(emptyToNull, z.string().trim().max(1000).nullable().optional()),
     totalCost: money.optional(),
     plannedSessions: sessions.optional(),

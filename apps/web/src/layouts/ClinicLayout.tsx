@@ -2,6 +2,7 @@ import { Outlet } from 'react-router'
 import { useAuth } from '../auth/AuthContext.tsx'
 import { daysLabel, ROLE_LABELS } from '../auth/paths.ts'
 import { Alert } from '../components/ui.tsx'
+import { canEditTreatments, canSeeTreatments } from '../lib/access.ts'
 import { assetUrl } from '../lib/api.ts'
 import { Icon } from '../components/icons.tsx'
 import { ThemeScope } from '../theme/ThemeScope.tsx'
@@ -13,8 +14,10 @@ const ITEMS: NavItem[] = [
   { to: '/appointments', label: 'المواعيد', icon: 'calendar' },
   { to: '/patients', label: 'المرضى', icon: 'patients' },
 ]
+const TREATMENT_ITEM: NavItem = { to: '/treatments', label: 'العلاجات', icon: 'tooth' }
+const TYPES_ITEM: NavItem = { to: '/treatment-types', label: 'أنواع العلاج', icon: 'types' }
 const OWNER_ITEMS: NavItem[] = [
-  { to: '/team', label: 'الفريق', icon: 'patients' },
+  { to: '/team', label: 'الفريق', icon: 'team' },
   { to: '/hours', label: 'أوقات الدوام', icon: 'clock' },
   { to: '/settings', label: 'الإعدادات', icon: 'settings' },
 ]
@@ -29,7 +32,7 @@ export default function ClinicLayout() {
       <div className="flex min-h-screen flex-wrap bg-[#f6f8fa]">
         <Sidebar
           className="bg-brand"
-          items={user.role === 'OWNER' ? [...ITEMS, ...OWNER_ITEMS] : ITEMS}
+          items={[...ITEMS, ...(canSeeTreatments(user) ? [TREATMENT_ITEM] : []), ...(canEditTreatments(user) ? [TYPES_ITEM] : []), ...(user.role === 'OWNER' ? OWNER_ITEMS : [])]}
           header={
             <div className="flex items-center gap-2.5">
               {clinic?.logoUrl ? (
@@ -54,7 +57,7 @@ export default function ClinicLayout() {
             </div>
           }
         />
-        <main className="flex min-w-0 flex-[999_1_560px] flex-col gap-5 p-8">
+        <main className="flex min-w-0 flex-[999_1_560px] flex-col gap-5 p-4 md:p-8">
           {subscriptionWarning && (
             <Alert tone="warning">
               <span className="flex items-start gap-3">

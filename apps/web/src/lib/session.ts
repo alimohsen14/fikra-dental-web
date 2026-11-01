@@ -8,6 +8,7 @@ export interface SessionUser {
   fullName: string
   role: Role
   clinicId: string | null
+  canManagePayments?: boolean // the owner's "payments key" (the owner always has it)
 }
 
 // What the app needs to look like the clinic: name, accent color and logo.

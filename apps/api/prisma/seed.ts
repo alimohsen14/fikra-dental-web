@@ -72,14 +72,13 @@ async function seedClinic(c: ClinicSeed, passwordHash: string) {
       clinicId: clinic.id,
       patientId: patients[0].id,
       doctorId: doctor.id,
-      treatmentTypeId: filling.id,
       totalCost: 50000,
       plannedSessions: 3,
       startedAt: new Date(),
     },
   });
   await prisma.treatmentTooth.createMany({
-    data: [{ clinicId: clinic.id, treatmentId: treatment.id, toothCode: 16 }],
+    data: [{ clinicId: clinic.id, treatmentId: treatment.id, toothCode: 16, treatmentTypeId: filling.id }],
   });
   await prisma.session.createMany({
     data: [1, 2, 3].map((number) => ({ clinicId: clinic.id, treatmentId: treatment.id, number })),

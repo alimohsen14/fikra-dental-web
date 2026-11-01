@@ -67,7 +67,7 @@ export default function PatientsPage() {
         <Loading error={error} />
       ) : (
         <>
-          <div className="overflow-x-auto rounded-xl border border-line bg-white">
+          <div className="relative overflow-x-auto rounded-xl border border-line bg-white">
             <table className="w-full min-w-[700px] border-collapse text-sm">
               <thead>
                 <tr className="bg-brand-tint text-brand-dark">

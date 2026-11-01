@@ -16,6 +16,10 @@ import { NewPatientPage, PatientPage } from './pages/PatientFormPage.tsx'
 import PatientsPage from './pages/PatientsPage.tsx'
 import TeamPage from './pages/TeamPage.tsx'
 import SettingsPage from './pages/SettingsPage.tsx'
+import { EditTreatmentPage, NewTreatmentPage } from './pages/TreatmentFormPage.tsx'
+import TreatmentPage from './pages/TreatmentPage.tsx'
+import TreatmentsPage from './pages/TreatmentsPage.tsx'
+import TreatmentTypesPage from './pages/TreatmentTypesPage.tsx'
 
 function HomeRedirect() {
   const { ready, session } = useAuth()
@@ -46,6 +50,13 @@ export default function App() {
               <Route path="/patients" element={<PatientsPage />} />
               <Route path="/patients/new" element={<NewPatientPage />} />
               <Route path="/patients/:id" element={<PatientPage />} />
+              <Route path="/treatments" element={<TreatmentsPage />} />
+              <Route path="/treatments/:id" element={<TreatmentPage />} />
+              <Route element={<RequireAuth roles={['OWNER', 'DOCTOR']} />}>
+                <Route path="/treatments/new" element={<NewTreatmentPage />} />
+                <Route path="/treatments/:id/edit" element={<EditTreatmentPage />} />
+                <Route path="/treatment-types" element={<TreatmentTypesPage />} />
+              </Route>
               <Route element={<RequireAuth roles={['OWNER']} />}>
                 <Route path="/team" element={<TeamPage />} />
                 <Route path="/hours" element={<HoursPage />} />

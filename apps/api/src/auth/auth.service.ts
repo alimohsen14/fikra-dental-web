@@ -42,7 +42,7 @@ export interface IssuedSession {
   refreshToken: string; // raw value, goes into the httpOnly cookie
   mustChangePassword: boolean;
   subscriptionWarning: SubscriptionWarning | null; // owner only
-  user: { id: string; fullName: string; role: string; clinicId: string | null };
+  user: { id: string; fullName: string; role: string; clinicId: string | null; canManagePayments: boolean };
   clinic: ClinicBrand | null;
 }
 
@@ -312,6 +312,7 @@ export class AuthService {
       fullName: string;
       role: Role;
       clinicId: string | null;
+      canManagePayments: boolean;
       mustChangePassword: boolean;
       clinic: { name: string; themeColor: string | null; logoUrl: string | null } | null;
     },
@@ -338,7 +339,7 @@ export class AuthService {
       refreshToken: refresh.raw,
       mustChangePassword: user.mustChangePassword,
       subscriptionWarning: user.role === 'OWNER' ? warning : null,
-      user: { id: user.id, fullName: user.fullName, role: user.role, clinicId: user.clinicId },
+      user: { id: user.id, fullName: user.fullName, role: user.role, clinicId: user.clinicId, canManagePayments: user.canManagePayments },
       clinic:
         user.clinic && user.clinicId
           ? { id: user.clinicId, name: user.clinic.name, themeColor: user.clinic.themeColor, logoUrl: user.clinic.logoUrl }

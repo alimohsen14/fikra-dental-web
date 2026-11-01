@@ -57,7 +57,11 @@ describe('Treatments, sessions and payments (e2e)', () => {
   }
   type Clinic = Awaited<ReturnType<typeof makeClinic>>;
 
-  const body = (c: Clinic, over: Record<string, unknown> = {}) => ({ patientId: c.patient, treatmentTypeId: c.type, toothCodes: [16], totalCost: 100_000, plannedSessions: 2, ...over });
+  /** Shortcut: `toothCodes` (+ optional `treatmentTypeId`) become teeth that all share one type; pass `teeth` for per-tooth types. */
+  const body = (c: Clinic, over: Record<string, unknown> = {}) => {
+    const { toothCodes = [16], treatmentTypeId = c.type, ...rest } = over as { toothCodes?: unknown[]; treatmentTypeId?: unknown } & Record<string, unknown>;
+    return { patientId: c.patient, teeth: toothCodes.map((toothCode) => ({ toothCode, treatmentTypeId })), totalCost: 100_000, plannedSessions: 2, ...rest };
+  };
   const create = (token: string, c: Clinic, over: Record<string, unknown> = {}) => http().post('/treatments').set(bearer(token)).send(body(c, over));
   const pay = (token: string, id: string, over: Record<string, unknown> = {}) => http().post(`/treatments/${id}/payments`).set(bearer(token)).send({ amount: 10_000, method: 'CASH', paidAt: now(), ...over });
   const complete = (token: string, id: string, n: number) => http().post(`/treatments/${id}/sessions/${n}/complete`).set(bearer(token)).send({});
@@ -117,11 +121,12 @@ describe('Treatments, sessions and payments (e2e)', () => {
       plannedSessions: 3,
       toothCodes: [16, 17, 54],
       doctor: { id: c.docOwner },
-      treatmentType: { name: 'حشوة' },
       paid: 0,
       remaining: 100_000,
       payments: [],
     });
+    expect(res.body.teeth.map((x: { toothCode: number; treatmentType: { name: string } }) => [x.toothCode, x.treatmentType.name])).toEqual([[16, 'حشوة'], [17, 'حشوة'], [54, 'حشوة']]);
+    expect(res.body.treatmentType).toBeUndefined();
     expect(res.body.sessions.map((s: { number: number; status: string }) => [s.number, s.status])).toEqual([[1, 'PLANNED'], [2, 'PLANNED'], [3, 'PLANNED']]);
     expect(await prisma.auditLog.count({ where: { clinicId: c.id, action: 'TREATMENT_CREATED', entityId: res.body.id } })).toBe(1);
     const got = await http().get(`/treatments/${res.body.id}`).set(bearer(c.users.OWNER.token)).expect(200);
@@ -337,15 +342,16 @@ describe('Treatments, sessions and payments (e2e)', () => {
     await patch({ plannedSessions: 4 }).expect(200); // session 5 was still planned: it goes
     expect(await prisma.session.count({ where: { treatmentId: t.id } })).toBe(4);
 
-    const swapped = await patch({ toothCodes: [26, 27], description: 'عصب' }).expect(200);
+    const swapped = await patch({ teeth: [26, 27].map((toothCode) => ({ toothCode, treatmentTypeId: c.type })), description: 'عصب' }).expect(200);
     expect(swapped.body).toMatchObject({ toothCodes: [26, 27], description: 'عصب' });
     expect(await prisma.treatmentTooth.count({ where: { treatmentId: t.id } })).toBe(2);
     expect((await patch({ description: '' }).expect(200)).body.description).toBeNull();
     const type2 = await prisma.treatmentType.create({ data: { clinicId: c.id, name: 'تنظيف' } });
-    expect((await patch({ treatmentTypeId: type2.id }).expect(200)).body.treatmentType.name).toBe('تنظيف');
+    const retyped = await patch({ teeth: [{ toothCode: 26, treatmentTypeId: type2.id }, { toothCode: 27, treatmentTypeId: c.type }] }).expect(200);
+    expect(retyped.body.teeth.map((x: { toothCode: number; treatmentType: { name: string } }) => [x.toothCode, x.treatmentType.name])).toEqual([[26, 'تنظيف'], [27, 'حشوة']]);
 
-    for (const bad of [{}, { status: 'CLOSED' }, { patientId: randomUUID() }, { doctorId: c.doc1 }, { toothCodes: [] }, { totalCost: 1.5 }, { plannedSessions: 0 }]) await patch(bad).expect(400);
-    await patch({ treatmentTypeId: randomUUID() }).expect(404);
+    for (const bad of [{}, { status: 'CLOSED' }, { patientId: randomUUID() }, { doctorId: c.doc1 }, { toothCodes: [26] }, { treatmentTypeId: c.type }, { teeth: [] }, { totalCost: 1.5 }, { plannedSessions: 0 }]) await patch(bad).expect(400);
+    await patch({ teeth: [{ toothCode: 26, treatmentTypeId: randomUUID() }] }).expect(404);
     expect(await prisma.auditLog.count({ where: { clinicId: c.id, action: 'TREATMENT_UPDATED', entityId: t.id } })).toBeGreaterThanOrEqual(4);
   });
 
@@ -493,7 +499,9 @@ describe('Treatments, sessions and payments (e2e)', () => {
 
     await create(o, c, { treatmentTypeId: crown.id, doctorId: c.docOwner }).expect(400); // must pick a sub-type
     const ok = await create(o, c, { treatmentTypeId: zirconia.id, doctorId: c.docOwner }).expect(201);
-    expect(ok.body.treatmentType).toMatchObject({ name: 'زركون', parent: { id: crown.id, name: 'تلبيسة' } });
+    expect(ok.body.teeth[0].treatmentType).toMatchObject({ name: 'زركون', parent: { id: crown.id, name: 'تلبيسة' } });
+    // the sub-type rules are checked for each tooth separately
+    await create(o, c, { teeth: [{ toothCode: 16, treatmentTypeId: zirconia.id }, { toothCode: 17, treatmentTypeId: crown.id }], doctorId: c.docOwner }).expect(400);
 
     await http().patch(`/treatment-types/${crown.id}`).set(bearer(o)).send({ isActive: false }).expect(200);
     await create(o, c, { treatmentTypeId: zirconia.id, doctorId: c.docOwner }).expect(400); // its parent is stopped
@@ -504,6 +512,46 @@ describe('Treatments, sessions and payments (e2e)', () => {
     expect(u.body).toBeTruthy();
     const other = await makeClinic('subtypes2');
     await http().post('/treatment-types').set(bearer(other.users.OWNER.token)).send({ name: 'x1', parentId: crown.id }).expect(404); // another clinic's type
+  });
+
+
+  // ---------------------------------------------------------------- one type per tooth
+  it('each tooth has its own type while cost and sessions are shared by the whole treatment', async () => {
+    const c = await makeClinic('perTooth');
+    const o = c.users.OWNER.token;
+    const extract = await prisma.treatmentType.create({ data: { clinicId: c.id, name: 'قلع' } });
+    const root = await prisma.treatmentType.create({ data: { clinicId: c.id, name: 'عصب' } });
+    const res = await create(o, c, {
+      doctorId: c.docOwner,
+      teeth: [{ toothCode: 36, treatmentTypeId: extract.id }, { toothCode: 16, treatmentTypeId: c.type }, { toothCode: 17, treatmentTypeId: root.id }],
+      totalCost: 90_000,
+      plannedSessions: 4,
+    }).expect(201);
+    expect(res.body.teeth.map((x: { toothCode: number; treatmentType: { name: string } }) => [x.toothCode, x.treatmentType.name])).toEqual([[16, 'حشوة'], [17, 'عصب'], [36, 'قلع']]);
+    expect(res.body.toothCodes).toEqual([16, 17, 36]);
+    expect(res.body).toMatchObject({ totalCost: 90_000, plannedSessions: 4, remaining: 90_000 });
+    expect(res.body.sessions).toHaveLength(4); // one session plan for all the teeth, not one per tooth
+    expect(await prisma.treatment.count({ where: { clinicId: c.id } })).toBe(1);
+
+    // a stopped type refuses only when it is actually used, and nothing is half-saved
+    await prisma.treatmentType.update({ where: { id: extract.id }, data: { isActive: false } });
+    await create(o, c, { doctorId: c.docOwner, teeth: [{ toothCode: 16, treatmentTypeId: c.type }, { toothCode: 17, treatmentTypeId: extract.id }] }).expect(400);
+    expect(await prisma.treatment.count({ where: { clinicId: c.id } })).toBe(1);
+    // another clinic's type is refused for a single tooth too
+    const other = await makeClinic('perTooth2');
+    await create(o, c, { doctorId: c.docOwner, teeth: [{ toothCode: 16, treatmentTypeId: c.type }, { toothCode: 17, treatmentTypeId: other.type }] }).expect(404);
+    // the same tooth twice, or a tooth without a type
+    await create(o, c, { doctorId: c.docOwner, teeth: [{ toothCode: 16, treatmentTypeId: c.type }, { toothCode: 16, treatmentTypeId: root.id }] }).expect(400);
+    await create(o, c, { doctorId: c.docOwner, teeth: [{ toothCode: 16 }] }).expect(400);
+    expect(await prisma.treatmentTooth.count({ where: { clinicId: c.id } })).toBe(3);
+
+    // editing replaces the teeth with their types and leaves money and sessions alone
+    const patch = (b: Record<string, unknown>) => http().patch(`/treatments/${res.body.id}`).set(bearer(o)).send(b);
+    const edited = await patch({ teeth: [{ toothCode: 16, treatmentTypeId: root.id }, { toothCode: 46, treatmentTypeId: c.type }] }).expect(200);
+    expect(edited.body.teeth.map((x: { toothCode: number; treatmentType: { name: string } }) => [x.toothCode, x.treatmentType.name])).toEqual([[16, 'عصب'], [46, 'حشوة']]);
+    expect(edited.body).toMatchObject({ totalCost: 90_000, plannedSessions: 4 });
+    await patch({ teeth: [{ toothCode: 16, treatmentTypeId: extract.id }] }).expect(400); // stopped type
+    expect((await prisma.treatmentTooth.findMany({ where: { treatmentId: res.body.id } })).map((x) => x.toothCode).sort()).toEqual([16, 46]);
   });
 
   // ---------------------------------------------------------------- booking the next session
@@ -602,5 +650,14 @@ describe('Treatments, sessions and payments (e2e)', () => {
     expect(await prisma.appointment.count({ where: { clinicId: c.id, status: { not: 'CANCELLED' } } })).toBe(1);
     const s1 = await prisma.session.findFirst({ where: { treatmentId: t.id, number: 1 }, include: { appointment: true } });
     expect(s1!.appointment!.status).not.toBe('CANCELLED');
+  });
+
+  it('login tells the app whether the account holds the payments key', async () => {
+    const c = await makeClinic('keyflag');
+    for (const [key, expected] of [['KEYHOLDER', true], ['SECRETARY', false], ['OWNER', true]] as const) {
+      const row = await prisma.user.findUniqueOrThrow({ where: { id: c.users[key].id } });
+      const login = await http().post('/auth/login').send({ username: row.username, password: 'Test-Pass-12345' }).expect(200);
+      expect(login.body.user.canManagePayments).toBe(expected);
+    }
   });
 });

@@ -16,7 +16,6 @@ const DETAIL = {
   id: true,
   patientId: true,
   doctorId: true,
-  treatmentTypeId: true,
   appointmentId: true,
   description: true,
   totalCost: true,
@@ -25,10 +24,9 @@ const DETAIL = {
   startedAt: true,
   closedAt: true,
   createdAt: true,
-  treatmentType: { select: { id: true, name: true, parent: { select: { id: true, name: true } } } },
   doctor: { select: { id: true, fullName: true } },
   patient: { select: { id: true, fullName: true } },
-  teeth: { select: { toothCode: true }, orderBy: { toothCode: 'asc' } },
+  teeth: { select: { toothCode: true, treatmentTypeId: true, treatmentType: { select: { id: true, name: true, parent: { select: { id: true, name: true } } } } }, orderBy: { toothCode: 'asc' } },
   sessions: { orderBy: { number: 'asc' }, select: { id: true, number: true, status: true, completedAt: true, notes: true, appointmentId: true, appointment: { select: { id: true, startsAt: true, endsAt: true, status: true } } } },
   payments: {
     orderBy: [{ paidAt: 'desc' }, { createdAt: 'desc' }],
@@ -59,7 +57,7 @@ export class TreatmentsService {
 
   private present<T extends { teeth: { toothCode: number }[]; totalCost: number; payments: { amount: number; status: string }[] }>(row: T, user: AuthUser) {
     const { teeth, payments, ...rest } = row;
-    const base = { ...rest, toothCodes: teeth.map((t) => t.toothCode) };
+    const base = { ...rest, teeth, toothCodes: teeth.map((t) => t.toothCode) };
     if (!canSeeMoney(user)) return base;
     return { ...base, ...moneyOf(row.totalCost, payments as { amount: number; status: 'ACTIVE' | 'VOIDED' }[]), payments };
   }
@@ -87,6 +85,10 @@ export class TreatmentsService {
   }
 
   /** A treatment points at the most specific type: a type that has sub-types cannot be chosen itself. */
+  private async usableTypes(ids: string[]) {
+    for (const id of new Set(ids)) await this.usableType(id);
+  }
+
   private async usableType(id: string) {
     const type = await this.tenant.db.treatmentType.findUnique({
       where: { id },
@@ -138,7 +140,7 @@ export class TreatmentsService {
     if (patient.archivedAt) throw new BadRequestException('هذا المريض بالأرشيف');
     if (!doctor) throw new NotFoundException('الدكتور غير موجود');
     if (!doctor.isActive) throw new BadRequestException('هذا الدكتور موقوف');
-    await this.usableType(dto.treatmentTypeId);
+    await this.usableTypes(dto.teeth.map((t) => t.treatmentTypeId));
     if (dto.startedAt && dto.startedAt.getTime() > Date.now() + GRACE_MS) throw new BadRequestException('تاريخ بداية العلاج بالمستقبل');
 
     if (dto.appointmentId) {
@@ -155,7 +157,6 @@ export class TreatmentsService {
           clinicId,
           patientId: dto.patientId,
           doctorId,
-          treatmentTypeId: dto.treatmentTypeId,
           appointmentId: dto.appointmentId ?? null,
           description: dto.description ?? null,
           totalCost: dto.totalCost,
@@ -163,9 +164,9 @@ export class TreatmentsService {
           startedAt: dto.startedAt ?? new Date(),
         },
       });
-      await tx.treatmentTooth.createMany({ data: dto.toothCodes.map((toothCode) => ({ clinicId, treatmentId: t.id, toothCode })) });
+      await tx.treatmentTooth.createMany({ data: dto.teeth.map((x) => ({ clinicId, treatmentId: t.id, toothCode: x.toothCode, treatmentTypeId: x.treatmentTypeId })) });
       await tx.session.createMany({ data: Array.from({ length: dto.plannedSessions }, (_, i) => ({ clinicId, treatmentId: t.id, number: i + 1 })) });
-      await this.audit(tx, clinicId, user.id, 'TREATMENT_CREATED', t.id, { after: { patientId: dto.patientId, totalCost: dto.totalCost, plannedSessions: dto.plannedSessions, toothCodes: dto.toothCodes } });
+      await this.audit(tx, clinicId, user.id, 'TREATMENT_CREATED', t.id, { after: { patientId: dto.patientId, totalCost: dto.totalCost, plannedSessions: dto.plannedSessions, toothCodes: dto.teeth.map((x) => x.toothCode) } });
       return t.id;
     });
     return this.get(user, id);
@@ -174,7 +175,7 @@ export class TreatmentsService {
   async update(user: AuthUser, id: string, dto: UpdateTreatmentDto) {
     await this.load(user, id); // 404 if it is not yours to see
     const clinicId = user.clinicId!;
-    if (dto.treatmentTypeId) await this.usableType(dto.treatmentTypeId);
+    if (dto.teeth) await this.usableTypes(dto.teeth.map((t) => t.treatmentTypeId));
     await this.prisma.$transaction(async (tx) => {
       const t = await this.lock(tx, clinicId, id);
       if (t.status !== 'OPEN') throw new ConflictException('العلاج مش مفتوح، ما بينعدل');
@@ -189,14 +190,13 @@ export class TreatmentsService {
           await tx.session.deleteMany({ where: { treatmentId: id, number: { gt: dto.plannedSessions } } });
         }
       }
-      if (dto.toothCodes) {
+      if (dto.teeth) {
         await tx.treatmentTooth.deleteMany({ where: { treatmentId: id } });
-        await tx.treatmentTooth.createMany({ data: dto.toothCodes.map((toothCode) => ({ clinicId, treatmentId: id, toothCode })) });
+        await tx.treatmentTooth.createMany({ data: dto.teeth.map((x) => ({ clinicId, treatmentId: id, toothCode: x.toothCode, treatmentTypeId: x.treatmentTypeId })) });
       }
       await tx.treatment.update({
         where: { id },
         data: {
-          ...(dto.treatmentTypeId !== undefined ? { treatmentTypeId: dto.treatmentTypeId } : {}),
           ...(dto.description !== undefined ? { description: dto.description } : {}),
           ...(dto.totalCost !== undefined ? { totalCost: dto.totalCost } : {}),
           ...(dto.plannedSessions !== undefined ? { plannedSessions: dto.plannedSessions } : {}),

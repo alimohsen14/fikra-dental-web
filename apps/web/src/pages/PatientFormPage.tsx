@@ -1,9 +1,12 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import { useLocation, useNavigate, useParams } from 'react-router'
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
+import { useAuth } from '../auth/AuthContext.tsx'
 import { Card, DateText, Loading } from '../components/admin-ui.tsx'
 import { ClinicBanner } from '../components/clinic-ui.tsx'
+import { PatientTreatments } from '../components/PatientTreatments.tsx'
 import { Alert, Button, SelectField, TextAreaField, TextField } from '../components/ui.tsx'
+import { canSeeTreatments } from '../lib/access.ts'
 import { ApiError } from '../lib/api.ts'
 import { todayInput } from '../lib/format.ts'
 import { buildPatientBody, EMPTY_PATIENT, patientToForm } from '../lib/patientForm.ts'
@@ -86,6 +89,10 @@ export function PatientPage() {
   const location = useLocation()
   const state = location.state as { created?: boolean; shared?: string[] } | null
   const { data: patient, error, reload } = useLoad(() => getPatient(id), [id])
+  const { session } = useAuth()
+  const [params, setParams] = useSearchParams()
+  const hasTreatments = session ? canSeeTreatments(session.user) : false
+  const tab = hasTreatments && params.get('tab') === 'treatments' ? 'treatments' : 'info'
   const [saved, setSaved] = useState(false)
   const [asking, setAsking] = useState(false)
   const [archiveError, setArchiveError] = useState<string | null>(null)
@@ -111,9 +118,32 @@ export function PatientPage() {
   return (
     <>
       <ClinicBanner title={patient.fullName} subtitle={archived ? 'هذا المريض بالأرشيف' : undefined} back={{ to: '/patients', label: 'رجوع للمرضى' }} />
-      {state?.created && <Alert tone="success">تمت إضافة المريض.</Alert>}
-      {state?.shared && state.shared.length > 0 && <Alert tone="warning">نفس رقم الهاتف مسجل لـ: {state.shared.join('، ')}. (طبيعي إذا كانوا من نفس العائلة.)</Alert>}
-      {saved && <Alert tone="success">تم حفظ التعديلات.</Alert>}
+      {hasTreatments && (
+        <div role="tablist" aria-label="ملف المريض" className="flex gap-2">
+          {(
+            [
+              ['info', 'البيانات'],
+              ['treatments', 'العلاجات'],
+            ] as const
+          ).map(([v, label]) => (
+            <button
+              key={v}
+              type="button"
+              role="tab"
+              aria-selected={tab === v}
+              onClick={() => setParams(v === 'info' ? {} : { tab: v }, { replace: true })}
+              className={`h-10 cursor-pointer rounded-full border px-5 text-sm font-semibold ${tab === v ? 'border-brand bg-brand text-on-brand' : 'border-line bg-white'}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+      {tab === 'treatments' && <PatientTreatments patientId={patient.id} birthDate={patient.birthDate} />}
+      {tab === 'info' && state?.created && <Alert tone="success">تمت إضافة المريض.</Alert>}
+      {tab === 'info' && state?.shared && state.shared.length > 0 && <Alert tone="warning">نفس رقم الهاتف مسجل لـ: {state.shared.join('، ')}. (طبيعي إذا كانوا من نفس العائلة.)</Alert>}
+      {tab === 'info' && saved && <Alert tone="success">تم حفظ التعديلات.</Alert>}
+      {tab === 'info' && (<>
       <PatientForm
         key={patient.id + patient.createdAt + JSON.stringify(patientToForm(patient))}
         patient={patient}
@@ -144,6 +174,7 @@ export function PatientPage() {
           </Button>
         )}
       </Card>
+      </>)}
     </>
   )
 }

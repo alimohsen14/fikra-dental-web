@@ -271,19 +271,18 @@ model TreatmentType {
   clinic     Clinic          @relation(fields: [clinicId], references: [id])
   parent     TreatmentType?  @relation("TypeChildren", fields: [parentId], references: [id])
   children   TreatmentType[] @relation("TypeChildren")
-  treatments Treatment[]
+  teeth      TreatmentTooth[]
 
   @@unique([clinicId, parentId, name])
   @@index([clinicId, parentId])
 }
 
-// One treatment = one type + one or more teeth + ONE total cost + ONE session count.
+// One treatment = one or more teeth (each with its own type) + ONE total cost + ONE session count.
 model Treatment {
   id              String          @id @default(uuid()) @db.Uuid
   clinicId        String          @db.Uuid
   patientId       String          @db.Uuid
   doctorId        String          @db.Uuid
-  treatmentTypeId String          @db.Uuid
   appointmentId   String?         @db.Uuid // set when opened from a booked appointment
   description     String?
   totalCost       Int // smallest currency unit (agorot). Never float.
@@ -297,7 +296,6 @@ model Treatment {
   clinic        Clinic           @relation(fields: [clinicId], references: [id])
   patient       Patient          @relation(fields: [patientId], references: [id])
   doctor        Doctor           @relation(fields: [doctorId], references: [id])
-  treatmentType TreatmentType    @relation(fields: [treatmentTypeId], references: [id])
   appointment   Appointment?     @relation(fields: [appointmentId], references: [id])
   teeth         TreatmentTooth[]
   sessions      Session[]
@@ -308,15 +306,18 @@ model Treatment {
 }
 
 model TreatmentTooth {
-  clinicId    String @db.Uuid
-  treatmentId String @db.Uuid
-  toothCode   Int // FDI numbering: permanent 11-48, primary 51-85
+  clinicId        String @db.Uuid
+  treatmentId     String @db.Uuid
+  toothCode       Int // FDI numbering: permanent 11-48, primary 51-85
+  treatmentTypeId String @db.Uuid // every tooth has its own type; cost and sessions are shared by the whole treatment
 
-  clinic    Clinic    @relation(fields: [clinicId], references: [id])
-  treatment Treatment @relation(fields: [treatmentId], references: [id])
+  clinic        Clinic        @relation(fields: [clinicId], references: [id])
+  treatment     Treatment     @relation(fields: [treatmentId], references: [id])
+  treatmentType TreatmentType @relation(fields: [treatmentTypeId], references: [id])
 
   @@id([treatmentId, toothCode])
   @@index([clinicId, toothCode])
+  @@index([clinicId, treatmentTypeId])
 }
 
 model Session {
