@@ -1,0 +1,124 @@
+import { useState } from 'react'
+import { Link } from 'react-router'
+import { ApiError } from '../lib/api.ts'
+import { cancelAppointment, completeAppointment, confirmAppointment, STATUS_LABELS, STATUS_STYLE } from '../lib/appointments.ts'
+import type { Appointment } from '../lib/appointments.ts'
+import { timeLabel } from '../lib/schedule.ts'
+import { Badge } from './admin-ui.tsx'
+import { Modal } from './Modal.tsx'
+import { Alert, Button, TextAreaField } from './ui.tsx'
+
+export const StatusBadge = ({ a }: { a: Appointment }) => <Badge label={STATUS_LABELS[a.status]} {...STATUS_STYLE[a.status]} />
+
+const message = (e: unknown) => (e instanceof ApiError ? e.message : 'صار خطأ غير متوقع، جرب مرة ثانية')
+
+function CancelModal({ a, onClose, onDone }: { a: Appointment; onClose: () => void; onDone: () => void }) {
+  const [reason, setReason] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  async function submit() {
+    setBusy(true)
+    setError(null)
+    try {
+      await cancelAppointment(a.id, reason.trim() || undefined)
+      onDone()
+    } catch (e) {
+      setError(message(e))
+      setBusy(false)
+    }
+  }
+  return (
+    <Modal title="إلغاء الموعد" onClose={onClose}>
+      <p className="text-[15px]">
+        إلغاء موعد <strong>{a.patient.fullName}</strong> الساعة <bdi dir="ltr">{timeLabel(a.startsAt)}</bdi>؟ الموعد بيضل بالسجل كملغي، والوقت بيرجع متاح.
+      </p>
+      <TextAreaField label="سبب الإلغاء (اختياري)" value={reason} maxLength={300} onChange={(e) => setReason(e.target.value)} />
+      {error && <Alert tone="error">{error}</Alert>}
+      <div className="flex flex-wrap gap-3">
+        <Button variant="danger" busy={busy} onClick={submit}>
+          تأكيد الإلغاء
+        </Button>
+        <Button variant="secondary" onClick={onClose}>
+          رجوع
+        </Button>
+      </div>
+    </Modal>
+  )
+}
+
+/** One appointment with the buttons that make sense for its status. */
+export function AppointmentCard({ a, onChanged, onEdit, showDoctor = true }: { a: Appointment; onChanged: () => void; onEdit: (a: Appointment) => void; showDoctor?: boolean }) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [cancelling, setCancelling] = useState(false)
+  const live = a.status === 'PENDING' || a.status === 'CONFIRMED'
+  // eslint-disable-next-line react-hooks/purity -- "has it started yet" is read at render time on purpose
+  const started = Date.parse(a.startsAt) <= Date.now()
+
+  async function run(fn: () => Promise<unknown>) {
+    setBusy(true)
+    setError(null)
+    try {
+      await fn()
+      onChanged()
+    } catch (e) {
+      setError(message(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <article className={`flex flex-col gap-3 rounded-xl border bg-white p-4 ${a.overdue ? 'border-[#f0cf8f]' : 'border-line'} ${a.status === 'CANCELLED' ? 'opacity-70' : ''}`} aria-label={`موعد ${a.patient.fullName}`}>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <bdi dir="ltr" className="text-lg font-bold whitespace-nowrap">
+          {timeLabel(a.startsAt)} – {timeLabel(a.endsAt)}
+        </bdi>
+        <Link to={`/patients/${a.patient.id}`} className="text-base font-bold text-brand-dark underline">
+          {a.patient.fullName}
+        </Link>
+        <StatusBadge a={a} />
+        {a.overdue && <Badge label="متأخر: ما انسجل إنهاؤه" bg="#fff1d6" fg="#7a4b00" />}
+        {a.patient.medicalAlerts && <Badge label="تنبيه طبي" bg="#fde8e8" fg="#9b1c1c" />}
+      </div>
+      <p className="text-sm text-muted">
+        {showDoctor && <>الدكتور {a.doctor.fullName} · </>}
+        {a.durationMinutes} دقيقة · <bdi dir="ltr">{a.patient.phone}</bdi>
+      </p>
+      {a.patient.medicalAlerts && <p className="text-sm text-[#9b1c1c]">⚠ {a.patient.medicalAlerts}</p>}
+      {a.notes && <p className="text-sm">{a.notes}</p>}
+      {a.status === 'CANCELLED' && a.cancelReason && <p className="text-sm text-muted">سبب الإلغاء: {a.cancelReason}</p>}
+      {error && <Alert tone="error">{error}</Alert>}
+      {live && (
+        <div className="flex flex-wrap gap-2">
+          {a.status === 'PENDING' && (
+            <Button size="sm" busy={busy} onClick={() => run(() => confirmAppointment(a.id))}>
+              تأكيد
+            </Button>
+          )}
+          {started && (
+            <Button size="sm" busy={busy} onClick={() => run(() => completeAppointment(a.id))}>
+              إنهاء
+            </Button>
+          )}
+          <Button size="sm" variant="secondary" disabled={busy} onClick={() => onEdit(a)}>
+            تعديل
+          </Button>
+          <Button size="sm" variant="secondary" disabled={busy} onClick={() => setCancelling(true)}>
+            إلغاء
+          </Button>
+        </div>
+      )}
+      {cancelling && (
+        <CancelModal
+          a={a}
+          onClose={() => setCancelling(false)}
+          onDone={() => {
+            setCancelling(false)
+            onChanged()
+          }}
+        />
+      )}
+    </article>
+  )
+}

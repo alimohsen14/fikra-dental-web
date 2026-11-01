@@ -7,7 +7,10 @@ import ClinicLayout from './layouts/ClinicLayout.tsx'
 import ClinicPage from './pages/admin/ClinicPage.tsx'
 import ClinicsPage from './pages/admin/ClinicsPage.tsx'
 import CreateClinicPage from './pages/admin/CreateClinicPage.tsx'
+import AppointmentsPage from './pages/AppointmentsPage.tsx'
 import ChangePasswordPage from './pages/ChangePasswordPage.tsx'
+import HomePage from './pages/HomePage.tsx'
+import HoursPage from './pages/HoursPage.tsx'
 import LoginPage from './pages/LoginPage.tsx'
 import { NewPatientPage, PatientPage } from './pages/PatientFormPage.tsx'
 import PatientsPage from './pages/PatientsPage.tsx'
@@ -37,10 +40,13 @@ export default function App() {
           </Route>
           <Route element={<RequireAuth roles={['OWNER', 'DOCTOR', 'SECRETARY']} />}>
             <Route element={<ClinicLayout />}>
+              <Route path="/home" element={<HomePage />} />
+              <Route path="/appointments" element={<AppointmentsPage />} />
               <Route path="/patients" element={<PatientsPage />} />
               <Route path="/patients/new" element={<NewPatientPage />} />
               <Route path="/patients/:id" element={<PatientPage />} />
               <Route element={<RequireAuth roles={['OWNER']} />}>
+                <Route path="/hours" element={<HoursPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
               </Route>
             </Route>

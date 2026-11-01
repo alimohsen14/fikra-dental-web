@@ -1,7 +1,7 @@
 import type { Role } from '../lib/session.ts'
 
 /** Where each kind of user lands after login. */
-export const homePathFor = (role: Role): string => (role === 'PLATFORM_ADMIN' ? '/admin' : '/patients')
+export const homePathFor = (role: Role): string => (role === 'PLATFORM_ADMIN' ? '/admin' : '/home')
 
 export const ROLE_LABELS: Record<Role, string> = {
   PLATFORM_ADMIN: 'مدير المنصة',

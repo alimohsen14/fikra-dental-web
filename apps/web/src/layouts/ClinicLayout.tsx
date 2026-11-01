@@ -8,8 +8,15 @@ import { ThemeScope } from '../theme/ThemeScope.tsx'
 import { Sidebar } from './Sidebar.tsx'
 import type { NavItem } from './Sidebar.tsx'
 
-const ITEMS: NavItem[] = [{ to: '/patients', label: 'المرضى', icon: 'patients' }]
-const OWNER_ITEMS: NavItem[] = [{ to: '/settings', label: 'الإعدادات', icon: 'settings' }]
+const ITEMS: NavItem[] = [
+  { to: '/home', label: 'الرئيسية', icon: 'home' },
+  { to: '/appointments', label: 'المواعيد', icon: 'calendar' },
+  { to: '/patients', label: 'المرضى', icon: 'patients' },
+]
+const OWNER_ITEMS: NavItem[] = [
+  { to: '/hours', label: 'أوقات الدوام', icon: 'clock' },
+  { to: '/settings', label: 'الإعدادات', icon: 'settings' },
+]
 
 export default function ClinicLayout() {
   const { session } = useAuth()
