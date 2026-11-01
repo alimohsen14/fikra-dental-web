@@ -6,9 +6,10 @@ import { DatabaseModule } from './database/database.module.js';
 import { HealthModule } from './health/health.module.js';
 import { PatientsModule } from './patients/patients.module.js';
 import { SchedulingModule } from './scheduling/scheduling.module.js';
+import { StaffModule } from './staff/staff.module.js';
 import { TenantModule } from './tenant/tenant.module.js';
 
 @Module({
-  imports: [DatabaseModule, AuthModule, AdminModule, ClinicModule, TenantModule, PatientsModule, SchedulingModule, HealthModule],
+  imports: [DatabaseModule, AuthModule, AdminModule, ClinicModule, TenantModule, PatientsModule, SchedulingModule, StaffModule, HealthModule],
 })
 export class AppModule {}

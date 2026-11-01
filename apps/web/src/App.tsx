@@ -14,6 +14,7 @@ import HoursPage from './pages/HoursPage.tsx'
 import LoginPage from './pages/LoginPage.tsx'
 import { NewPatientPage, PatientPage } from './pages/PatientFormPage.tsx'
 import PatientsPage from './pages/PatientsPage.tsx'
+import TeamPage from './pages/TeamPage.tsx'
 import SettingsPage from './pages/SettingsPage.tsx'
 
 function HomeRedirect() {
@@ -46,6 +47,7 @@ export default function App() {
               <Route path="/patients/new" element={<NewPatientPage />} />
               <Route path="/patients/:id" element={<PatientPage />} />
               <Route element={<RequireAuth roles={['OWNER']} />}>
+                <Route path="/team" element={<TeamPage />} />
                 <Route path="/hours" element={<HoursPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
               </Route>

@@ -14,6 +14,7 @@ const ITEMS: NavItem[] = [
   { to: '/patients', label: 'المرضى', icon: 'patients' },
 ]
 const OWNER_ITEMS: NavItem[] = [
+  { to: '/team', label: 'الفريق', icon: 'patients' },
   { to: '/hours', label: 'أوقات الدوام', icon: 'clock' },
   { to: '/settings', label: 'الإعدادات', icon: 'settings' },
 ]

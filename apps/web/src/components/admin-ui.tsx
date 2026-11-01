@@ -96,7 +96,7 @@ export function ColorPicker({ value, onChange }: { value: string | null; onChang
 }
 
 /** The temporary password. It is shown here once: the server cannot show it again. */
-export function SecretBox({ title, username, password, expiresAt }: { title: string; username: string; password: string; expiresAt: string }) {
+export function SecretBox({ title, username, password, expiresAt, who = 'للمالك' }: { title: string; username: string; password: string; expiresAt: string; who?: string }) {
   const [copied, setCopied] = useState(false)
   async function copy() {
     try {
@@ -127,7 +127,7 @@ export function SecretBox({ title, username, password, expiresAt }: { title: str
         </div>
       </div>
       <p className="rounded-xl bg-[#fff1d6] px-3.5 py-3 text-sm leading-7 text-[#5c3600]">
-        انسخها الآن وأرسلها للمالك. <strong>ما رح تظهر مرة تانية.</strong> صالحة لغاية <DateText value={expiresAt} />، وبيغيّرها أول ما يدخل.
+        انسخها الآن وأرسلها {who}. <strong>ما رح تظهر مرة تانية.</strong> صالحة لغاية <DateText value={expiresAt} />، وبيغيّرها أول ما يدخل.
       </p>
     </section>
   )
