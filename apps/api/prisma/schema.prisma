@@ -263,14 +263,18 @@ model MessageLog {
 model TreatmentType {
   id        String   @id @default(uuid()) @db.Uuid
   clinicId  String   @db.Uuid
+  parentId  String?  @db.Uuid // a sub-type points at its type (two levels only: crown -> zirconia)
   name      String
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now()) @db.Timestamptz(3)
 
-  clinic     Clinic      @relation(fields: [clinicId], references: [id])
+  clinic     Clinic          @relation(fields: [clinicId], references: [id])
+  parent     TreatmentType?  @relation("TypeChildren", fields: [parentId], references: [id])
+  children   TreatmentType[] @relation("TypeChildren")
   treatments Treatment[]
 
-  @@unique([clinicId, name])
+  @@unique([clinicId, parentId, name])
+  @@index([clinicId, parentId])
 }
 
 // One treatment = one type + one or more teeth + ONE total cost + ONE session count.

@@ -9,6 +9,7 @@ import { PasswordService } from '../src/auth/password.service.js';
 import { TokenService } from '../src/auth/token.service.js';
 import { PrismaService } from '../src/database/prisma.service.js';
 import type { Role } from '../src/generated/prisma/client.js';
+import { localTime } from '../src/scheduling/clinic-time.js';
 
 // Real database. Creates its own clinics/users with random names and deletes them at the end.
 describe('Treatments, sessions and payments (e2e)', () => {
@@ -19,6 +20,22 @@ describe('Treatments, sessions and payments (e2e)', () => {
   const http = () => request(app.getHttpServer());
   const bearer = (t: string) => ({ Authorization: `Bearer ${t}` });
   const now = () => new Date().toISOString();
+
+  // The UTC instant at which the clinic's wall clock (Asia/Hebron) shows `minute` on the given day.
+  const at = (day: Date, minute: number): Date => {
+    const guess = Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), 0, minute);
+    for (const hours of [2, 3]) {
+      const candidate = new Date(guess - hours * 3_600_000);
+      if (localTime(candidate, 'Asia/Hebron').minute === minute) return candidate;
+    }
+    throw new Error('time helper failed');
+  };
+  const monday = (() => {
+    const d = new Date(Date.now() + 2 * 86_400_000);
+    d.setUTCHours(12, 0, 0, 0);
+    while (localTime(d, 'Asia/Hebron').weekday !== 1) d.setUTCDate(d.getUTCDate() + 1);
+    return d;
+  })();
 
   async function makeClinic(name: string) {
     const clinic = await prisma.clinic.create({ data: { name: `${name}-${tag}` } });
@@ -382,19 +399,18 @@ describe('Treatments, sessions and payments (e2e)', () => {
     expect(await prisma.payment.count({ where: { id: p.id } })).toBe(1);
     const { default: pg } = await import('pg');
     const pool = new pg.Pool({ connectionString: process.env.TENANT_DATABASE_URL });
+    const client = await pool.connect();
+    let refused = false;
     try {
-      const client = await pool.connect();
-      try {
-        await client.query('BEGIN');
-        await client.query(`SELECT set_config('app.clinic_id', $1, TRUE)`, [c.id]);
-        await expect(client.query('DELETE FROM "Payment" WHERE id = $1', [p.id])).rejects.toThrow();
-      } finally {
-        await client.query('ROLLBACK').catch(() => undefined);
-        client.release();
-      }
+      await client.query(`SELECT set_config('app.clinic_id', $1, false)`, [c.id]);
+      await client.query('DELETE FROM "Payment" WHERE id = $1', [p.id]);
+    } catch {
+      refused = true;
     } finally {
+      client.release(true); // throw the connection away: it carried a clinic setting
       await pool.end();
     }
+    expect(refused).toBe(true);
     expect(await prisma.payment.count({ where: { id: p.id } })).toBe(1);
   });
 
@@ -456,5 +472,135 @@ describe('Treatments, sessions and payments (e2e)', () => {
     expect(row).toMatchObject({ totalCost: 100_000, status: 'OPEN' });
     expect(row!.payments.every((x) => x.status === 'ACTIVE')).toBe(true);
     expect(row!.sessions.every((x) => x.status === 'PLANNED')).toBe(true);
+  });
+
+  // ---------------------------------------------------------------- sub-types
+  it('sub-types: two levels, unique per parent; a type with sub-types cannot be used itself', async () => {
+    const c = await makeClinic('subtypes');
+    const o = c.users.OWNER.token;
+    const mk = (body: Record<string, unknown>) => http().post('/treatment-types').set(bearer(o)).send(body);
+    const crown = (await mk({ name: 'تلبيسة' }).expect(201)).body;
+    const root = (await mk({ name: 'عصب' }).expect(201)).body;
+    await mk({ name: 'تلبيسة' }).expect(409); // same top-level name
+    const zirconia = (await mk({ name: 'زركون', parentId: crown.id }).expect(201)).body;
+    expect(zirconia).toMatchObject({ parentId: crown.id, isActive: true });
+    await mk({ name: 'زركون', parentId: crown.id }).expect(409); // same name under the same parent
+    await mk({ name: 'زركون', parentId: root.id }).expect(201); // same name under another parent is fine
+    await mk({ name: 'بورسلان', parentId: zirconia.id }).expect(400); // no third level
+    await mk({ name: 'بورسلان', parentId: randomUUID() }).expect(404);
+    const porcelain = (await mk({ name: 'بورسلان', parentId: crown.id }).expect(201)).body;
+    await http().patch(`/treatment-types/${porcelain.id}`).set(bearer(o)).send({ name: 'زركون' }).expect(409);
+
+    await create(o, c, { treatmentTypeId: crown.id, doctorId: c.docOwner }).expect(400); // must pick a sub-type
+    const ok = await create(o, c, { treatmentTypeId: zirconia.id, doctorId: c.docOwner }).expect(201);
+    expect(ok.body.treatmentType).toMatchObject({ name: 'زركون', parent: { id: crown.id, name: 'تلبيسة' } });
+
+    await http().patch(`/treatment-types/${crown.id}`).set(bearer(o)).send({ isActive: false }).expect(200);
+    await create(o, c, { treatmentTypeId: zirconia.id, doctorId: c.docOwner }).expect(400); // its parent is stopped
+    await http().patch(`/treatment-types/${crown.id}`).set(bearer(o)).send({ isActive: true }).expect(200);
+    for (const id of [zirconia.id, porcelain.id]) await http().patch(`/treatment-types/${id}`).set(bearer(o)).send({ isActive: false }).expect(200);
+    await create(o, c, { treatmentTypeId: crown.id, doctorId: c.docOwner }).expect(201); // no active sub-types left: the type itself works
+    const u = (await create(o, c, { treatmentTypeId: root.id, doctorId: c.docOwner }).expect(400)); // 'عصب' has an active sub-type
+    expect(u.body).toBeTruthy();
+    const other = await makeClinic('subtypes2');
+    await http().post('/treatment-types').set(bearer(other.users.OWNER.token)).send({ name: 'x1', parentId: crown.id }).expect(404); // another clinic's type
+  });
+
+  // ---------------------------------------------------------------- booking the next session
+  async function withHours(c: Clinic) {
+    for (const d of [c.docOwner, c.doc1, c.doc2]) {
+      await prisma.doctorWorkingPeriod.create({ data: { clinicId: c.id, doctorId: d, weekday: 1, startMinute: 540, endMinute: 780 } });
+    }
+  }
+  const bookNext = (token: string, id: string, n: number, over: Record<string, unknown> = {}) =>
+    http().post(`/treatments/${id}/sessions/${n}/appointment`).set(bearer(token)).send({ startsAt: at(monday, 540).toISOString(), durationMinutes: 30, ...over });
+
+  it('the next session gets a real appointment tied to it; it cannot be booked twice; cancelling that appointment frees it', async () => {
+    const c = await makeClinic('book');
+    await withHours(c);
+    const o = c.users.OWNER.token;
+    const t = (await create(o, c, { plannedSessions: 2, doctorId: c.docOwner }).expect(201)).body;
+    expect(t.sessions[0].appointment).toBeNull();
+
+    const res = await bookNext(o, t.id, 1).expect(201);
+    expect(res.body.sessions[0].appointment).toMatchObject({ status: 'PENDING' });
+    expect(res.body.sessions[1].appointment).toBeNull();
+    const apt = await prisma.appointment.findUnique({ where: { id: res.body.sessions[0].appointmentId } });
+    expect(apt).toMatchObject({ patientId: c.patient, doctorId: c.docOwner, status: 'PENDING' });
+    expect(apt!.startsAt.toISOString()).toBe(at(monday, 540).toISOString());
+    expect(await prisma.auditLog.count({ where: { clinicId: c.id, action: 'SESSION_BOOKED' } })).toBe(1);
+
+    await bookNext(o, t.id, 1, { startsAt: at(monday, 600).toISOString() }).expect(409); // already has a live appointment
+    expect(await prisma.appointment.count({ where: { clinicId: c.id } })).toBe(1); // and no stray appointment was left behind
+
+    await http().post(`/appointments/${apt!.id}/cancel`).set(bearer(o)).send({ reason: 'المريض اعتذر' }).expect(200);
+    const again = await bookNext(o, t.id, 1, { startsAt: at(monday, 600).toISOString() }).expect(201);
+    expect(again.body.sessions[0].appointment.status).toBe('PENDING');
+    expect(new Date(again.body.sessions[0].appointment.startsAt).toISOString()).toBe(at(monday, 600).toISOString());
+  });
+
+  it('booking a session follows every appointment rule, and the session is not linked when booking fails', async () => {
+    const c = await makeClinic('bookrules');
+    await withHours(c);
+    const o = c.users.OWNER.token;
+    const t = (await create(o, c, { plannedSessions: 3, doctorId: c.docOwner }).expect(201)).body;
+    await bookNext(o, t.id, 1, { startsAt: at(monday, 900).toISOString() }).expect(400); // outside working hours
+    await bookNext(o, t.id, 1, { startsAt: at(monday, 555).toISOString() }).expect(400); // not on the half hour
+    await bookNext(o, t.id, 1, { durationMinutes: 45 }).expect(400);
+    await bookNext(o, t.id, 1, { status: 'CONFIRMED' }).expect(400);
+    await bookNext(o, t.id, 9).expect(404);
+    expect((await prisma.session.findFirst({ where: { treatmentId: t.id, number: 1 } }))!.appointmentId).toBeNull();
+
+    await bookNext(o, t.id, 1).expect(201);
+    await http().post('/appointments').set(bearer(o)).send({ patientId: c.patient, doctorId: c.docOwner, startsAt: at(monday, 570).toISOString(), durationMinutes: 30 }).expect(201);
+    await bookNext(o, t.id, 2, { startsAt: at(monday, 570).toISOString() }).expect(409); // the doctor is busy then
+    expect((await prisma.session.findFirst({ where: { treatmentId: t.id, number: 2 } }))!.appointmentId).toBeNull();
+    await complete(o, t.id, 3).expect(200);
+    await bookNext(o, t.id, 3, { startsAt: at(monday, 630).toISOString() }).expect(409); // a finished session is not booked again
+  });
+
+  it('who can book a session: the doctor on their own time, a secretary only with the key, never on a closed or foreign treatment', async () => {
+    const c = await makeClinic('bookwho');
+    await withHours(c);
+    const mine = (await create(c.users.DOCTOR.token, c, { plannedSessions: 3 }).expect(201)).body;
+    await bookNext(c.users.DOCTOR.token, mine.id, 1).expect(201);
+    await bookNext(c.users.DOCTOR.token, mine.id, 2, { doctorId: c.doc2, startsAt: at(monday, 600).toISOString() }).expect(403); // another doctor's time
+    await bookNext(c.users.SECRETARY.token, mine.id, 2, { startsAt: at(monday, 600).toISOString() }).expect(403); // no key
+    await bookNext(c.users.KEYHOLDER.token, mine.id, 2, { startsAt: at(monday, 600).toISOString() }).expect(201);
+    const theirs = (await create(c.users.OWNER.token, c, { doctorId: c.doc2 }).expect(201)).body;
+    await bookNext(c.users.DOCTOR.token, theirs.id, 1, { startsAt: at(monday, 660).toISOString() }).expect(404); // not his treatment
+
+    const done = (await create(c.users.OWNER.token, c, { totalCost: 0, plannedSessions: 1, doctorId: c.docOwner }).expect(201)).body;
+    await complete(c.users.OWNER.token, done.id, 1).expect(200); // free + done = closed
+    await bookNext(c.users.OWNER.token, done.id, 1, { startsAt: at(monday, 720).toISOString() }).expect(409);
+    const admin = await prisma.user.create({ data: { username: `padmin2_${tag}`, passwordHash: 'x', fullName: 'A', role: 'PLATFORM_ADMIN' } });
+    const adminToken = await app.get(TokenService).signAccess({ sub: admin.id, role: 'PLATFORM_ADMIN', clinicId: null, mcp: false });
+    await bookNext(adminToken, mine.id, 1).expect(403);
+    await bookNext('bad', mine.id, 1).expect(401);
+    await prisma.user.delete({ where: { id: admin.id } });
+  });
+
+  it("clinic B cannot book into clinic A's treatment", async () => {
+    const a = await makeClinic('bookisoa');
+    const b = await makeClinic('bookisob');
+    await withHours(a);
+    const t = (await create(a.users.OWNER.token, a, { doctorId: a.docOwner }).expect(201)).body;
+    await bookNext(b.users.OWNER.token, t.id, 1).expect(404);
+    expect(await prisma.appointment.count({ where: { clinicId: { in: [a.id, b.id] } } })).toBe(0);
+  });
+
+  it('two people booking the same session at once: exactly one wins and no extra live appointment is left', async () => {
+    const c = await makeClinic('bookrace');
+    await withHours(c);
+    const o = c.users.OWNER.token;
+    const t = (await create(o, c, { plannedSessions: 1, doctorId: c.docOwner }).expect(201)).body;
+    const res = await Promise.all([
+      bookNext(o, t.id, 1, { startsAt: at(monday, 540).toISOString() }),
+      bookNext(c.users.KEYHOLDER.token, t.id, 1, { startsAt: at(monday, 600).toISOString() }),
+    ]);
+    expect(res.map((r) => r.status).sort()).toEqual([201, 409]);
+    expect(await prisma.appointment.count({ where: { clinicId: c.id, status: { not: 'CANCELLED' } } })).toBe(1);
+    const s1 = await prisma.session.findFirst({ where: { treatmentId: t.id, number: 1 }, include: { appointment: true } });
+    expect(s1!.appointment!.status).not.toBe('CANCELLED');
   });
 });

@@ -2,9 +2,10 @@ import { BadRequestException, ConflictException, ForbiddenException, Injectable,
 import type { AuthUser } from '../auth/auth.types.js';
 import { PrismaService } from '../database/prisma.service.js';
 import type { Prisma } from '../generated/prisma/client.js';
+import { AppointmentsService } from '../scheduling/appointments.service.js';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service.js';
 import { moneyOf, paidTotal, shouldClose } from './money.js';
-import type { CreatePaymentDto, CreateTreatmentDto, ListTreatmentsQuery, UpdateTreatmentDto } from './treatments.dto.js';
+import type { BookSessionDto, CreatePaymentDto, CreateTreatmentDto, ListTreatmentsQuery, UpdateTreatmentDto } from './treatments.dto.js';
 
 type Tx = Prisma.TransactionClient;
 
@@ -24,11 +25,11 @@ const DETAIL = {
   startedAt: true,
   closedAt: true,
   createdAt: true,
-  treatmentType: { select: { id: true, name: true } },
+  treatmentType: { select: { id: true, name: true, parent: { select: { id: true, name: true } } } },
   doctor: { select: { id: true, fullName: true } },
   patient: { select: { id: true, fullName: true } },
   teeth: { select: { toothCode: true }, orderBy: { toothCode: 'asc' } },
-  sessions: { orderBy: { number: 'asc' }, select: { id: true, number: true, status: true, completedAt: true, notes: true, appointmentId: true } },
+  sessions: { orderBy: { number: 'asc' }, select: { id: true, number: true, status: true, completedAt: true, notes: true, appointmentId: true, appointment: { select: { id: true, startsAt: true, endsAt: true, status: true } } } },
   payments: {
     orderBy: [{ paidAt: 'desc' }, { createdAt: 'desc' }],
     select: { id: true, amount: true, method: true, paidAt: true, note: true, status: true, voidedAt: true, voidReason: true, createdAt: true },
@@ -43,6 +44,7 @@ export class TreatmentsService {
   constructor(
     private readonly tenant: TenantPrismaService,
     private readonly prisma: PrismaService,
+    private readonly appointments: AppointmentsService,
   ) {}
 
   // ---------------------------------------------------------------- who can see what
@@ -84,6 +86,17 @@ export class TreatmentsService {
     return rows.map((r) => this.present(r, user));
   }
 
+  /** A treatment points at the most specific type: a type that has sub-types cannot be chosen itself. */
+  private async usableType(id: string) {
+    const type = await this.tenant.db.treatmentType.findUnique({
+      where: { id },
+      select: { isActive: true, parent: { select: { isActive: true } }, children: { where: { isActive: true }, select: { id: true }, take: 1 } },
+    });
+    if (!type) throw new NotFoundException('نوع العلاج غير موجود');
+    if (!type.isActive || type.parent?.isActive === false) throw new BadRequestException('نوع العلاج هذا موقوف');
+    if (type.children.length > 0) throw new BadRequestException('اختر النوع الفرعي');
+  }
+
   // ---------------------------------------------------------------- shared helpers
   /** Locks the treatment row until this transaction ends, so two requests can never both pass the same check. */
   private async lock(tx: Tx, clinicId: string, id: string) {
@@ -117,17 +130,15 @@ export class TreatmentsService {
     const doctorId = own?.id ?? dto.doctorId ?? ownerDoctor?.id;
     if (!doctorId) throw new BadRequestException('اختر الدكتور');
 
-    const [patient, doctor, type] = await Promise.all([
+    const [patient, doctor] = await Promise.all([
       this.tenant.db.patient.findUnique({ where: { id: dto.patientId }, select: { id: true, archivedAt: true } }),
       this.tenant.db.doctor.findUnique({ where: { id: doctorId }, select: { id: true, isActive: true } }),
-      this.tenant.db.treatmentType.findUnique({ where: { id: dto.treatmentTypeId }, select: { id: true, isActive: true } }),
     ]);
     if (!patient) throw new NotFoundException('المريض غير موجود');
     if (patient.archivedAt) throw new BadRequestException('هذا المريض بالأرشيف');
     if (!doctor) throw new NotFoundException('الدكتور غير موجود');
     if (!doctor.isActive) throw new BadRequestException('هذا الدكتور موقوف');
-    if (!type) throw new NotFoundException('نوع العلاج غير موجود');
-    if (!type.isActive) throw new BadRequestException('نوع العلاج هذا موقوف');
+    await this.usableType(dto.treatmentTypeId);
     if (dto.startedAt && dto.startedAt.getTime() > Date.now() + GRACE_MS) throw new BadRequestException('تاريخ بداية العلاج بالمستقبل');
 
     if (dto.appointmentId) {
@@ -163,11 +174,7 @@ export class TreatmentsService {
   async update(user: AuthUser, id: string, dto: UpdateTreatmentDto) {
     await this.load(user, id); // 404 if it is not yours to see
     const clinicId = user.clinicId!;
-    if (dto.treatmentTypeId) {
-      const type = await this.tenant.db.treatmentType.findUnique({ where: { id: dto.treatmentTypeId }, select: { isActive: true } });
-      if (!type) throw new NotFoundException('نوع العلاج غير موجود');
-      if (!type.isActive) throw new BadRequestException('نوع العلاج هذا موقوف');
-    }
+    if (dto.treatmentTypeId) await this.usableType(dto.treatmentTypeId);
     await this.prisma.$transaction(async (tx) => {
       const t = await this.lock(tx, clinicId, id);
       if (t.status !== 'OPEN') throw new ConflictException('العلاج مش مفتوح، ما بينعدل');
@@ -220,6 +227,29 @@ export class TreatmentsService {
       await this.audit(tx, clinicId, user.id, 'SESSION_COMPLETED', id, { after: { number } });
       await this.settle(tx, clinicId, id);
     });
+    return this.get(user, id);
+  }
+
+  /** Books the appointment for one planned session. A cancelled appointment frees the session to be booked again. */
+  async bookSession(user: AuthUser, id: string, number: number, dto: BookSessionDto) {
+    const t = await this.load(user, id);
+    if (t.status !== 'OPEN') throw new ConflictException('العلاج مش مفتوح');
+    const session = t.sessions.find((s) => s.number === number);
+    if (!session) throw new NotFoundException('الجلسة غير موجودة');
+    if (session.status !== 'PLANNED') throw new ConflictException('هذه الجلسة منتهية');
+    if (session.appointment && session.appointment.status !== 'CANCELLED') throw new ConflictException('هذه الجلسة محجوزة من قبل');
+
+    const apt = await this.appointments.create(user, { patientId: t.patientId, doctorId: dto.doctorId ?? t.doctorId, startsAt: dto.startsAt, durationMinutes: dto.durationMinutes, notes: dto.notes });
+    const clinicId = user.clinicId!;
+    const linked = await this.prisma.session.updateMany({
+      where: { id: session.id, clinicId, status: 'PLANNED', OR: [{ appointmentId: null }, { appointment: { status: 'CANCELLED' } }] },
+      data: { appointmentId: apt.id },
+    });
+    if (linked.count !== 1) {
+      await this.appointments.cancel(user, apt.id, 'تعذر ربطه بالجلسة');
+      throw new ConflictException('هذه الجلسة انحجزت للتو');
+    }
+    await this.prisma.auditLog.create({ data: { clinicId, actorUserId: user.id, action: 'SESSION_BOOKED', entityType: 'Treatment', entityId: id, after: { number, appointmentId: apt.id } } });
     return this.get(user, id);
   }
 

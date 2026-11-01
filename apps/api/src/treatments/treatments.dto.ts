@@ -58,12 +58,22 @@ export const createPaymentSchema = z
   .strict();
 export const voidPaymentSchema = z.object({ reason: z.string().trim().min(2).max(300) }).strict();
 
-export const createTypeSchema = z.object({ name: z.string().trim().min(2).max(80) }).strict();
+export const createTypeSchema = z.object({ name: z.string().trim().min(2).max(80), parentId: idSchema.optional() }).strict();
 export const updateTypeSchema = z
   .object({ name: z.string().trim().min(2).max(80).optional(), isActive: z.boolean().optional() })
   .strict()
   .refine((v) => Object.keys(v).length > 0, { message: 'nothing to change' });
 
+export const bookSessionSchema = z
+  .object({
+    doctorId: idSchema.optional(), // default: the treatment's own doctor
+    startsAt: instant,
+    durationMinutes: z.union([z.literal(30), z.literal(60)]),
+    notes: z.preprocess(emptyToUndefined, z.string().trim().max(1000).optional()),
+  })
+  .strict();
+
+export type BookSessionDto = z.infer<typeof bookSessionSchema>;
 export type CreateTreatmentDto = z.infer<typeof createTreatmentSchema>;
 export type UpdateTreatmentDto = z.infer<typeof updateTreatmentSchema>;
 export type ListTreatmentsQuery = z.infer<typeof listTreatmentsSchema>;

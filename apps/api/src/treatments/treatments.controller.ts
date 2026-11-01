@@ -6,6 +6,7 @@ import { RequiresPayments, Roles } from '../auth/roles.decorator.js';
 import { TreatmentTypesService } from './treatment-types.service.js';
 import { TreatmentsService } from './treatments.service.js';
 import {
+  bookSessionSchema,
   cancelTreatmentSchema,
   completeSessionSchema,
   createPaymentSchema,
@@ -37,7 +38,7 @@ export class TreatmentsController {
   @Roles('OWNER', 'DOCTOR')
   @Post('treatment-types')
   createType(@Body() body: unknown) {
-    return this.types.create(parseBody(createTypeSchema, body).name);
+    return (() => { const dto = parseBody(createTypeSchema, body); return this.types.create(dto.name, dto.parentId); })();
   }
 
   @Roles('OWNER')
@@ -74,6 +75,12 @@ export class TreatmentsController {
   @HttpCode(200)
   completeSession(@CurrentUser() user: AuthUser, @Param('id') id: string, @Param('number', ParseIntPipe) number: number, @Body() body: unknown) {
     return this.treatments.completeSession(user, parseBody(idSchema, id), number, parseBody(completeSessionSchema, body ?? {}).notes);
+  }
+
+  // The next session gets a real appointment, tied to the treatment. Same booking rules as any appointment.
+  @Post('treatments/:id/sessions/:number/appointment')
+  bookSession(@CurrentUser() user: AuthUser, @Param('id') id: string, @Param('number', ParseIntPipe) number: number, @Body() body: unknown) {
+    return this.treatments.bookSession(user, parseBody(idSchema, id), number, parseBody(bookSessionSchema, body));
   }
 
   @Roles('OWNER', 'DOCTOR')
