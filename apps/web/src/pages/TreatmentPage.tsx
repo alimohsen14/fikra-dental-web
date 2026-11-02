@@ -13,7 +13,7 @@ import { listDoctors } from '../lib/appointments.ts'
 import { todayInput } from '../lib/format.ts'
 import { localParts, timeLabel } from '../lib/schedule.ts'
 import { buildTreatmentPayment } from '../lib/treatmentForm.ts'
-import { addPayment, completeSession, getTreatment, METHOD_LABELS, nextBookable, sessionsDone, STATUS_TEXT, TREATMENT_STYLE, typeLabel, typeLabels, voidPayment } from '../lib/treatments.ts'
+import { addPayment, canClose, closeTreatment, completeSession, getTreatment, METHOD_LABELS, nextBookable, sessionsDone, STATUS_TEXT, TREATMENT_STYLE, typeLabel, typeLabels, voidPayment } from '../lib/treatments.ts'
 import type { PaymentMethod, PaymentRow, SessionRow, Treatment } from '../lib/treatments.ts'
 import { useLoad } from '../lib/useLoad.ts'
 
@@ -52,6 +52,34 @@ function CompleteSessionModal({ t, s, onClose, onDone }: { t: Treatment; s: Sess
         </Button>
       </div>
     </Modal>
+  )
+}
+
+/** Closing is always a button: it appears only when every session is done and everything is paid. */
+function CloseCard({ t, onChanged }: { t: Treatment; onChanged: () => void }) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  async function close() {
+    setBusy(true)
+    setError(null)
+    try {
+      await closeTreatment(t.id)
+      onChanged()
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'صار خطأ غير متوقع، جرب مرة ثانية')
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <Card title="إغلاق العلاج" hint="بعد الإغلاق ما بينعدل العلاج ولا بتنضاف عليه دفعات.">
+      {error && <Alert tone="error">{error}</Alert>}
+      <div>
+        <Button busy={busy} onClick={() => void close()}>
+          إغلاق العلاج
+        </Button>
+      </div>
+    </Card>
   )
 }
 
@@ -302,12 +330,13 @@ function MoneyCard({ t, isOwner, onChanged }: { t: Treatment; isOwner: boolean; 
 }
 
 /** Where the treatment stands, in one sentence. */
-function statusNote(t: Treatment): { tone: 'success' | 'warning'; text: string } | null {
+function statusNote(t: Treatment, canEdit: boolean): { tone: 'success' | 'warning'; text: string } | null {
   if (t.status === 'CLOSED') return { tone: 'success', text: 'العلاج مغلق: مدفوع بالكامل وكل الجلسات تمت.' }
   if (t.status === 'CANCELLED') return { tone: 'warning', text: 'هذا العلاج ملغي.' }
   const allDone = sessionsDone(t) === t.sessions.length
-  if (t.remaining === 0 && !allDone) return { tone: 'warning', text: 'مدفوع بالكامل. بينغلق العلاج لما تخلص كل الجلسات.' }
-  if (allDone && t.remaining !== undefined && t.remaining > 0) return { tone: 'warning', text: 'كل الجلسات تمت. بينغلق العلاج لما يندفع المتبقي.' }
+  if (canClose(t)) return { tone: 'success', text: canEdit ? 'كل الجلسات تمت والمبلغ كله انستلم. تقدر تغلق العلاج.' : 'كل الجلسات تمت والمبلغ كله انستلم. الدكتور أو المالك بيغلق العلاج.' }
+  if (t.remaining === 0 && !allDone) return { tone: 'warning', text: 'مدفوع بالكامل. بيظهر زر إغلاق العلاج لما تخلص كل الجلسات.' }
+  if (allDone && t.remaining !== undefined && t.remaining > 0) return { tone: 'warning', text: 'كل الجلسات تمت. بيظهر زر إغلاق العلاج لما يندفع المتبقي.' }
   return null
 }
 
@@ -319,7 +348,7 @@ export default function TreatmentPage() {
   const { data: t, error, reload } = useLoad(() => getTreatment(id), [id])
   if (!t || !session) return <Loading error={error} />
   const canEdit = canEditTreatments(session.user)
-  const note = statusNote(t)
+  const note = statusNote(t, canEdit)
   return (
     <>
       <ClinicBanner
@@ -377,6 +406,7 @@ export default function TreatmentPage() {
       </Card>
       <SessionsCard t={t} canEdit={canEdit} onChanged={reload} />
       <MoneyCard t={t} isOwner={session.user.role === 'OWNER'} onChanged={reload} />
+      {canEdit && canClose(t) && <CloseCard t={t} onChanged={reload} />}
     </>
   )
 }

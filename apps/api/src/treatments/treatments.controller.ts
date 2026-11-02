@@ -84,6 +84,13 @@ export class TreatmentsController {
   }
 
   @Roles('OWNER', 'DOCTOR')
+  @Post('treatments/:id/close')
+  @HttpCode(200)
+  close(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.treatments.close(user, parseBody(idSchema, id));
+  }
+
+  @Roles('OWNER', 'DOCTOR')
   @Post('treatments/:id/cancel')
   @HttpCode(200)
   cancel(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: unknown) {

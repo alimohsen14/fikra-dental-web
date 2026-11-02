@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { EMPTY_TREATMENT, buildCreateTreatment, buildEditTreatment, buildTreatmentPayment, copyTypeToAll, entriesOf, resolveTypeId, setEntrySub, setEntryType, toggleEntry, typeIdsOf } from './treatmentForm.ts'
 import type { ToothEntry } from './treatmentForm.ts'
-import { nextBookable, pickableTypes, sessionsDone, toothMarks, typeLabel, typeLabels, typeTree } from './treatments.ts'
+import { canClose, nextBookable, pickableTypes, sessionsDone, toothMarks, typeLabel, typeLabels, typeTree } from './treatments.ts'
 import type { SessionRow, TreatmentType } from './treatments.ts'
 
 const T = (id: string, name: string, parentId: string | null = null, isActive = true): TreatmentType => ({ id, name, parentId, isActive })
@@ -152,6 +152,26 @@ describe('sessions', () => {
     expect(nextBookable({ status: 'OPEN', sessions: [S(1, 'PLANNED', 'CANCELLED'), S(2, 'PLANNED')] })?.number).toBe(1)
     expect(nextBookable({ status: 'OPEN', sessions: [S(1, 'COMPLETED')] })).toBeNull()
     expect(nextBookable({ status: 'CLOSED', sessions: [S(1, 'PLANNED')] })).toBeNull()
+  })
+})
+
+describe('the close button', () => {
+  const S2 = (n: number, done: boolean): SessionRow => ({ id: `s${n}`, number: n, status: done ? 'COMPLETED' : 'PLANNED', completedAt: null, notes: null, appointmentId: null, appointment: null })
+  const open = (sessions: SessionRow[], remaining?: number) => ({ status: 'OPEN' as const, sessions, remaining })
+  it('needs every session done AND nothing left to pay', () => {
+    expect(canClose(open([S2(1, true), S2(2, true)], 0))).toBe(true)
+    expect(canClose(open([S2(1, true), S2(2, false)], 0))).toBe(false) // sessions missing
+    expect(canClose(open([S2(1, true), S2(2, true)], 1))).toBe(false) // one agora owed
+    expect(canClose(open([S2(1, false)], 500))).toBe(false) // neither
+  })
+  it('a doctor without the payments key sees no money: the button waits only for the sessions', () => {
+    expect(canClose(open([S2(1, true)]))).toBe(true)
+    expect(canClose(open([S2(1, false)]))).toBe(false)
+  })
+  it('never for a closed or cancelled treatment, or one without sessions', () => {
+    expect(canClose({ status: 'CLOSED', sessions: [S2(1, true)], remaining: 0 })).toBe(false)
+    expect(canClose({ status: 'CANCELLED', sessions: [S2(1, true)], remaining: 0 })).toBe(false)
+    expect(canClose(open([], 0))).toBe(false)
   })
 })
 

@@ -4,7 +4,7 @@ import { PrismaService } from '../database/prisma.service.js';
 import type { Prisma } from '../generated/prisma/client.js';
 import { AppointmentsService } from '../scheduling/appointments.service.js';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service.js';
-import { moneyOf, paidTotal, shouldClose } from './money.js';
+import { moneyOf, paidTotal } from './money.js';
 import type { BookSessionDto, CreatePaymentDto, CreateTreatmentDto, ListTreatmentsQuery, UpdateTreatmentDto } from './treatments.dto.js';
 
 type Tx = Prisma.TransactionClient;
@@ -107,15 +107,6 @@ export class TreatmentsService {
     return tx.treatment.findFirstOrThrow({ where: { id, clinicId }, include: { sessions: true, payments: true } });
   }
 
-  /** Closes the treatment when it is fully paid and every session is done. Never closes anything else. */
-  private async settle(tx: Tx, clinicId: string, id: string) {
-    const t = await tx.treatment.findFirstOrThrow({ where: { id, clinicId }, include: { sessions: true, payments: true } });
-    if (t.status === 'OPEN' && shouldClose(t.totalCost, t.payments, t.sessions)) {
-      await tx.treatment.update({ where: { id }, data: { status: 'CLOSED', closedAt: new Date() } });
-      await tx.auditLog.create({ data: { clinicId, action: 'TREATMENT_CLOSED', entityType: 'Treatment', entityId: id } });
-    }
-  }
-
   private audit(tx: Tx, clinicId: string, actorUserId: string, action: string, id: string, extra: { before?: object; after?: object } = {}) {
     return tx.auditLog.create({ data: { clinicId, actorUserId, action, entityType: 'Treatment', entityId: id, ...extra } as never });
   }
@@ -206,7 +197,6 @@ export class TreatmentsService {
         before: { totalCost: t.totalCost, plannedSessions: t.plannedSessions },
         after: { ...(dto.totalCost !== undefined ? { totalCost: dto.totalCost } : {}), ...(dto.plannedSessions !== undefined ? { plannedSessions: dto.plannedSessions } : {}), fields: Object.keys(dto) },
       });
-      await this.settle(tx, clinicId, id);
     });
     return this.get(user, id);
   }
@@ -225,7 +215,6 @@ export class TreatmentsService {
       });
       if (done.count !== 1) throw new ConflictException('هذه الجلسة منتهية من قبل');
       await this.audit(tx, clinicId, user.id, 'SESSION_COMPLETED', id, { after: { number } });
-      await this.settle(tx, clinicId, id);
     });
     return this.get(user, id);
   }
@@ -250,6 +239,21 @@ export class TreatmentsService {
       throw new ConflictException('هذه الجلسة انحجزت للتو');
     }
     await this.prisma.auditLog.create({ data: { clinicId, actorUserId: user.id, action: 'SESSION_BOOKED', entityType: 'Treatment', entityId: id, after: { number, appointmentId: apt.id } } });
+    return this.get(user, id);
+  }
+
+  /** Closing is a button, never automatic: allowed only when every session is done AND everything is paid. */
+  async close(user: AuthUser, id: string) {
+    await this.load(user, id);
+    const clinicId = user.clinicId!;
+    await this.prisma.$transaction(async (tx) => {
+      const t = await this.lock(tx, clinicId, id);
+      if (t.status !== 'OPEN') throw new ConflictException('العلاج مش مفتوح');
+      if (t.sessions.length === 0 || t.sessions.some((s) => s.status !== 'COMPLETED')) throw new ConflictException('لسا في جلسات ما تمت');
+      if (paidTotal(t.payments) < t.totalCost) throw new ConflictException('لسا في مبلغ متبقي ما انستلم');
+      await tx.treatment.update({ where: { id }, data: { status: 'CLOSED', closedAt: new Date() } });
+      await this.audit(tx, clinicId, user.id, 'TREATMENT_CLOSED', id);
+    });
     return this.get(user, id);
   }
 
@@ -280,7 +284,6 @@ export class TreatmentsService {
         data: { clinicId, patientId: row.patientId, treatmentId: id, amount: dto.amount, method: dto.method, paidAt: dto.paidAt, note: dto.note ?? null, createdByUserId: user.id },
       });
       await tx.auditLog.create({ data: { clinicId, actorUserId: user.id, action: 'PAYMENT_CREATED', entityType: 'Payment', entityId: p.id, after: { treatmentId: id, amount: dto.amount, method: dto.method } } });
-      await this.settle(tx, clinicId, id);
     });
     return this.get(user, id);
   }

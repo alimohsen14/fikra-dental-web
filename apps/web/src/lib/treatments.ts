@@ -114,6 +114,11 @@ export function pickableTypes(types: TreatmentType[], keep: string[] = []): Type
 
 export const sessionsDone = (t: Pick<Treatment, 'sessions'>): number => t.sessions.filter((s) => s.status === 'COMPLETED').length
 
+/** The close button shows only when every session is done AND nothing is owed. A doctor without the payments key cannot see money: the server then makes the final check. */
+export function canClose(t: Pick<Treatment, 'sessions' | 'status' | 'remaining'>): boolean {
+  return t.status === 'OPEN' && t.sessions.length > 0 && t.sessions.every((s) => s.status === 'COMPLETED') && (t.remaining === undefined || t.remaining === 0)
+}
+
 /** The first session that is not finished and has no live appointment yet. */
 export function nextBookable(t: Pick<Treatment, 'sessions' | 'status'>): SessionRow | null {
   if (t.status !== 'OPEN') return null
@@ -157,6 +162,7 @@ export const updateTreatment = (id: string, body: Record<string, unknown>) => re
 export const completeSession = (id: string, number: number, notes?: string) => request<Treatment>(`/treatments/${id}/sessions/${number}/complete`, { method: 'POST', body: notes ? { notes } : {} })
 export const bookSession = (id: string, number: number, body: { doctorId: string; startsAt: string; durationMinutes: 30 | 60; notes?: string }) =>
   request<Treatment>(`/treatments/${id}/sessions/${number}/appointment`, { method: 'POST', body })
+export const closeTreatment = (id: string) => request<Treatment>(`/treatments/${id}/close`, { method: 'POST', body: {} })
 export const cancelTreatment = (id: string, reason?: string) => request<Treatment>(`/treatments/${id}/cancel`, { method: 'POST', body: reason ? { reason } : {} })
 export const addPayment = (id: string, body: { amount: number; method: PaymentMethod; paidAt: string; note?: string }) => request<Treatment>(`/treatments/${id}/payments`, { method: 'POST', body })
 export const voidPayment = (paymentId: string, reason: string) => request<Treatment>(`/payments/${paymentId}/void`, { method: 'POST', body: { reason } })

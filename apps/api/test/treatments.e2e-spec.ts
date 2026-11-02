@@ -64,6 +64,7 @@ describe('Treatments, sessions and payments (e2e)', () => {
   };
   const create = (token: string, c: Clinic, over: Record<string, unknown> = {}) => http().post('/treatments').set(bearer(token)).send(body(c, over));
   const pay = (token: string, id: string, over: Record<string, unknown> = {}) => http().post(`/treatments/${id}/payments`).set(bearer(token)).send({ amount: 10_000, method: 'CASH', paidAt: now(), ...over });
+  const close = (token: string, id: string) => http().post(`/treatments/${id}/close`).set(bearer(token)).send({});
   const complete = (token: string, id: string, n: number) => http().post(`/treatments/${id}/sessions/${n}/complete`).set(bearer(token)).send({});
 
   beforeAll(async () => {
@@ -284,31 +285,70 @@ describe('Treatments, sessions and payments (e2e)', () => {
   });
 
   // ---------------------------------------------------------------- sessions and closing
-  it('closes only when fully paid AND every session is done, in either order', async () => {
+  it('nothing closes by itself: the close button works only when every session is done AND everything is paid', async () => {
     const c = await makeClinic('close');
     const d = c.users.DOCTOR.token;
     await prisma.user.update({ where: { id: c.users.DOCTOR.id }, data: { canManagePayments: true } });
 
-    // paid first, then sessions
     const a = (await create(d, c, { totalCost: 20_000, plannedSessions: 2 }).expect(201)).body;
-    expect((await pay(d, a.id, { amount: 20_000 }).expect(201)).body.status).toBe('OPEN'); // sessions still missing
+    await close(d, a.id).expect(409); // nothing done, nothing paid
+    expect((await pay(d, a.id, { amount: 20_000 }).expect(201)).body.status).toBe('OPEN'); // paid, still open
+    await close(d, a.id).expect(409); // paid but sessions missing
     const half = await complete(d, a.id, 1).expect(200);
     expect(half.body.status).toBe('OPEN');
     expect(half.body.sessions[0]).toMatchObject({ status: 'COMPLETED' });
     expect(half.body.sessions[0].completedAt).toBeTruthy();
+    await close(d, a.id).expect(409); // one session left
     const done = await complete(d, a.id, 2).expect(200);
-    expect(done.body.status).toBe('CLOSED');
-    expect(done.body.closedAt).toBeTruthy();
+    expect(done.body.status).toBe('OPEN'); // everything is ready, but it waits for the button
+    const closed = await close(d, a.id).expect(200);
+    expect(closed.body.status).toBe('CLOSED');
+    expect(closed.body.closedAt).toBeTruthy();
+    await close(d, a.id).expect(409); // already closed
     await pay(d, a.id, { amount: 1 }).expect(409);
     await complete(d, a.id, 1).expect(409);
     await http().patch(`/treatments/${a.id}`).set(bearer(d)).send({ description: 'x' }).expect(409);
 
-    // sessions first, then money
+    // sessions first, then money: still owed means no close
     const b = (await create(d, c, { totalCost: 20_000, plannedSessions: 1 }).expect(201)).body;
-    expect((await complete(d, b.id, 1).expect(200)).body.status).toBe('OPEN'); // still owed
+    expect((await complete(d, b.id, 1).expect(200)).body.status).toBe('OPEN');
+    await close(d, b.id).expect(409);
     expect((await pay(d, b.id, { amount: 19_999 }).expect(201)).body.status).toBe('OPEN');
-    expect((await pay(d, b.id, { amount: 1 }).expect(201)).body.status).toBe('CLOSED');
+    await close(d, b.id).expect(409); // one agora short
+    expect((await pay(d, b.id, { amount: 1 }).expect(201)).body.status).toBe('OPEN');
+    expect((await close(d, b.id).expect(200)).body.status).toBe('CLOSED');
     expect(await prisma.auditLog.count({ where: { clinicId: c.id, action: 'TREATMENT_CLOSED' } })).toBe(2);
+
+    // a voided payment does not count as paid
+    const o = c.users.OWNER.token;
+    const v = (await create(o, c, { totalCost: 5_000, plannedSessions: 1, doctorId: c.docOwner }).expect(201)).body;
+    const paid = (await pay(o, v.id, { amount: 5_000 }).expect(201)).body;
+    await complete(o, v.id, 1).expect(200);
+    await http().post(`/payments/${paid.payments[0].id}/void`).set(bearer(o)).send({ reason: 'غلط' }).expect(200);
+    await close(o, v.id).expect(409);
+  });
+
+  it('who can press close: owner and the treating doctor; not a secretary, not another doctor, not another clinic, not a cancelled treatment', async () => {
+    const c = await makeClinic('closewho');
+    const other = await makeClinic('closewho2');
+    const mk = async (doctorId: string) => {
+      const t = (await create(c.users.OWNER.token, c, { totalCost: 0, plannedSessions: 1, doctorId }).expect(201)).body;
+      await complete(c.users.OWNER.token, t.id, 1).expect(200);
+      return t;
+    };
+    const mine = await mk(c.doc1);
+    await close(c.users.SECRETARY.token, mine.id).expect(403);
+    await close(c.users.KEYHOLDER.token, mine.id).expect(403); // the payments key does not give this
+    await close(other.users.OWNER.token, mine.id).expect(404);
+    const theirs = await mk(c.doc2);
+    await close(c.users.DOCTOR.token, theirs.id).expect(404); // not his treatment
+    expect((await close(c.users.DOCTOR.token, mine.id).expect(200)).body.status).toBe('CLOSED');
+    expect((await close(c.users.OWNER.token, theirs.id).expect(200)).body.status).toBe('CLOSED'); // free treatment, all done
+    const cancelled = (await create(c.users.OWNER.token, c, { totalCost: 0, plannedSessions: 1, doctorId: c.docOwner }).expect(201)).body;
+    await http().post(`/treatments/${cancelled.id}/cancel`).set(bearer(c.users.OWNER.token)).send({}).expect(200);
+    await close(c.users.OWNER.token, cancelled.id).expect(409);
+    await close(c.users.OWNER.token, randomUUID()).expect(404);
+    await close('bad', mine.id).expect(401);
   });
 
   it('sessions: notes are kept, a session finishes once, unknown numbers are 404', async () => {
@@ -355,14 +395,15 @@ describe('Treatments, sessions and payments (e2e)', () => {
     expect(await prisma.auditLog.count({ where: { clinicId: c.id, action: 'TREATMENT_UPDATED', entityId: t.id } })).toBeGreaterThanOrEqual(4);
   });
 
-  it('lowering the cost to what is already paid, with every session done, closes the treatment', async () => {
+  it('lowering the cost to what is already paid, with every session done, makes it ready to close but does not close it', async () => {
     const c = await makeClinic('editclose');
     const o = c.users.OWNER.token;
     const t = (await create(o, c, { totalCost: 50_000, plannedSessions: 1 }).expect(201)).body;
     await pay(o, t.id, { amount: 20_000 }).expect(201);
     await complete(o, t.id, 1).expect(200);
     const res = await http().patch(`/treatments/${t.id}`).set(bearer(o)).send({ totalCost: 20_000 }).expect(200);
-    expect(res.body).toMatchObject({ status: 'CLOSED', remaining: 0 });
+    expect(res.body).toMatchObject({ status: 'OPEN', remaining: 0 });
+    expect((await close(o, t.id).expect(200)).body.status).toBe('CLOSED');
   });
 
   // ---------------------------------------------------------------- voiding payments
@@ -373,7 +414,7 @@ describe('Treatments, sessions and payments (e2e)', () => {
     const t = (await create(o, c, { totalCost: 10_000, plannedSessions: 1 }).expect(201)).body;
     const paid = (await pay(o, t.id, { amount: 10_000 }).expect(201)).body;
     await complete(o, t.id, 1).expect(200);
-    expect((await http().get(`/treatments/${t.id}`).set(bearer(o))).body.status).toBe('CLOSED');
+    expect((await close(o, t.id).expect(200)).body.status).toBe('CLOSED');
     const paymentId = paid.payments[0].id;
 
     await http().post(`/payments/${paymentId}/void`).set(bearer(c.users.DOCTOR.token)).send({ reason: 'غلط بالمبلغ' }).expect(403); // even with the key
@@ -394,7 +435,8 @@ describe('Treatments, sessions and payments (e2e)', () => {
     expect(audit).toBeTruthy();
 
     // the same money can be paid again, and a voided payment does not count
-    expect((await pay(o, t.id, { amount: 10_000 }).expect(201)).body).toMatchObject({ status: 'CLOSED', paid: 10_000 });
+    expect((await pay(o, t.id, { amount: 10_000 }).expect(201)).body).toMatchObject({ status: 'OPEN', paid: 10_000 });
+    expect((await close(o, t.id).expect(200)).body.status).toBe('CLOSED');
     expect(await prisma.payment.count({ where: { treatmentId: t.id } })).toBe(2);
   });
 
@@ -619,7 +661,8 @@ describe('Treatments, sessions and payments (e2e)', () => {
     await bookNext(c.users.DOCTOR.token, theirs.id, 1, { startsAt: at(monday, 660).toISOString() }).expect(404); // not his treatment
 
     const done = (await create(c.users.OWNER.token, c, { totalCost: 0, plannedSessions: 1, doctorId: c.docOwner }).expect(201)).body;
-    await complete(c.users.OWNER.token, done.id, 1).expect(200); // free + done = closed
+    await complete(c.users.OWNER.token, done.id, 1).expect(200);
+    await close(c.users.OWNER.token, done.id).expect(200); // free + done + button = closed
     await bookNext(c.users.OWNER.token, done.id, 1, { startsAt: at(monday, 720).toISOString() }).expect(409);
     const admin = await prisma.user.create({ data: { username: `padmin2_${tag}`, passwordHash: 'x', fullName: 'A', role: 'PLATFORM_ADMIN' } });
     const adminToken = await app.get(TokenService).signAccess({ sub: admin.id, role: 'PLATFORM_ADMIN', clinicId: null, mcp: false });
