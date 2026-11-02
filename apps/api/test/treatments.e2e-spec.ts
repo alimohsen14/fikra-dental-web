@@ -177,6 +177,9 @@ describe('Treatments, sessions and payments (e2e)', () => {
     await create(t, c, { appointmentId: cancelled.id }).expect(400);
     const ok = await create(t, c, { appointmentId: apt.id }).expect(201);
     expect(ok.body.appointmentId).toBe(apt.id);
+    expect(await prisma.appointment.findUnique({ where: { id: apt.id } })).toMatchObject({ status: 'COMPLETED' }); // opening a treatment completes its appointment
+    expect((await prisma.appointment.findUnique({ where: { id: apt.id } }))!.completedAt).toBeTruthy();
+    expect((await prisma.appointment.findUnique({ where: { id: cancelled.id } }))!.status).toBe('CANCELLED');
     await create(t, c, { appointmentId: apt.id }).expect(409);
     await create(t, c, { appointmentId: randomUUID() }).expect(404);
   });
@@ -604,6 +607,26 @@ describe('Treatments, sessions and payments (e2e)', () => {
   }
   const bookNext = (token: string, id: string, n: number, over: Record<string, unknown> = {}) =>
     http().post(`/treatments/${id}/sessions/${n}/appointment`).set(bearer(token)).send({ startsAt: at(monday, 540).toISOString(), durationMinutes: 30, ...over });
+
+  it('a confirmed appointment completes too, and finishing a session completes the appointment booked for it (a cancelled one stays cancelled)', async () => {
+    const c = await makeClinic('aptdone');
+    const start = new Date(Date.now() - 600_000);
+    const mk = (status: 'PENDING' | 'CONFIRMED' | 'CANCELLED', shift: number) => prisma.appointment.create({ data: { clinicId: c.id, patientId: c.patient, doctorId: c.docOwner, status, startsAt: new Date(start.getTime() + shift), endsAt: new Date(start.getTime() + shift + 1_800_000) } });
+    const o = c.users.OWNER.token;
+    const confirmed = await mk('CONFIRMED', -7_200_000);
+    await create(o, c, { appointmentId: confirmed.id, doctorId: c.docOwner }).expect(201);
+    expect((await prisma.appointment.findUnique({ where: { id: confirmed.id } }))!.status).toBe('COMPLETED');
+
+    const t = (await create(o, c, { plannedSessions: 2, doctorId: c.docOwner }).expect(201)).body;
+    const next = await mk('PENDING', 7_200_000);
+    const dead = await mk('CANCELLED', 14_400_000);
+    await prisma.session.updateMany({ where: { treatmentId: t.id, number: 1 }, data: { appointmentId: next.id } });
+    await prisma.session.updateMany({ where: { treatmentId: t.id, number: 2 }, data: { appointmentId: dead.id } });
+    await complete(o, t.id, 1).expect(200);
+    expect((await prisma.appointment.findUnique({ where: { id: next.id } }))!.status).toBe('COMPLETED');
+    await complete(o, t.id, 2).expect(200);
+    expect((await prisma.appointment.findUnique({ where: { id: dead.id } }))!.status).toBe('CANCELLED');
+  });
 
   it('the next session gets a real appointment tied to it; it cannot be booked twice; cancelling that appointment frees it', async () => {
     const c = await makeClinic('book');

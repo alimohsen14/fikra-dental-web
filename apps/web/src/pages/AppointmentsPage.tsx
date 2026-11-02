@@ -2,13 +2,13 @@ import { useState } from 'react'
 import { useAuth } from '../auth/AuthContext.tsx'
 import { Loading } from '../components/admin-ui.tsx'
 import { AppointmentDialog } from '../components/AppointmentDialog.tsx'
-import { AppointmentCard, StatusBadge } from '../components/appointment-ui.tsx'
+import { AppointmentCard, StatusBadge, StatusCards } from '../components/appointment-ui.tsx'
 import { ClinicBanner } from '../components/clinic-ui.tsx'
 import { Icon } from '../components/icons.tsx'
 import { Button } from '../components/ui.tsx'
 import { dayTitle, addDays, dayRange, isDate, localParts, timeLabel, todayDate, weekStart } from '../lib/schedule.ts'
-import { listAppointments, listDoctors } from '../lib/appointments.ts'
-import type { Appointment } from '../lib/appointments.ts'
+import { filterDay, listAppointments, listDoctors } from '../lib/appointments.ts'
+import type { Appointment, DayFilter } from '../lib/appointments.ts'
 import { useLoad } from '../lib/useLoad.ts'
 
 type View = 'day' | 'week'
@@ -20,6 +20,7 @@ export default function AppointmentsPage() {
   const [view, setView] = useState<View>('day')
   const [doctorId, setDoctorId] = useState('')
   const [showCancelled, setShowCancelled] = useState(false)
+  const [filter, setFilter] = useState<DayFilter>('ALL')
   const [dialog, setDialog] = useState<{ edit?: Appointment } | null>(null)
 
   const doctors = useLoad(listDoctors, [])
@@ -27,7 +28,8 @@ export default function AppointmentsPage() {
   const range = dayRange(first, view === 'week' ? 7 : 1)
   const list = useLoad(() => listAppointments({ ...range, ...(doctorId ? { doctorId } : {}) }), [range.from, range.to, doctorId])
 
-  const items = (list.data ?? []).filter((a) => showCancelled || a.status !== 'CANCELLED').sort((a, b) => a.startsAt.localeCompare(b.startsAt))
+  const sorted = (list.data ?? []).sort((a, b) => a.startsAt.localeCompare(b.startsAt))
+  const items = view === 'day' ? filterDay(sorted, filter) : sorted.filter((a) => showCancelled || a.status !== 'CANCELLED')
   const step = view === 'week' ? 7 : 1
   const days = view === 'week' ? Array.from({ length: 7 }, (_, i) => addDays(first, i)) : [date]
   const changed = () => {
@@ -93,20 +95,23 @@ export default function AppointmentsPage() {
             </select>
           </label>
         )}
-        <label className="flex h-10 items-center gap-2 text-sm">
-          <input type="checkbox" checked={showCancelled} onChange={(e) => setShowCancelled(e.target.checked)} />
-          إظهار الملغية
-        </label>
+        {view === 'week' && (
+          <label className="flex h-10 items-center gap-2 text-sm">
+            <input type="checkbox" checked={showCancelled} onChange={(e) => setShowCancelled(e.target.checked)} />
+            إظهار الملغية
+          </label>
+        )}
       </div>
 
       {!list.data || !doctors.data ? (
         <Loading error={list.error ?? doctors.error} />
       ) : view === 'day' ? (
         <div className="flex flex-col gap-3">
+          <StatusCards list={sorted} value={filter} onChange={setFilter} />
           {items.map((a) => (
             <AppointmentCard key={a.id} a={a} onChanged={list.reload} onEdit={(x) => setDialog({ edit: x })} />
           ))}
-          {items.length === 0 && <p className="text-[15px] text-muted">ما في مواعيد بهذا اليوم.</p>}
+          {items.length === 0 && <p className="text-[15px] text-muted">{filter === 'ALL' ? 'ما في مواعيد بهذا اليوم.' : 'ما في مواعيد بهالحالة بهذا اليوم.'}</p>}
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">

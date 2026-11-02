@@ -107,6 +107,11 @@ export class TreatmentsService {
     return tx.treatment.findFirstOrThrow({ where: { id, clinicId }, include: { sessions: true, payments: true } });
   }
 
+  /** Marks a still-open appointment as done. A cancelled or already finished one is left alone. */
+  private completeAppointment(tx: Tx, clinicId: string, appointmentId: string) {
+    return tx.appointment.updateMany({ where: { id: appointmentId, clinicId, status: { in: ['PENDING', 'CONFIRMED'] } }, data: { status: 'COMPLETED', completedAt: new Date() } });
+  }
+
   private audit(tx: Tx, clinicId: string, actorUserId: string, action: string, id: string, extra: { before?: object; after?: object } = {}) {
     return tx.auditLog.create({ data: { clinicId, actorUserId, action, entityType: 'Treatment', entityId: id, ...extra } as never });
   }
@@ -157,6 +162,8 @@ export class TreatmentsService {
       });
       await tx.treatmentTooth.createMany({ data: dto.teeth.map((x) => ({ clinicId, treatmentId: t.id, toothCode: x.toothCode, treatmentTypeId: x.treatmentTypeId })) });
       await tx.session.createMany({ data: Array.from({ length: dto.plannedSessions }, (_, i) => ({ clinicId, treatmentId: t.id, number: i + 1 })) });
+      // Opening a treatment on an appointment means the visit happened: the appointment is completed.
+      if (dto.appointmentId) await this.completeAppointment(tx, clinicId, dto.appointmentId);
       await this.audit(tx, clinicId, user.id, 'TREATMENT_CREATED', t.id, { after: { patientId: dto.patientId, totalCost: dto.totalCost, plannedSessions: dto.plannedSessions, toothCodes: dto.teeth.map((x) => x.toothCode) } });
       return t.id;
     });
@@ -215,6 +222,7 @@ export class TreatmentsService {
       });
       if (done.count !== 1) throw new ConflictException('هذه الجلسة منتهية من قبل');
       await this.audit(tx, clinicId, user.id, 'SESSION_COMPLETED', id, { after: { number } });
+      if (session.appointmentId) await this.completeAppointment(tx, clinicId, session.appointmentId); // the visit of this session happened
     });
     return this.get(user, id);
   }

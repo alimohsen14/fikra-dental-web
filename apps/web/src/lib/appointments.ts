@@ -32,6 +32,20 @@ export const STATUS_STYLE: Record<AppointmentStatus, { bg: string; fg: string }>
   CANCELLED: { bg: '#eceff3', fg: '#4a5a70' },
 }
 
+/** The cards above a day: all (without cancelled), or one status. */
+export type DayFilter = 'ALL' | AppointmentStatus
+
+export function countByStatus(list: Pick<Appointment, 'status'>[]): Record<AppointmentStatus, number> {
+  const n: Record<AppointmentStatus, number> = { PENDING: 0, CONFIRMED: 0, COMPLETED: 0, CANCELLED: 0 }
+  for (const a of list) n[a.status] += 1
+  return n
+}
+
+export const filterDay = <T extends Pick<Appointment, 'status'>>(list: T[], f: DayFilter): T[] => (f === 'ALL' ? list.filter((a) => a.status !== 'CANCELLED') : list.filter((a) => a.status === f))
+
+/** Appointments still waiting for the patient to answer, soonest first. The doctor calls them: coming = confirm, not coming = cancel (the time is free again). */
+export const awaitingReply = <T extends Pick<Appointment, 'status' | 'startsAt'>>(list: T[]): T[] => list.filter((a) => a.status === 'PENDING').sort((a, b) => a.startsAt.localeCompare(b.startsAt))
+
 export const listDoctors = () => request<Doctor[]>('/doctors')
 export const setWorkingPeriods = (doctorId: string, periods: Period[]) =>
   request<(Period & { id: string })[]>(`/doctors/${doctorId}/working-periods`, { method: 'PUT', body: { periods } })

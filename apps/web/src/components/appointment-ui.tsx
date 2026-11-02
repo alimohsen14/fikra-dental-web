@@ -1,12 +1,41 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { ApiError } from '../lib/api.ts'
-import { cancelAppointment, completeAppointment, confirmAppointment, STATUS_LABELS, STATUS_STYLE } from '../lib/appointments.ts'
-import type { Appointment } from '../lib/appointments.ts'
-import { timeLabel } from '../lib/schedule.ts'
+import { cancelAppointment, completeAppointment, confirmAppointment, countByStatus, STATUS_LABELS, STATUS_STYLE } from '../lib/appointments.ts'
+import type { Appointment, DayFilter } from '../lib/appointments.ts'
+import { dayTitle, localParts, timeLabel } from '../lib/schedule.ts'
 import { Badge } from './admin-ui.tsx'
 import { Modal } from './Modal.tsx'
 import { Alert, Button, TextAreaField } from './ui.tsx'
+
+/** Counters for one day. Press one to see only those appointments. */
+export function StatusCards({ list, value, onChange }: { list: Pick<Appointment, 'status'>[]; value: DayFilter; onChange: (f: DayFilter) => void }) {
+  const n = countByStatus(list)
+  const cards: [DayFilter, string, number][] = [
+    ['ALL', 'مواعيد اليوم', list.length - n.CANCELLED],
+    ['PENDING', 'بانتظار التأكيد', n.PENDING],
+    ['CONFIRMED', 'مؤكدة', n.CONFIRMED],
+    ['COMPLETED', 'منتهية', n.COMPLETED],
+    ['CANCELLED', 'ملغية', n.CANCELLED],
+  ]
+  return (
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5" role="group" aria-label="حالات المواعيد">
+      {cards.map(([f, label, count]) => (
+        <button
+          key={f}
+          type="button"
+          data-filter={f}
+          aria-pressed={value === f}
+          onClick={() => onChange(f)}
+          className={`flex cursor-pointer flex-col gap-1 rounded-xl border-2 bg-white p-4 text-start ${value === f ? 'border-brand' : 'border-line'}`}
+        >
+          <span className="text-sm text-muted">{label}</span>
+          <span className="text-3xl font-bold text-brand-dark">{count}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
 
 export const StatusBadge = ({ a }: { a: Appointment }) => <Badge label={STATUS_LABELS[a.status]} {...STATUS_STYLE[a.status]} />
 
@@ -47,7 +76,7 @@ function CancelModal({ a, onClose, onDone }: { a: Appointment; onClose: () => vo
 }
 
 /** One appointment with the buttons that make sense for its status. */
-export function AppointmentCard({ a, onChanged, onEdit, showDoctor = true }: { a: Appointment; onChanged: () => void; onEdit: (a: Appointment) => void; showDoctor?: boolean }) {
+export function AppointmentCard({ a, onChanged, onEdit, showDoctor = true, showDate = false }: { a: Appointment; onChanged: () => void; onEdit: (a: Appointment) => void; showDoctor?: boolean; showDate?: boolean }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [cancelling, setCancelling] = useState(false)
@@ -71,6 +100,7 @@ export function AppointmentCard({ a, onChanged, onEdit, showDoctor = true }: { a
   return (
     <article className={`flex flex-col gap-3 rounded-xl border bg-white p-4 ${a.overdue ? 'border-[#f0cf8f]' : 'border-line'} ${a.status === 'CANCELLED' ? 'opacity-70' : ''}`} aria-label={`موعد ${a.patient.fullName}`}>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        {showDate && <span className="font-bold">{dayTitle(localParts(a.startsAt).date)}</span>}
         <bdi dir="ltr" className="text-lg font-bold whitespace-nowrap">
           {timeLabel(a.startsAt)} – {timeLabel(a.endsAt)}
         </bdi>
@@ -78,7 +108,7 @@ export function AppointmentCard({ a, onChanged, onEdit, showDoctor = true }: { a
           {a.patient.fullName}
         </Link>
         <StatusBadge a={a} />
-        {a.overdue && <Badge label="متأخر: ما انسجل إنهاؤه" bg="#fff1d6" fg="#7a4b00" />}
+        {a.overdue && <Badge label={a.status === 'PENDING' ? 'فات موعده ولا انأكد' : 'متأخر: ما انسجل إنهاؤه'} bg="#fff1d6" fg="#7a4b00" />}
         {a.patient.medicalAlerts && <Badge label="تنبيه طبي" bg="#fde8e8" fg="#9b1c1c" />}
       </div>
       <p className="text-sm text-muted">
