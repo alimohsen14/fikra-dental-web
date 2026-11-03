@@ -3,6 +3,7 @@ import type { AuthUser } from '../auth/auth.types.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service.js';
 import { localTime } from './clinic-time.js';
+import { bookedInsideWindow, messageDueAt } from './confirm-window.js';
 import { SLOT_MINUTES } from './scheduling.dto.js';
 import type { CreateAppointmentDto, ListAppointmentsQuery, UpdateAppointmentDto } from './scheduling.dto.js';
 
@@ -21,18 +22,25 @@ const SELECT = {
   cancelledAt: true,
   patient: { select: { id: true, fullName: true, phone: true, medicalAlerts: true } },
   doctor: { select: { id: true, fullName: true } },
+  messages: { where: { kind: 'CONFIRMATION' }, select: { status: true, sentAt: true, scheduledFor: true, response: true, respondedAt: true, errorMessage: true, body: true }, take: 1 },
 } as const;
 
 interface Row {
   startsAt: Date;
   endsAt: Date;
   status: string;
+  messages: { status: string }[];
 }
 
 /** What the API returns. `overdue` is derived (never stored): still unconfirmed or pending after its time passed. */
 function present<T extends Row>(row: T) {
+  const { messages, ...rest } = row;
+  const message = messages.find((m) => m.status !== 'CANCELLED') ?? null;
   return {
-    ...row,
+    ...rest,
+    confirmationMessage: message,
+    // when the message will go out (only for a waiting appointment whose message was not sent yet)
+    messageDueAt: row.status === 'PENDING' && !message ? messageDueAt(row.startsAt) : null,
     durationMinutes: Math.round((row.endsAt.getTime() - row.startsAt.getTime()) / MINUTE),
     overdue: (row.status === 'PENDING' || row.status === 'CONFIRMED') && row.endsAt.getTime() < Date.now(),
   };
@@ -108,7 +116,15 @@ export class AppointmentsService {
     const endsAt = await this.checkSlot(user.clinicId!, dto.doctorId, dto.startsAt, dto.durationMinutes);
     try {
       const row = await this.tenant.db.appointment.create({
-        data: { patientId: dto.patientId, doctorId: dto.doctorId, startsAt: dto.startsAt, endsAt, notes: dto.notes ?? null } as never,
+        data: {
+          patientId: dto.patientId,
+          doctorId: dto.doctorId,
+          startsAt: dto.startsAt,
+          endsAt,
+          notes: dto.notes ?? null,
+          // close to the visit: nobody is going to be asked, it is confirmed from the start
+          ...(bookedInsideWindow(dto.startsAt) ? { status: 'CONFIRMED', confirmedAt: new Date() } : {}),
+        } as never,
         select: SELECT,
       });
       return present(row);
@@ -157,6 +173,7 @@ export class AppointmentsService {
     const duration = dto.durationMinutes ?? Math.round((current.endsAt.getTime() - current.startsAt.getTime()) / MINUTE);
 
     const timeChanged = dto.doctorId !== undefined || dto.startsAt !== undefined || dto.durationMinutes !== undefined;
+    const moved = dto.startsAt !== undefined && dto.startsAt.getTime() !== current.startsAt.getTime();
     let endsAt = current.endsAt;
     if (timeChanged) endsAt = await this.checkSlot(user.clinicId!, doctorId, startsAt, duration, id);
 
@@ -165,10 +182,16 @@ export class AppointmentsService {
         where: { id },
         data: {
           ...(timeChanged ? { doctorId, startsAt, endsAt } : {}),
+          ...(moved && current.status === 'PENDING' && bookedInsideWindow(startsAt) ? { status: 'CONFIRMED', confirmedAt: new Date() } : {}),
           ...(dto.notes !== undefined ? { notes: dto.notes } : {}),
         } as never,
         select: SELECT,
       });
+      // A new time means the old message is out of date: the next one will carry the new time.
+      if (moved && current.status === 'PENDING') {
+        await this.prisma.messageLog.updateMany({ where: { appointmentId: id, clinicId: user.clinicId!, status: { not: 'CANCELLED' } }, data: { status: 'CANCELLED' } });
+        row.messages = [];
+      }
       return present(row);
     } catch (e) {
       if (isOverlapError(e)) throw new ConflictException(BUSY);

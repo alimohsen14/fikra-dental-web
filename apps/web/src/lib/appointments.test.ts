@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { awaitingReply, confirmedOnly, countByStatus, filterDay, finishedOnOtherDay } from './appointments.ts'
+import { awaitingReply, confirmedOnly, countByStatus, filterDay, finishedOnOtherDay, messageLine } from './appointments.ts'
 import type { AppointmentStatus } from './appointments.ts'
 
 const A = (status: AppointmentStatus, startsAt = '2026-11-02T08:00:00Z') => ({ status, startsAt })
@@ -36,5 +36,28 @@ describe('opening a treatment on an appointment', () => {
     expect(finishedOnOtherDay({ status: 'COMPLETED', startsAt: '2026-11-03T08:00:00Z', completedAt: '2026-11-02T09:00:00Z' }, day)).toBe('2026-11-02')
     expect(finishedOnOtherDay({ status: 'COMPLETED', startsAt: '2026-11-02T08:00:00Z', completedAt: '2026-11-02T09:00:00Z' }, day)).toBeNull()
     expect(finishedOnOtherDay({ status: 'CONFIRMED', startsAt: '2026-11-03T08:00:00Z', completedAt: null }, day)).toBeNull()
+  })
+})
+
+describe('WhatsApp line on the card', () => {
+  const when = (iso: string) => `@${iso}`
+  const msg = (o: object) => ({ status: 'SENT', sentAt: 'S', scheduledFor: null, response: null, respondedAt: null, errorMessage: null, body: 'x', ...o }) as never
+  it('shows when the message will go out while it is still ahead', () => {
+    expect(messageLine({ status: 'PENDING', confirmationMessage: null, messageDueAt: 'D' }, when)).toEqual({ text: 'بتنرسل رسالة التأكيد @D', tone: 'warn' })
+  })
+  it('shows nothing for an appointment that never gets a message', () => {
+    expect(messageLine({ status: 'CONFIRMED', confirmationMessage: null, messageDueAt: null }, when)).toBeNull()
+    expect(messageLine({ status: 'COMPLETED', confirmationMessage: msg({}), messageDueAt: null }, when)).toBeNull()
+  })
+  it('sent and waiting for the patient', () => {
+    expect(messageLine({ status: 'PENDING', confirmationMessage: msg({}), messageDueAt: null }, when)).toEqual({ text: 'انرسلت رسالة التأكيد @S · بانتظار رد المريض', tone: 'info' })
+  })
+  it('shows the answer', () => {
+    expect(messageLine({ status: 'CONFIRMED', confirmationMessage: msg({ response: 'YES' }), messageDueAt: null }, when)?.tone).toBe('good')
+    expect(messageLine({ status: 'CANCELLED', confirmationMessage: msg({ response: 'NO' }), messageDueAt: null }, when)?.tone).toBe('bad')
+  })
+  it('shows a failure, and nothing extra on a cancelled one without an answer', () => {
+    expect(messageLine({ status: 'PENDING', confirmationMessage: msg({ status: 'FAILED' }), messageDueAt: null }, when)).toEqual({ text: 'فشل إرسال رسالة التأكيد', tone: 'bad' })
+    expect(messageLine({ status: 'CANCELLED', confirmationMessage: msg({}), messageDueAt: null }, when)).toBeNull()
   })
 })

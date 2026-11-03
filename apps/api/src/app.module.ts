@@ -4,6 +4,7 @@ import { AuthModule } from './auth/auth.module.js';
 import { ClinicModule } from './clinic/clinic.module.js';
 import { DatabaseModule } from './database/database.module.js';
 import { HealthModule } from './health/health.module.js';
+import { MessagingModule } from './messaging/messaging.module.js';
 import { PatientsModule } from './patients/patients.module.js';
 import { SchedulingModule } from './scheduling/scheduling.module.js';
 import { StaffModule } from './staff/staff.module.js';
@@ -11,6 +12,6 @@ import { TreatmentsModule } from './treatments/treatments.module.js';
 import { TenantModule } from './tenant/tenant.module.js';
 
 @Module({
-  imports: [DatabaseModule, AuthModule, AdminModule, ClinicModule, TenantModule, PatientsModule, SchedulingModule, StaffModule, TreatmentsModule, HealthModule],
+  imports: [DatabaseModule, AuthModule, AdminModule, ClinicModule, TenantModule, PatientsModule, SchedulingModule, StaffModule, TreatmentsModule, MessagingModule, HealthModule],
 })
 export class AppModule {}

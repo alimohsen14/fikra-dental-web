@@ -41,3 +41,24 @@ export function getTotpKey(): Buffer {
 export function getUploadDir(): string {
   return process.env.UPLOAD_DIR ?? './uploads';
 }
+
+// How long before an appointment the WhatsApp confirmation goes out. An appointment booked with LESS than this
+// left is confirmed straight away; one booked earlier waits as PENDING until the message is sent and answered.
+// 0 turns the whole rule off (used by tests).
+export function getConfirmWindowHours(): number {
+  const raw = process.env.AUTO_CONFIRM_WINDOW_HOURS;
+  if (raw === undefined || raw.trim() === '') return 48;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) throw new Error('AUTO_CONFIRM_WINDOW_HOURS must be a number of hours (0 turns it off)');
+  return n;
+}
+
+// "dummy" records messages without sending anything. "meta" (WhatsApp Cloud API) comes with the real connection.
+export function getWhatsappProvider(): string {
+  return process.env.WHATSAPP_PROVIDER ?? 'dummy';
+}
+
+// The background sender runs once a minute. Tests switch it off and call it directly.
+export function isMessageSchedulerOn(): boolean {
+  return (process.env.MESSAGE_SCHEDULER ?? 'on') !== 'off';
+}

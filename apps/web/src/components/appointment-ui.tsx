@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { ApiError } from '../lib/api.ts'
-import { cancelAppointment, completeAppointment, confirmAppointment, countByStatus, finishedOnOtherDay, STATUS_LABELS, STATUS_STYLE } from '../lib/appointments.ts'
+import { cancelAppointment, completeAppointment, confirmAppointment, countByStatus, finishedOnOtherDay, getWhatsappStatus, messageLine, sendMessageNow, STATUS_LABELS, STATUS_STYLE, testReply } from '../lib/appointments.ts'
 import type { Appointment, DayFilter } from '../lib/appointments.ts'
 import { dayTitle, localParts, timeLabel } from '../lib/schedule.ts'
 import { Badge } from './admin-ui.tsx'
@@ -75,12 +75,38 @@ function CancelModal({ a, onClose, onDone }: { a: Appointment; onClose: () => vo
   )
 }
 
+// One request for the whole page, however many cards there are.
+let whatsappStatus: Promise<{ testMode: boolean }> | null = null
+function useTestMode(): boolean {
+  const [on, setOn] = useState(false)
+  useEffect(() => {
+    whatsappStatus ??= getWhatsappStatus().catch(() => {
+      whatsappStatus = null
+      return { testMode: false }
+    })
+    let live = true
+    void whatsappStatus.then((s) => live && setOn(s.testMode))
+    return () => {
+      live = false
+    }
+  }, [])
+  return on
+}
+
+const LINE_STYLE = { info: 'text-muted', good: 'text-[#0b6b3a]', bad: 'text-[#9b1c1c]', warn: 'text-[#7a4b00]' } as const
+const whenLabel = (iso: string) => `${dayTitle(localParts(iso).date)} · ${timeLabel(iso)}`
+
 /** One appointment with the buttons that make sense for its status. */
 export function AppointmentCard({ a, onChanged, onEdit, showDoctor = true, showDate = false }: { a: Appointment; onChanged: () => void; onEdit: (a: Appointment) => void; showDoctor?: boolean; showDate?: boolean }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [cancelling, setCancelling] = useState(false)
   const live = a.status === 'PENDING' || a.status === 'CONFIRMED'
+  const testMode = useTestMode()
+  const [showText, setShowText] = useState(false)
+  const line = messageLine(a, whenLabel)
+  const m = a.confirmationMessage
+  const sent = m && (m.status === 'SENT' || m.status === 'DELIVERED')
   // eslint-disable-next-line react-hooks/purity -- "has it started yet" is read at render time on purpose
   const started = Date.parse(a.startsAt) <= Date.now()
 
@@ -119,7 +145,38 @@ export function AppointmentCard({ a, onChanged, onEdit, showDoctor = true, showD
       {a.notes && <p className="text-sm">{a.notes}</p>}
       {finishedOnOtherDay(a, (iso) => localParts(iso).date) && <p className="text-sm text-muted">انتهى بتاريخ {finishedOnOtherDay(a, (iso) => localParts(iso).date)} (المريض إجا قبل موعده).</p>}
       {a.status === 'CANCELLED' && a.cancelReason && <p className="text-sm text-muted">سبب الإلغاء: {a.cancelReason}</p>}
+      {line && (
+        <p className={`text-sm ${LINE_STYLE[line.tone]}`} aria-label="واتساب">
+          💬 {line.text}
+          {m?.body && (
+            <button type="button" className="ms-2 underline" onClick={() => setShowText((v) => !v)}>
+              {showText ? 'إخفاء النص' : 'عرض النص'}
+            </button>
+          )}
+        </p>
+      )}
+      {showText && m?.body && <pre className="rounded-lg bg-[#f4f6f8] p-3 text-sm whitespace-pre-wrap">{m.body}</pre>}
       {error && <Alert tone="error">{error}</Alert>}
+      {testMode && a.status === 'PENDING' && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-line p-2" aria-label="تجربة واتساب">
+          <span className="text-xs text-muted">وضع التجربة:</span>
+          {(!m || m.status === 'FAILED') && (
+            <Button size="sm" variant="secondary" busy={busy} onClick={() => run(() => sendMessageNow(a.id))}>
+              أرسل الرسالة الآن
+            </Button>
+          )}
+          {sent && !m.response && (
+            <>
+              <Button size="sm" variant="secondary" busy={busy} onClick={() => run(() => testReply(a.id, 'YES'))}>
+                المريض رد: نعم
+              </Button>
+              <Button size="sm" variant="secondary" busy={busy} onClick={() => run(() => testReply(a.id, 'NO'))}>
+                المريض رد: لا
+              </Button>
+            </>
+          )}
+        </div>
+      )}
       {live && (
         <div className="flex flex-wrap gap-2">
           {a.status === 'PENDING' && (

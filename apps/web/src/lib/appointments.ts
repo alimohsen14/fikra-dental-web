@@ -3,6 +3,16 @@ import type { Period } from './schedule.ts'
 
 export type AppointmentStatus = 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED'
 
+export interface ConfirmationMessage {
+  status: 'SCHEDULED' | 'SENT' | 'DELIVERED' | 'FAILED' | 'CANCELLED'
+  sentAt: string | null
+  scheduledFor: string | null
+  response: 'YES' | 'NO' | null
+  respondedAt: string | null
+  errorMessage: string | null
+  body: string | null
+}
+
 export interface Appointment {
   id: string
   startsAt: string
@@ -15,6 +25,9 @@ export interface Appointment {
   overdue: boolean
   patient: { id: string; fullName: string; phone: string; medicalAlerts: string | null }
   doctor: { id: string; fullName: string }
+  confirmationMessage?: ConfirmationMessage | null
+  /** when the confirmation message will go out (only while it has not been sent) */
+  messageDueAt?: string | null
 }
 
 export interface Doctor {
@@ -56,6 +69,31 @@ export function finishedOnOtherDay(a: Pick<Appointment, 'status' | 'startsAt' | 
 
 /** Appointments still waiting for the patient to answer, soonest first. The doctor calls them: coming = confirm, not coming = cancel (the time is free again). */
 export const awaitingReply = <T extends Pick<Appointment, 'status' | 'startsAt'>>(list: T[]): T[] => list.filter((a) => a.status === 'PENDING').sort((a, b) => a.startsAt.localeCompare(b.startsAt))
+
+export interface MessageLine {
+  text: string
+  tone: 'info' | 'good' | 'bad' | 'warn'
+}
+
+/** The one line on the card about the WhatsApp confirmation: sent, answered, failed, or when it will go out. */
+export function messageLine(a: Pick<Appointment, 'status' | 'confirmationMessage' | 'messageDueAt'>, when: (iso: string) => string): MessageLine | null {
+  if (a.status !== 'PENDING' && a.status !== 'CONFIRMED' && a.status !== 'CANCELLED') return null
+  const m = a.confirmationMessage
+  if (m) {
+    if (m.response === 'YES') return { text: 'المريض ردّ بواتساب: نعم، بيجي', tone: 'good' }
+    if (m.response === 'NO') return { text: 'المريض ردّ بواتساب: لا، ما بيجي', tone: 'bad' }
+    if (a.status === 'CANCELLED') return null
+    if (m.status === 'FAILED') return { text: 'فشل إرسال رسالة التأكيد', tone: 'bad' }
+    if (m.status === 'SCHEDULED') return { text: 'رسالة التأكيد قيد الإرسال', tone: 'info' }
+    return { text: `انرسلت رسالة التأكيد ${m.sentAt ? when(m.sentAt) : ''}${a.status === 'PENDING' ? ' · بانتظار رد المريض' : ''}`.trim(), tone: 'info' }
+  }
+  if (a.status === 'PENDING' && a.messageDueAt) return { text: `بتنرسل رسالة التأكيد ${when(a.messageDueAt)}`, tone: 'warn' }
+  return null
+}
+
+export const getWhatsappStatus = () => request<{ provider: string; testMode: boolean; windowHours: number }>('/whatsapp/status')
+export const sendMessageNow = (id: string) => request<{ status: string }>(`/appointments/${id}/message/send-now`, { method: 'POST' })
+export const testReply = (id: string, answer: 'YES' | 'NO') => request<{ ok: true }>(`/appointments/${id}/message/reply`, { method: 'POST', body: { answer } })
 
 export const listDoctors = () => request<Doctor[]>('/doctors')
 export const setWorkingPeriods = (doctorId: string, periods: Period[]) =>
