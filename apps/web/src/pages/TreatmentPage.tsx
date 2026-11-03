@@ -7,13 +7,12 @@ import { BannerLink, ClinicBanner } from '../components/clinic-ui.tsx'
 import { Modal } from '../components/Modal.tsx'
 import { toothName, toothOrder } from '../lib/teeth.ts'
 import { Alert, Button, SelectField, TextAreaField, TextField } from '../components/ui.tsx'
-import { canEditTreatments } from '../lib/access.ts'
 import { ApiError } from '../lib/api.ts'
 import { listDoctors } from '../lib/appointments.ts'
 import { todayInput } from '../lib/format.ts'
 import { localParts, timeLabel } from '../lib/schedule.ts'
 import { buildTreatmentPayment } from '../lib/treatmentForm.ts'
-import { addPayment, canClose, closeTreatment, completeSession, getTreatment, METHOD_LABELS, nextBookable, sessionsDone, STATUS_TEXT, TREATMENT_STYLE, typeLabel, typeLabels, voidPayment } from '../lib/treatments.ts'
+import { addPayment, canBookSession, canClose, closeTreatment, completeSession, getTreatment, METHOD_LABELS, nextBookable, sessionsDone, STATUS_TEXT, TREATMENT_STYLE, typeLabel, typeLabels, voidPayment } from '../lib/treatments.ts'
 import type { PaymentMethod, PaymentRow, SessionRow, Treatment } from '../lib/treatments.ts'
 import { useLoad } from '../lib/useLoad.ts'
 
@@ -128,7 +127,7 @@ function SessionsCard({ t, canEdit, onChanged }: { t: Treatment; canEdit: boolea
           )
         })}
       </ol>
-      {next && doctors.data && (
+      {next && doctors.data && canBookSession(t) && (
         <Button className="self-start" onClick={() => setBooking(next)}>
           احجز الجلسة الجاية
         </Button>
@@ -274,7 +273,7 @@ function MoneyCard({ t, isOwner, onChanged }: { t: Treatment; isOwner: boolean; 
       <div role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label="نسبة المدفوع" className="h-2.5 overflow-hidden rounded-full bg-page">
         <div className="h-full bg-[#1f9d55]" style={{ width: `${pct}%` }} />
       </div>
-      {t.status === 'OPEN' && t.remaining > 0 && (
+      {t.status === 'OPEN' && t.remaining > 0 && t.access.pay && (
         <Button className="self-start" onClick={() => setPaying(true)}>
           دفعة جديدة
         </Button>
@@ -347,7 +346,7 @@ export default function TreatmentPage() {
   const flash = location.state as { created?: boolean; saved?: boolean; cancelled?: boolean } | null
   const { data: t, error, reload } = useLoad(() => getTreatment(id), [id])
   if (!t || !session) return <Loading error={error} />
-  const canEdit = canEditTreatments(session.user)
+  const canEdit = t.access.edit
   const note = statusNote(t, canEdit)
   return (
     <>
@@ -364,6 +363,7 @@ export default function TreatmentPage() {
       {flash?.created && <Alert tone="success">تم إنشاء العلاج.</Alert>}
       {flash?.saved && <Alert tone="success">تم حفظ التعديلات.</Alert>}
       {flash?.cancelled && <Alert tone="success">تم إلغاء العلاج.</Alert>}
+      {!t.access.edit && session.user.role === 'DOCTOR' && <Alert tone="warning">هذا العلاج مسجل باسم د. {t.doctor.fullName}: بتقدر تشوفه بس ما بتقدر تعدّل عليه.</Alert>}
       {note && <Alert tone={note.tone}>{note.text}</Alert>}
       <Card>
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[15px]">

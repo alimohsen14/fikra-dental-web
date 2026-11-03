@@ -187,21 +187,46 @@ describe('Treatments, sessions and payments (e2e)', () => {
   });
 
   // ---------------------------------------------------------------- who can do what
-  it('a doctor writes only their own treatments and never sees another doctor\'s', async () => {
+  it("a doctor SEES every treatment (hand-over between doctors) but changes only their own, absolutely nothing else", async () => {
     const c = await makeClinic('docscope');
-    const mine = (await create(c.users.DOCTOR.token, c).expect(201)).body;
-    expect(mine.doctor.id).toBe(c.doc1); // forced to the doctor himself
-    await create(c.users.DOCTOR.token, c, { doctorId: c.doc2 }).expect(403);
-    const theirs = (await create(c.users.OWNER.token, c, { doctorId: c.doc2 }).expect(201)).body;
-
-    const list = await http().get('/treatments').set(bearer(c.users.DOCTOR.token)).expect(200);
-    expect(list.body.map((x: { id: string }) => x.id)).toEqual([mine.id]);
-    expect((await http().get('/treatments').set(bearer(c.users.OWNER.token)).expect(200)).body).toHaveLength(2);
+    await withHours(c);
+    await prisma.user.update({ where: { id: c.users.DOCTOR.id }, data: { canManagePayments: true } }); // even with the payments key
     const d = c.users.DOCTOR.token;
-    await http().get(`/treatments/${theirs.id}`).set(bearer(d)).expect(404);
-    await http().patch(`/treatments/${theirs.id}`).set(bearer(d)).send({ description: 'x' }).expect(404);
-    await complete(d, theirs.id, 1).expect(404);
-    await http().post(`/treatments/${theirs.id}/cancel`).set(bearer(d)).send({}).expect(404);
+    const mine = (await create(d, c, { plannedSessions: 2 }).expect(201)).body;
+    expect(mine.doctor.id).toBe(c.doc1); // forced to the doctor himself
+    await create(d, c, { doctorId: c.doc2 }).expect(403);
+    const theirs = (await create(c.users.OWNER.token, c, { doctorId: c.doc2, plannedSessions: 2, totalCost: 0 }).expect(201)).body;
+
+    // reading: all of them, with a flag telling the screen what is allowed
+    const list = await http().get('/treatments').set(bearer(d)).expect(200);
+    expect(list.body.map((x: { id: string }) => x.id).sort()).toEqual([mine.id, theirs.id].sort());
+    const flags = Object.fromEntries(list.body.map((x: { id: string; access: unknown }) => [x.id, x.access]));
+    expect(flags[mine.id]).toEqual({ edit: true, pay: true });
+    expect(flags[theirs.id]).toEqual({ edit: false, pay: false });
+    expect((await http().get(`/treatments/${theirs.id}`).set(bearer(d)).expect(200)).body).toMatchObject({ id: theirs.id, doctor: { id: c.doc2 } });
+    expect((await http().get(`/patients/${c.patient}/finance`).set(bearer(d)).expect(200)).body.treatments).toBe(2);
+
+    // writing: everything is refused on someone else's treatment
+    const before = await prisma.treatment.findUnique({ where: { id: theirs.id }, include: { sessions: true, payments: true, teeth: true } });
+    await http().patch(`/treatments/${theirs.id}`).set(bearer(d)).send({ description: 'x' }).expect(403);
+    await http().patch(`/treatments/${theirs.id}`).set(bearer(d)).send({ totalCost: 5 }).expect(403);
+    await complete(d, theirs.id, 1).expect(403);
+    await bookNext(d, theirs.id, 1, { doctorId: c.doc1 }).expect(403);
+    await pay(d, theirs.id).expect(403);
+    await close(d, theirs.id).expect(403);
+    await http().post(`/treatments/${theirs.id}/cancel`).set(bearer(d)).send({}).expect(403);
+    const after = await prisma.treatment.findUnique({ where: { id: theirs.id }, include: { sessions: true, payments: true, teeth: true } });
+    expect(after).toEqual(before); // not a single field changed
+    expect(await prisma.payment.count({ where: { treatmentId: theirs.id } })).toBe(0);
+
+    // and the same actions work on his own
+    await http().patch(`/treatments/${mine.id}`).set(bearer(d)).send({ description: 'ok' }).expect(200);
+    await pay(d, mine.id).expect(201);
+    await complete(d, mine.id, 1).expect(200);
+    await http().post(`/treatments/${mine.id}/cancel`).set(bearer(d)).send({}).expect(409); // paid: refused for its own reason, not for permission
+    // the owner can do everything on both
+    expect((await http().get('/treatments').set(bearer(c.users.OWNER.token)).expect(200)).body).toHaveLength(2);
+    await complete(c.users.OWNER.token, theirs.id, 1).expect(200);
   });
 
   it('money: a doctor without the payments key sees the agreed cost but no paid/remaining/payments, and cannot record payments', async () => {
@@ -346,7 +371,7 @@ describe('Treatments, sessions and payments (e2e)', () => {
     await close(c.users.KEYHOLDER.token, mine.id).expect(403); // the payments key does not give this
     await close(other.users.OWNER.token, mine.id).expect(404);
     const theirs = await mk(c.doc2);
-    await close(c.users.DOCTOR.token, theirs.id).expect(404); // not his treatment
+    await close(c.users.DOCTOR.token, theirs.id).expect(403); // not his treatment
     expect((await close(c.users.DOCTOR.token, mine.id).expect(200)).body.status).toBe('CLOSED');
     expect((await close(c.users.OWNER.token, theirs.id).expect(200)).body.status).toBe('CLOSED'); // free treatment, all done
     const cancelled = (await create(c.users.OWNER.token, c, { totalCost: 0, plannedSessions: 1, doctorId: c.docOwner }).expect(201)).body;
@@ -683,7 +708,7 @@ describe('Treatments, sessions and payments (e2e)', () => {
     await bookNext(c.users.SECRETARY.token, mine.id, 2, { startsAt: at(monday, 600).toISOString() }).expect(403); // no key
     await bookNext(c.users.KEYHOLDER.token, mine.id, 2, { startsAt: at(monday, 600).toISOString() }).expect(201);
     const theirs = (await create(c.users.OWNER.token, c, { doctorId: c.doc2 }).expect(201)).body;
-    await bookNext(c.users.DOCTOR.token, theirs.id, 1, { startsAt: at(monday, 660).toISOString() }).expect(404); // not his treatment
+    await bookNext(c.users.DOCTOR.token, theirs.id, 1, { startsAt: at(monday, 660).toISOString() }).expect(403); // visible, but not his treatment
 
     const done = (await create(c.users.OWNER.token, c, { totalCost: 0, plannedSessions: 1, doctorId: c.docOwner }).expect(201)).body;
     await complete(c.users.OWNER.token, done.id, 1).expect(200);

@@ -363,7 +363,9 @@ function EditForm({ t, types, birthDate, onDone }: { t: Treatment; types: Treatm
   return (
     <>
       <ClinicBanner title="تعديل العلاج" subtitle={`${t.patient.fullName} · ${t.doctor.fullName}`} back={{ to: `/treatments/${t.id}`, label: 'رجوع لصفحة العلاج' }} />
-      {t.status !== 'OPEN' ? (
+      {!t.access.edit ? (
+        <Alert tone="warning">هذا العلاج مش مسجل باسمك، ما بتقدر تعدّل عليه.</Alert>
+      ) : t.status !== 'OPEN' ? (
         <Alert tone="warning">هذا العلاج {t.status === 'CLOSED' ? 'مغلق' : 'ملغي'}، ما بينعدل.</Alert>
       ) : (
         <>

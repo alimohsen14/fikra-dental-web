@@ -61,6 +61,7 @@ export interface Treatment {
   doctor: { id: string; fullName: string }
   patient: { id: string; fullName: string }
   toothCodes: number[]
+  access: { edit: boolean; pay: boolean } // what THIS user may do on it: a doctor sees every treatment but changes only their own
   teeth: ToothTreatment[] // every tooth with its own type; cost and sessions belong to the whole treatment
   sessions: SessionRow[]
   // Only for the owner and accounts with the payments key:
@@ -113,6 +114,9 @@ export function pickableTypes(types: TreatmentType[], keep: string[] = []): Type
 }
 
 export const sessionsDone = (t: Pick<Treatment, 'sessions'>): number => t.sessions.filter((s) => s.status === 'COMPLETED').length
+
+/** Booking the next session: whoever may edit the treatment, or a secretary with the payments key. Never a doctor on a colleague's treatment. */
+export const canBookSession = (t: Pick<Treatment, 'access'>): boolean => t.access.edit || t.access.pay
 
 /** The close button shows only when every session is done AND nothing is owed. A doctor without the payments key cannot see money: the server then makes the final check. */
 export function canClose(t: Pick<Treatment, 'sessions' | 'status' | 'remaining'>): boolean {

@@ -45,19 +45,35 @@ export class TreatmentsService {
     private readonly appointments: AppointmentsService,
   ) {}
 
-  // ---------------------------------------------------------------- who can see what
-  /** A secretary only gets in with the payments key (she then sees money, never edits treatments). A doctor sees only their own. */
+  // ---------------------------------------------------------------- who can see what / who can change what
+  /** Everyone who may open treatments sees all of them (doctors hand patients over to each other). A secretary only gets in with the payments key. */
   private async scopeFor(user: AuthUser): Promise<{ doctorId?: string }> {
     if (user.role === 'SECRETARY' && !user.canManagePayments) throw new ForbiddenException();
-    if (user.role !== 'DOCTOR') return {};
-    const own = await this.tenant.db.doctor.findFirst({ where: { userId: user.id }, select: { id: true } });
-    if (!own) throw new ForbiddenException();
-    return { doctorId: own.id };
+    return {};
   }
 
-  private present<T extends { teeth: { toothCode: number }[]; totalCost: number; payments: { amount: number; status: string }[] }>(row: T, user: AuthUser) {
+  private async ownDoctorId(user: AuthUser): Promise<string | null> {
+    if (user.role !== 'DOCTOR') return null;
+    const own = await this.tenant.db.doctor.findFirst({ where: { userId: user.id }, select: { id: true } });
+    if (!own) throw new ForbiddenException();
+    return own.id;
+  }
+
+  /** A doctor may change ONLY treatments registered under their own name: no edit, no session, no close, no cancel, no booking, no payment. */
+  private async assertCanAct(user: AuthUser, treatmentDoctorId: string) {
+    if (user.role !== 'DOCTOR') return;
+    if ((await this.ownDoctorId(user)) !== treatmentDoctorId) throw new ForbiddenException('هذا العلاج مش مسجل باسمك: بتقدر تشوفه بس ما بتقدر تعدّل عليه');
+  }
+
+  /** What this user may do on this treatment, so the screen shows only buttons that will work. */
+  private access(user: AuthUser, treatmentDoctorId: string, ownId: string | null) {
+    const mine = user.role === 'OWNER' || (user.role === 'DOCTOR' && ownId === treatmentDoctorId);
+    return { edit: mine, pay: (mine || user.role === 'SECRETARY') && canSeeMoney(user) };
+  }
+
+  private present<T extends { doctorId: string; teeth: { toothCode: number }[]; totalCost: number; payments: { amount: number; status: string }[] }>(row: T, user: AuthUser, ownId: string | null) {
     const { teeth, payments, ...rest } = row;
-    const base = { ...rest, teeth, toothCodes: teeth.map((t) => t.toothCode) };
+    const base = { ...rest, teeth, toothCodes: teeth.map((t) => t.toothCode), access: this.access(user, row.doctorId, ownId) };
     if (!canSeeMoney(user)) return base;
     return { ...base, ...moneyOf(row.totalCost, payments as { amount: number; status: 'ACTIVE' | 'VOIDED' }[]), payments };
   }
@@ -70,7 +86,7 @@ export class TreatmentsService {
   }
 
   async get(user: AuthUser, id: string) {
-    return this.present(await this.load(user, id), user);
+    return this.present(await this.load(user, id), user, await this.ownDoctorId(user));
   }
 
   async list(user: AuthUser, q: ListTreatmentsQuery) {
@@ -81,7 +97,8 @@ export class TreatmentsService {
       take: 500,
       select: DETAIL,
     });
-    return rows.map((r) => this.present(r, user));
+    const ownId = await this.ownDoctorId(user);
+    return rows.map((r) => this.present(r, user, ownId));
   }
 
   /** A treatment points at the most specific type: a type that has sub-types cannot be chosen itself. */
@@ -171,7 +188,7 @@ export class TreatmentsService {
   }
 
   async update(user: AuthUser, id: string, dto: UpdateTreatmentDto) {
-    await this.load(user, id); // 404 if it is not yours to see
+    await this.assertCanAct(user, (await this.load(user, id)).doctorId);
     const clinicId = user.clinicId!;
     if (dto.teeth) await this.usableTypes(dto.teeth.map((t) => t.treatmentTypeId));
     await this.prisma.$transaction(async (tx) => {
@@ -209,7 +226,7 @@ export class TreatmentsService {
   }
 
   async completeSession(user: AuthUser, id: string, number: number, notes: string | undefined) {
-    await this.load(user, id);
+    await this.assertCanAct(user, (await this.load(user, id)).doctorId);
     const clinicId = user.clinicId!;
     await this.prisma.$transaction(async (tx) => {
       const t = await this.lock(tx, clinicId, id);
@@ -230,6 +247,7 @@ export class TreatmentsService {
   /** Books the appointment for one planned session. A cancelled appointment frees the session to be booked again. */
   async bookSession(user: AuthUser, id: string, number: number, dto: BookSessionDto) {
     const t = await this.load(user, id);
+    await this.assertCanAct(user, t.doctorId);
     if (t.status !== 'OPEN') throw new ConflictException('العلاج مش مفتوح');
     const session = t.sessions.find((s) => s.number === number);
     if (!session) throw new NotFoundException('الجلسة غير موجودة');
@@ -252,7 +270,7 @@ export class TreatmentsService {
 
   /** Closing is a button, never automatic: allowed only when every session is done AND everything is paid. */
   async close(user: AuthUser, id: string) {
-    await this.load(user, id);
+    await this.assertCanAct(user, (await this.load(user, id)).doctorId);
     const clinicId = user.clinicId!;
     await this.prisma.$transaction(async (tx) => {
       const t = await this.lock(tx, clinicId, id);
@@ -266,7 +284,7 @@ export class TreatmentsService {
   }
 
   async cancel(user: AuthUser, id: string, reason: string | undefined) {
-    await this.load(user, id);
+    await this.assertCanAct(user, (await this.load(user, id)).doctorId);
     const clinicId = user.clinicId!;
     await this.prisma.$transaction(async (tx) => {
       const t = await this.lock(tx, clinicId, id);
@@ -281,6 +299,7 @@ export class TreatmentsService {
   // ---------------------------------------------------------------- payments
   async addPayment(user: AuthUser, id: string, dto: CreatePaymentDto) {
     const row = await this.load(user, id);
+    await this.assertCanAct(user, row.doctorId);
     const clinicId = user.clinicId!;
     if (dto.paidAt.getTime() > Date.now() + GRACE_MS) throw new BadRequestException('تاريخ الدفعة بالمستقبل');
     await this.prisma.$transaction(async (tx) => {

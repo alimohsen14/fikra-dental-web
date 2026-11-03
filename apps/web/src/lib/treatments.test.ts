@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { EMPTY_TREATMENT, buildCreateTreatment, buildEditTreatment, buildTreatmentPayment, copyTypeToAll, entriesOf, resolveTypeId, setEntrySub, setEntryType, toggleEntry, typeIdsOf } from './treatmentForm.ts'
 import type { ToothEntry } from './treatmentForm.ts'
-import { canClose, nextBookable, pickableTypes, sessionsDone, toothMarks, typeLabel, typeLabels, typeTree } from './treatments.ts'
+import { canBookSession, canClose, nextBookable, pickableTypes, sessionsDone, toothMarks, typeLabel, typeLabels, typeTree } from './treatments.ts'
 import type { SessionRow, TreatmentType } from './treatments.ts'
 
 const T = (id: string, name: string, parentId: string | null = null, isActive = true): TreatmentType => ({ id, name, parentId, isActive })
@@ -152,6 +152,14 @@ describe('sessions', () => {
     expect(nextBookable({ status: 'OPEN', sessions: [S(1, 'PLANNED', 'CANCELLED'), S(2, 'PLANNED')] })?.number).toBe(1)
     expect(nextBookable({ status: 'OPEN', sessions: [S(1, 'COMPLETED')] })).toBeNull()
     expect(nextBookable({ status: 'CLOSED', sessions: [S(1, 'PLANNED')] })).toBeNull()
+  })
+})
+
+describe('what a user may do on a treatment', () => {
+  it('booking: whoever edits it, or a secretary with the payments key; not a doctor on a colleague treatment', () => {
+    expect(canBookSession({ access: { edit: true, pay: true } })).toBe(true) // owner, or the treating doctor
+    expect(canBookSession({ access: { edit: false, pay: true } })).toBe(true) // secretary with the key
+    expect(canBookSession({ access: { edit: false, pay: false } })).toBe(false) // another doctor
   })
 })
 
