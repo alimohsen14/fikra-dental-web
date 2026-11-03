@@ -156,6 +156,26 @@ describe('Doctors and appointments (e2e)', () => {
     await expect(prisma.appointment.create({ data: row(start, start) })).rejects.toThrow(); // zero length
   });
 
+  it('a finished or cancelled visit frees the doctor time; a waiting or confirmed one still blocks it', async () => {
+    const c = await makeClinic('frees');
+    const t = c.users.SECRETARY.token;
+    const first = (await book(t, c).expect(201)).body;
+    await book(t, c).expect(409); // pending blocks
+    await http().post(`/appointments/${first.id}/confirm`).set(bearer(c.users.OWNER.token)).expect(200);
+    await book(t, c).expect(409); // confirmed blocks
+    // the patient came earlier and the visit is done: the later slot is free again
+    await prisma.appointment.update({ where: { id: first.id }, data: { status: 'COMPLETED', completedAt: new Date() } });
+    const second = (await book(t, c).expect(201)).body;
+    expect(second.id).not.toBe(first.id);
+    await book(t, c).expect(409); // the new one blocks again
+    // and the database agrees, not only the API
+    const start = at(monday, H(12));
+    const row = (status: 'COMPLETED' | 'CONFIRMED') => ({ clinicId: c.id, patientId: c.patient, doctorId: c.docA, status, startsAt: start, endsAt: new Date(start.getTime() + 30 * 60_000) });
+    await prisma.appointment.create({ data: row('COMPLETED') });
+    await prisma.appointment.create({ data: row('CONFIRMED') });
+    await expect(prisma.appointment.create({ data: row('CONFIRMED') })).rejects.toThrow();
+  });
+
   it('refuses bad times: not on the half hour, wrong length, past, outside working hours, wrong day', async () => {
     const c = await makeClinic('rules');
     const t = c.users.SECRETARY.token;

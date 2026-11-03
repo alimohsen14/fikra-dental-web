@@ -180,6 +180,8 @@ describe('Treatments, sessions and payments (e2e)', () => {
     expect(await prisma.appointment.findUnique({ where: { id: apt.id } })).toMatchObject({ status: 'COMPLETED' }); // opening a treatment completes its appointment
     expect((await prisma.appointment.findUnique({ where: { id: apt.id } }))!.completedAt).toBeTruthy();
     expect((await prisma.appointment.findUnique({ where: { id: cancelled.id } }))!.status).toBe('CANCELLED');
+    // the patient came earlier than booked: the later slot is free for someone else now
+    await prisma.appointment.create({ data: { clinicId: c.id, patientId: c.patient, doctorId: c.doc1, startsAt: start, endsAt: new Date(start.getTime() + 1_800_000) } });
     await create(t, c, { appointmentId: apt.id }).expect(409);
     await create(t, c, { appointmentId: randomUUID() }).expect(404);
   });

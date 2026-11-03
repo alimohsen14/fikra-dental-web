@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { ApiError } from '../lib/api.ts'
-import { cancelAppointment, completeAppointment, confirmAppointment, countByStatus, STATUS_LABELS, STATUS_STYLE } from '../lib/appointments.ts'
+import { cancelAppointment, completeAppointment, confirmAppointment, countByStatus, finishedOnOtherDay, STATUS_LABELS, STATUS_STYLE } from '../lib/appointments.ts'
 import type { Appointment, DayFilter } from '../lib/appointments.ts'
 import { dayTitle, localParts, timeLabel } from '../lib/schedule.ts'
 import { Badge } from './admin-ui.tsx'
@@ -117,6 +117,7 @@ export function AppointmentCard({ a, onChanged, onEdit, showDoctor = true, showD
       </p>
       {a.patient.medicalAlerts && <p className="text-sm text-[#9b1c1c]">⚠ {a.patient.medicalAlerts}</p>}
       {a.notes && <p className="text-sm">{a.notes}</p>}
+      {finishedOnOtherDay(a, (iso) => localParts(iso).date) && <p className="text-sm text-muted">انتهى بتاريخ {finishedOnOtherDay(a, (iso) => localParts(iso).date)} (المريض إجا قبل موعده).</p>}
       {a.status === 'CANCELLED' && a.cancelReason && <p className="text-sm text-muted">سبب الإلغاء: {a.cancelReason}</p>}
       {error && <Alert tone="error">{error}</Alert>}
       {live && (

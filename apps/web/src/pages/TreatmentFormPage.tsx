@@ -10,11 +10,11 @@ import type { PatientPick } from '../components/PatientPicker.tsx'
 import { SelectedTeeth, ToothChart, ToothSetToggle } from '../components/ToothChart.tsx'
 import { Alert, Button, SelectField, TextAreaField, TextField } from '../components/ui.tsx'
 import { ApiError } from '../lib/api.ts'
-import { listAppointments, listDoctors } from '../lib/appointments.ts'
+import { confirmedOnly, listAppointments, listDoctors } from '../lib/appointments.ts'
 import type { Appointment, Doctor } from '../lib/appointments.ts'
 import { todayInput } from '../lib/format.ts'
 import { getPatient } from '../lib/patients.ts'
-import { addDays, dayRange, dayTitle, localParts, timeLabel, todayDate } from '../lib/schedule.ts'
+import { addDays, dayRange, dayTitle, isDate, localParts, timeLabel, todayDate } from '../lib/schedule.ts'
 import { ageInYears, defaultSet, setOfTeeth, toothName } from '../lib/teeth.ts'
 import type { ToothSet } from '../lib/teeth.ts'
 import { buildCreateTreatment, buildEditTreatment, copyTypeToAll, EMPTY_TREATMENT, entriesOf, setEntrySub, setEntryType, toggleEntry, typeIdsOf } from '../lib/treatmentForm.ts'
@@ -148,28 +148,54 @@ function ModeChoice({ onPick }: { onPick: (m: Mode) => void }) {
   )
 }
 
+/** Confirmed appointments of one day, with arrows to move between days (the patient may come a day earlier or later than booked). */
 function AppointmentList({ onPick }: { onPick: (a: Appointment) => void }) {
-  const today = todayDate()
-  const { data, error } = useLoad(() => listAppointments(dayRange(addDays(today, -7), 30)), [today])
-  if (!data) return <Loading error={error} />
-  const rows = data.filter((a) => a.status !== 'CANCELLED').sort((a, b) => a.startsAt.localeCompare(b.startsAt))
-  if (rows.length === 0) return <p className="text-[15px] text-muted">ما في مواعيد محجوزة (آخر أسبوع وال3 أسابيع الجاية). جرب «بدون موعد».</p>
+  const [day, setDay] = useState(todayDate())
+  const { data, error } = useLoad(() => listAppointments(dayRange(day)), [day])
+  const rows = confirmedOnly(data ?? [])
   return (
-    <ul className="flex flex-col gap-2" aria-label="المواعيد المحجوزة">
-      {rows.map((a) => (
-        <li key={a.id}>
-          <button type="button" onClick={() => onPick(a)} className="flex w-full cursor-pointer flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-white p-4 text-start hover:border-brand">
-            <span className="flex flex-col gap-0.5">
-              <span className="font-bold">{a.patient.fullName}</span>
-              <span className="text-sm text-muted">
-                {dayTitle(localParts(a.startsAt).date)} · <bdi dir="ltr">{timeLabel(a.startsAt)}</bdi> · {a.doctor.fullName}
-              </span>
-            </span>
-            <StatusBadge a={a} />
-          </button>
-        </li>
-      ))}
-    </ul>
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <Button variant="secondary" size="sm" aria-label="اليوم السابق" onClick={() => setDay(addDays(day, -1))}>
+          →
+        </Button>
+        <input
+          type="date"
+          aria-label="يوم المواعيد"
+          value={day}
+          onChange={(e) => isDate(e.target.value) && setDay(e.target.value)}
+          className="h-10 rounded-[10px] border-[1.5px] border-brand bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-brand/25"
+        />
+        <Button variant="secondary" size="sm" aria-label="اليوم التالي" onClick={() => setDay(addDays(day, 1))}>
+          ←
+        </Button>
+        <Button variant="secondary" size="sm" onClick={() => setDay(todayDate())}>
+          اليوم
+        </Button>
+      </div>
+      <p className="text-sm font-semibold">{dayTitle(day)}</p>
+      {!data ? (
+        <Loading error={error} />
+      ) : rows.length === 0 ? (
+        <p className="text-[15px] text-muted">ما في مواعيد مؤكدة بهذا اليوم. تنقّل بين الأيام (المريض ممكن يجي قبل موعده أو بعده)، أو جرب «بدون موعد».</p>
+      ) : (
+        <ul className="flex flex-col gap-2" aria-label="المواعيد المؤكدة">
+          {rows.map((a) => (
+            <li key={a.id}>
+              <button type="button" onClick={() => onPick(a)} className="flex w-full cursor-pointer flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-white p-4 text-start hover:border-brand">
+                <span className="flex flex-col gap-0.5">
+                  <span className="font-bold">{a.patient.fullName}</span>
+                  <span className="text-sm text-muted">
+                    <bdi dir="ltr">{timeLabel(a.startsAt)}</bdi> · {a.doctor.fullName}
+                  </span>
+                </span>
+                <StatusBadge a={a} />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   )
 }
 
@@ -231,7 +257,7 @@ export function NewTreatmentPage() {
       )}
 
       {mode === 'with' && !apt && (
-        <Card title="اختر الموعد" hint="مواعيد آخر أسبوع وال3 أسابيع الجاية.">
+        <Card title="اختر الموعد" hint="المواعيد المؤكدة فقط. اليوم الحالي ظاهر، وتقدر تتنقل بين الأيام. بعد إنشاء العلاج بينتهي الموعد.">
           <AppointmentList onPick={setApt} />
         </Card>
       )}

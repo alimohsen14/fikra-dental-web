@@ -92,7 +92,7 @@ export class AppointmentsService {
     if (!fits) throw new BadRequestException('الوقت خارج دوام الدكتور');
 
     const clash = await this.tenant.db.appointment.findFirst({
-      where: { doctorId, status: { not: 'CANCELLED' }, startsAt: { lt: endsAt }, endsAt: { gt: startsAt }, ...(excludeId ? { id: { not: excludeId } } : {}) },
+      where: { doctorId, status: { in: ['PENDING', 'CONFIRMED'] }, startsAt: { lt: endsAt }, endsAt: { gt: startsAt }, ...(excludeId ? { id: { not: excludeId } } : {}) },
       select: { id: true },
     });
     if (clash) throw new ConflictException(BUSY);

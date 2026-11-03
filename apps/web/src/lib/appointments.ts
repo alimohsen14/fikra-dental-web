@@ -10,6 +10,7 @@ export interface Appointment {
   status: AppointmentStatus
   notes: string | null
   cancelReason: string | null
+  completedAt: string | null
   durationMinutes: number
   overdue: boolean
   patient: { id: string; fullName: string; phone: string; medicalAlerts: string | null }
@@ -42,6 +43,16 @@ export function countByStatus(list: Pick<Appointment, 'status'>[]): Record<Appoi
 }
 
 export const filterDay = <T extends Pick<Appointment, 'status'>>(list: T[], f: DayFilter): T[] => (f === 'ALL' ? list.filter((a) => a.status !== 'CANCELLED') : list.filter((a) => a.status === f))
+
+/** What the doctor can open a treatment on: confirmed appointments only (not waiting, finished or cancelled), soonest first. */
+export const confirmedOnly = <T extends Pick<Appointment, 'status' | 'startsAt'>>(list: T[]): T[] => list.filter((a) => a.status === 'CONFIRMED').sort((a, b) => a.startsAt.localeCompare(b.startsAt))
+
+/** A visit finished on another day than booked (the patient came earlier): returns the day it really happened, else null. */
+export function finishedOnOtherDay(a: Pick<Appointment, 'status' | 'startsAt' | 'completedAt'>, dayOf: (iso: string) => string): string | null {
+  if (a.status !== 'COMPLETED' || !a.completedAt) return null
+  const done = dayOf(a.completedAt)
+  return done === dayOf(a.startsAt) ? null : done
+}
 
 /** Appointments still waiting for the patient to answer, soonest first. The doctor calls them: coming = confirm, not coming = cancel (the time is free again). */
 export const awaitingReply = <T extends Pick<Appointment, 'status' | 'startsAt'>>(list: T[]): T[] => list.filter((a) => a.status === 'PENDING').sort((a, b) => a.startsAt.localeCompare(b.startsAt))

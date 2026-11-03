@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { awaitingReply, countByStatus, filterDay } from './appointments.ts'
+import { awaitingReply, confirmedOnly, countByStatus, filterDay, finishedOnOtherDay } from './appointments.ts'
 import type { AppointmentStatus } from './appointments.ts'
 
 const A = (status: AppointmentStatus, startsAt = '2026-11-02T08:00:00Z') => ({ status, startsAt })
@@ -23,5 +23,18 @@ describe('waiting for the patient to answer', () => {
   it('lists only pending ones, soonest first (a missed one comes first)', () => {
     const list = [A('PENDING', '2026-11-05T08:00:00Z'), A('CONFIRMED', '2026-11-01T08:00:00Z'), A('PENDING', '2026-10-30T08:00:00Z'), A('CANCELLED', '2026-11-03T08:00:00Z')]
     expect(awaitingReply(list).map((a) => a.startsAt)).toEqual(['2026-10-30T08:00:00Z', '2026-11-05T08:00:00Z'])
+  })
+})
+
+describe('opening a treatment on an appointment', () => {
+  it('offers only the confirmed ones, soonest first', () => {
+    const list = [A('CONFIRMED', '2026-11-02T10:00:00Z'), A('PENDING', '2026-11-02T07:00:00Z'), A('COMPLETED', '2026-11-02T06:00:00Z'), A('CANCELLED', '2026-11-02T05:00:00Z'), A('CONFIRMED', '2026-11-02T08:00:00Z')]
+    expect(confirmedOnly(list).map((a) => a.startsAt)).toEqual(['2026-11-02T08:00:00Z', '2026-11-02T10:00:00Z'])
+  })
+  it('says when a visit finished on another day than booked', () => {
+    const day = (iso: string) => iso.slice(0, 10)
+    expect(finishedOnOtherDay({ status: 'COMPLETED', startsAt: '2026-11-03T08:00:00Z', completedAt: '2026-11-02T09:00:00Z' }, day)).toBe('2026-11-02')
+    expect(finishedOnOtherDay({ status: 'COMPLETED', startsAt: '2026-11-02T08:00:00Z', completedAt: '2026-11-02T09:00:00Z' }, day)).toBeNull()
+    expect(finishedOnOtherDay({ status: 'CONFIRMED', startsAt: '2026-11-03T08:00:00Z', completedAt: null }, day)).toBeNull()
   })
 })
