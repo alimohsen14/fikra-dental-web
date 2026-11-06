@@ -22,7 +22,7 @@ function phoneOrThrow(input: string): string {
 export class PatientsService {
   constructor(private readonly tenant: TenantPrismaService) {}
 
-  async create(dto: CreatePatientDto) {
+  async create(dto: CreatePatientDto, opts: { selfRegistered?: boolean } = {}) {
     const phone = phoneOrThrow(dto.phone);
     // Families share phones, so a duplicate is a warning, never a block.
     const sharedPhone = await this.tenant.db.patient.findMany({
@@ -32,7 +32,7 @@ export class PatientsService {
     });
     try {
       const patient = await this.tenant.db.patient.create({
-        data: { ...dto, phone, birthDate: toDate(dto.birthDate) ?? null } as never,
+        data: { ...dto, phone, birthDate: toDate(dto.birthDate) ?? null, ...(opts.selfRegistered ? { selfRegistered: true } : {}) } as never,
       });
       return { patient, sharedPhoneWith: sharedPhone };
     } catch (e) {

@@ -20,7 +20,8 @@ const SELECT = {
   confirmedAt: true,
   completedAt: true,
   cancelledAt: true,
-  patient: { select: { id: true, fullName: true, phone: true, medicalAlerts: true } },
+  bookedByPatient: true,
+  patient: { select: { id: true, fullName: true, phone: true, medicalAlerts: true, selfRegistered: true } },
   doctor: { select: { id: true, fullName: true } },
   messages: { where: { kind: 'CONFIRMATION' }, select: { status: true, sentAt: true, scheduledFor: true, response: true, respondedAt: true, errorMessage: true, body: true }, take: 1 },
 } as const;
@@ -107,7 +108,7 @@ export class AppointmentsService {
     return endsAt;
   }
 
-  async create(user: AuthUser, dto: CreateAppointmentDto) {
+  async create(user: AuthUser, dto: CreateAppointmentDto, opts: { bookedByPatient?: boolean } = {}) {
     await this.mustUseDoctor(user, dto.doctorId);
     const patient = await this.tenant.db.patient.findUnique({ where: { id: dto.patientId }, select: { id: true, archivedAt: true } });
     if (!patient) throw new NotFoundException('المريض غير موجود');
@@ -122,6 +123,7 @@ export class AppointmentsService {
           startsAt: dto.startsAt,
           endsAt,
           notes: dto.notes ?? null,
+          ...(opts.bookedByPatient ? { bookedByPatient: true } : {}),
           // close to the visit: nobody is going to be asked, it is confirmed from the start
           ...(bookedInsideWindow(dto.startsAt) ? { status: 'CONFIRMED', confirmedAt: new Date() } : {}),
         } as never,

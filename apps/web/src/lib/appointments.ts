@@ -23,8 +23,9 @@ export interface Appointment {
   completedAt: string | null
   durationMinutes: number
   overdue: boolean
-  patient: { id: string; fullName: string; phone: string; medicalAlerts: string | null }
+  patient: { id: string; fullName: string; phone: string; medicalAlerts: string | null; selfRegistered?: boolean }
   doctor: { id: string; fullName: string }
+  bookedByPatient?: boolean
   confirmationMessage?: ConfirmationMessage | null
   /** when the confirmation message will go out (only while it has not been sent) */
   messageDueAt?: string | null

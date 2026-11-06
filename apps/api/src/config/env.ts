@@ -62,3 +62,8 @@ export function getWhatsappProvider(): string {
 export function isMessageSchedulerOn(): boolean {
   return (process.env.MESSAGE_SCHEDULER ?? 'on') !== 'off';
 }
+
+/** Where the booking page lives; the WhatsApp reply links to it. */
+export function getPublicWebUrl(): string {
+  return (process.env.PUBLIC_WEB_URL ?? 'http://localhost:5173').replace(/\/+$/, '');
+}

@@ -21,6 +21,6 @@ import { DummyWhatsAppProvider, WHATSAPP_PROVIDER } from './whatsapp.provider.js
     MessagesService,
     MessagesScheduler,
   ],
-  exports: [MessagesService, DummyWhatsAppProvider],
+  exports: [MessagesService, DummyWhatsAppProvider, WHATSAPP_PROVIDER],
 })
 export class MessagingModule {}

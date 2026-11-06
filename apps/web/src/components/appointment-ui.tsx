@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router'
 import { ApiError } from '../lib/api.ts'
-import { cancelAppointment, completeAppointment, confirmAppointment, countByStatus, finishedOnOtherDay, getWhatsappStatus, messageLine, sendMessageNow, STATUS_LABELS, STATUS_STYLE, testReply } from '../lib/appointments.ts'
+import { cancelAppointment, completeAppointment, confirmAppointment, countByStatus, finishedOnOtherDay, messageLine, sendMessageNow, STATUS_LABELS, STATUS_STYLE, testReply } from '../lib/appointments.ts'
 import type { Appointment, DayFilter } from '../lib/appointments.ts'
 import { dayTitle, localParts, timeLabel } from '../lib/schedule.ts'
+import { useTestMode } from '../lib/useTestMode.ts'
 import { Badge } from './admin-ui.tsx'
 import { Modal } from './Modal.tsx'
 import { Alert, Button, TextAreaField } from './ui.tsx'
@@ -75,24 +76,6 @@ function CancelModal({ a, onClose, onDone }: { a: Appointment; onClose: () => vo
   )
 }
 
-// One request for the whole page, however many cards there are.
-let whatsappStatus: Promise<{ testMode: boolean }> | null = null
-function useTestMode(): boolean {
-  const [on, setOn] = useState(false)
-  useEffect(() => {
-    whatsappStatus ??= getWhatsappStatus().catch(() => {
-      whatsappStatus = null
-      return { testMode: false }
-    })
-    let live = true
-    void whatsappStatus.then((s) => live && setOn(s.testMode))
-    return () => {
-      live = false
-    }
-  }, [])
-  return on
-}
-
 const LINE_STYLE = { info: 'text-muted', good: 'text-[#0b6b3a]', bad: 'text-[#9b1c1c]', warn: 'text-[#7a4b00]' } as const
 const whenLabel = (iso: string) => `${dayTitle(localParts(iso).date)} · ${timeLabel(iso)}`
 
@@ -136,6 +119,8 @@ export function AppointmentCard({ a, onChanged, onEdit, showDoctor = true, showD
         <StatusBadge a={a} />
         {a.overdue && <Badge label={a.status === 'PENDING' ? 'فات موعده ولا انأكد' : 'متأخر: ما انسجل إنهاؤه'} bg="#fff1d6" fg="#7a4b00" />}
         {a.patient.medicalAlerts && <Badge label="تنبيه طبي" bg="#fde8e8" fg="#9b1c1c" />}
+        {a.bookedByPatient && <Badge label="حجز ذاتي عبر واتساب" bg="#e3f5ea" fg="#0b6b3a" />}
+        {a.patient.selfRegistered && <Badge label="مسجّل ذاتياً" bg="#efe6fb" fg="#4b2a86" />}
       </div>
       <p className="text-sm text-muted">
         {showDoctor && <>الدكتور {a.doctor.fullName} · </>}

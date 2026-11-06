@@ -38,3 +38,14 @@ export function parseAnswer(text: string): 'YES' | 'NO' | null {
   if (['لا', 'لأ', 'no', 'n', '2'].includes(t.toLowerCase())) return 'NO';
   return null;
 }
+
+/** The automatic reply to anyone who writes to the clinic's number. Fixed wording; only the clinic name and the link change. */
+export function welcomeText(clinicName: string, url: string, validHours: number): string {
+  return [
+    `أهلاً وسهلاً بك في عيادة ${clinicName.trim()} 🌷`,
+    'للاستفسار عن موعدك أو حجز موعد جديد، ادخل على الرابط التالي:',
+    url,
+    '',
+    `الرابط خاص فيك وصالح لمدة ${validHours === 1 ? 'ساعة' : validHours === 2 ? 'ساعتين' : `${validHours} ساعات`}، لا ترسله لأحد.`,
+  ].join('\n');
+}

@@ -86,6 +86,7 @@ model Clinic {
   createdAt          DateTime     @default(now()) @db.Timestamptz(3)
 
   whatsapp       ClinicWhatsapp?
+  bookingLinks   BookingLink[]
   users          User[]
   doctors        Doctor[]
   workingPeriods DoctorWorkingPeriod[]
@@ -194,6 +195,7 @@ model Patient {
   notes         String?
   medicalAlerts String?
   archivedAt    DateTime? @db.Timestamptz(3)
+  selfRegistered Boolean  @default(false) // registered by the patient through the booking page; stays flagged until a treatment is opened for them
   createdAt     DateTime  @default(now()) @db.Timestamptz(3)
   updatedAt     DateTime  @updatedAt @db.Timestamptz(3)
 
@@ -205,6 +207,21 @@ model Patient {
   @@unique([clinicId, nationalId])
   @@index([clinicId, phone])
   @@index([clinicId, fullName])
+}
+
+// The link the patient gets on WhatsApp. It carries the phone number WhatsApp itself reported as the sender,
+// so the booking page never asks "who are you": only the records of that phone are visible. Only a hash of the token is stored.
+model BookingLink {
+  id        String   @id @default(uuid()) @db.Uuid
+  clinicId  String   @db.Uuid
+  phone     String // +970..., from the incoming WhatsApp message
+  tokenHash String   @unique
+  expiresAt DateTime @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  clinic Clinic @relation(fields: [clinicId], references: [id])
+
+  @@index([clinicId, phone, createdAt])
 }
 
 // ---------------------------------------------------------------- appointments
@@ -221,6 +238,7 @@ model Appointment {
   confirmedAt  DateTime?         @db.Timestamptz(3)
   completedAt  DateTime?         @db.Timestamptz(3)
   cancelledAt  DateTime?         @db.Timestamptz(3)
+  bookedByPatient Boolean        @default(false) // booked by the patient himself through the WhatsApp link
   createdAt    DateTime          @default(now()) @db.Timestamptz(3)
   updatedAt    DateTime          @updatedAt @db.Timestamptz(3)
 

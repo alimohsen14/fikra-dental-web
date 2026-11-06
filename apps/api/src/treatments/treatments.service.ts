@@ -179,6 +179,8 @@ export class TreatmentsService {
       });
       await tx.treatmentTooth.createMany({ data: dto.teeth.map((x) => ({ clinicId, treatmentId: t.id, toothCode: x.toothCode, treatmentTypeId: x.treatmentTypeId })) });
       await tx.session.createMany({ data: Array.from({ length: dto.plannedSessions }, (_, i) => ({ clinicId, treatmentId: t.id, number: i + 1 })) });
+      // A patient who registered himself through the booking page becomes an ordinary patient once a treatment is opened for him.
+      await tx.patient.updateMany({ where: { id: dto.patientId, clinicId, selfRegistered: true }, data: { selfRegistered: false } });
       // Opening a treatment on an appointment means the visit happened: the appointment is completed.
       if (dto.appointmentId) await this.completeAppointment(tx, clinicId, dto.appointmentId);
       await this.audit(tx, clinicId, user.id, 'TREATMENT_CREATED', t.id, { after: { patientId: dto.patientId, totalCost: dto.totalCost, plannedSessions: dto.plannedSessions, toothCodes: dto.teeth.map((x) => x.toothCode) } });

@@ -14,6 +14,7 @@ export interface Patient {
   notes: string | null
   medicalAlerts: string | null
   archivedAt: string | null
+  selfRegistered?: boolean // registered by the patient himself; flagged until a treatment is opened
   createdAt: string
 }
 

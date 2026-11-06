@@ -88,6 +88,7 @@ export default function PatientsPage() {
                       <span className="flex flex-wrap items-center gap-2">
                         <span className="font-semibold">{p.fullName}</span>
                         {p.medicalAlerts && <Badge label="تنبيه طبي" bg="#fde8e8" fg="#9b1c1c" />}
+                        {p.selfRegistered && <Badge label="مسجّل ذاتياً" bg="#efe6fb" fg="#4b2a86" />}
                       </span>
                     </td>
                     <td className="px-4 py-3.5"><bdi dir="ltr">{p.phone}</bdi></td>

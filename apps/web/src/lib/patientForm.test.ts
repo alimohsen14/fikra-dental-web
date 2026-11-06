@@ -25,4 +25,10 @@ describe('buildPatientBody (edit)', () => {
   it('nothing changed -> a message, not an empty request', () => {
     expect(buildPatientBody({ ...original, fullName: ' محمد خالد ' }, original)).toHaveProperty('error')
   })
+  it("the patient's own page has no phone: it is not required and never sent", () => {
+    const v = { ...EMPTY_PATIENT, fullName: 'كريم خالد', gender: 'MALE' as const, phone: '0599000000' }
+    expect(buildPatientBody({ ...v, phone: '' }, undefined, { needPhone: false })).toEqual({ body: { fullName: 'كريم خالد', gender: 'MALE' } })
+    expect(buildPatientBody(v, undefined, { needPhone: false })).toEqual({ body: { fullName: 'كريم خالد', gender: 'MALE' } })
+    expect(buildPatientBody({ ...v, phone: '' })).toHaveProperty('error')
+  })
 })

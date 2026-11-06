@@ -8,10 +8,18 @@ export interface OutgoingConfirmation {
   appointmentId: string;
 }
 
+export interface OutgoingText {
+  clinicId: string;
+  to: string;
+  body: string;
+}
+
 /** One way of delivering a message. The rest of the system does not care which one is plugged in. */
 export interface WhatsAppProvider {
   readonly name: string;
   sendConfirmation(msg: OutgoingConfirmation): Promise<{ messageId: string }>;
+  /** A reply inside the 24h window that opens when the patient writes to the clinic (the real provider sends it as a normal text). */
+  sendText(msg: OutgoingText): Promise<{ messageId: string }>;
 }
 
 export const WHATSAPP_PROVIDER = Symbol('WHATSAPP_PROVIDER');
@@ -21,6 +29,7 @@ export const WHATSAPP_PROVIDER = Symbol('WHATSAPP_PROVIDER');
 export class DummyWhatsAppProvider implements WhatsAppProvider {
   readonly name = 'dummy';
   readonly sent: OutgoingConfirmation[] = []; // kept in memory for tests
+  readonly texts: OutgoingText[] = []; // kept in memory for tests
   failNext = false; // tests: make the next send fail
 
   async sendConfirmation(msg: OutgoingConfirmation): Promise<{ messageId: string }> {
@@ -30,6 +39,12 @@ export class DummyWhatsAppProvider implements WhatsAppProvider {
     }
     this.sent.push(msg);
     if (this.sent.length > 200) this.sent.shift();
+    return { messageId: `dummy-${randomUUID()}` };
+  }
+
+  async sendText(msg: OutgoingText): Promise<{ messageId: string }> {
+    this.texts.push(msg);
+    if (this.texts.length > 200) this.texts.shift();
     return { messageId: `dummy-${randomUUID()}` };
   }
 }

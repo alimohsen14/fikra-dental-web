@@ -7,6 +7,7 @@ import ClinicLayout from './layouts/ClinicLayout.tsx'
 import ClinicPage from './pages/admin/ClinicPage.tsx'
 import ClinicsPage from './pages/admin/ClinicsPage.tsx'
 import CreateClinicPage from './pages/admin/CreateClinicPage.tsx'
+import BookingPage from './pages/BookingPage.tsx'
 import AppointmentsPage from './pages/AppointmentsPage.tsx'
 import ChangePasswordPage from './pages/ChangePasswordPage.tsx'
 import HomePage from './pages/HomePage.tsx'
@@ -34,6 +35,7 @@ export default function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
+          <Route path="/book/:token" element={<BookingPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/change-password" element={<ChangePasswordPage />} />
           <Route element={<RequireAuth roles={['PLATFORM_ADMIN']} />}>

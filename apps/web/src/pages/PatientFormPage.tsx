@@ -4,11 +4,11 @@ import { useLocation, useNavigate, useParams, useSearchParams } from 'react-rout
 import { useAuth } from '../auth/AuthContext.tsx'
 import { Card, DateText, Loading } from '../components/admin-ui.tsx'
 import { ClinicBanner } from '../components/clinic-ui.tsx'
+import { PatientFields } from '../components/PatientFields.tsx'
 import { PatientTreatments } from '../components/PatientTreatments.tsx'
-import { Alert, Button, SelectField, TextAreaField, TextField } from '../components/ui.tsx'
+import { Alert, Button } from '../components/ui.tsx'
 import { canSeeTreatments } from '../lib/access.ts'
 import { ApiError } from '../lib/api.ts'
-import { todayInput } from '../lib/format.ts'
 import { buildPatientBody, EMPTY_PATIENT, patientToForm } from '../lib/patientForm.ts'
 import type { PatientFormValues } from '../lib/patientForm.ts'
 import { createPatient, getPatient, setPatientArchived, updatePatient } from '../lib/patients.ts'
@@ -46,25 +46,7 @@ function PatientForm({ patient, onSaved }: { patient?: Patient; onSaved: (p: Pat
   return (
     <form onSubmit={submit} noValidate className="flex max-w-3xl flex-col gap-5">
       {error && <Alert tone="error">{error}</Alert>}
-      <Card title="البيانات الأساسية">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <TextField label="الاسم الكامل" required value={v.fullName} onChange={(e) => set('fullName', e.target.value)} />
-          <TextField label="رقم الهاتف" required dir="ltr" inputMode="tel" className="text-right" value={v.phone} onChange={(e) => set('phone', e.target.value)} hint="مثال: 0599123456" />
-          <SelectField label="الجنس" value={v.gender} onChange={(e) => set('gender', e.target.value as PatientFormValues['gender'])}>
-            <option value="">غير محدد</option>
-            <option value="MALE">ذكر</option>
-            <option value="FEMALE">أنثى</option>
-          </SelectField>
-          <TextField label="تاريخ الميلاد" type="date" dir="ltr" max={todayInput()} className="text-right" value={v.birthDate} onChange={(e) => set('birthDate', e.target.value)} />
-          <TextField label="رقم الهوية" dir="ltr" className="text-right" value={v.nationalId} onChange={(e) => set('nationalId', e.target.value)} />
-          <TextField label="المنطقة" value={v.region} onChange={(e) => set('region', e.target.value)} />
-        </div>
-        <TextField label="العنوان" value={v.address} onChange={(e) => set('address', e.target.value)} />
-      </Card>
-      <Card title="طبي" hint="التنبيه الطبي بيظهر بقائمة المرضى بشارة حمراء عشان ما ينتسى.">
-        <TextAreaField label="تنبيهات طبية" placeholder="مثال: حساسية من البنسلين، سكري" value={v.medicalAlerts} onChange={(e) => set('medicalAlerts', e.target.value)} />
-        <TextAreaField label="ملاحظات" value={v.notes} onChange={(e) => set('notes', e.target.value)} />
-      </Card>
+      <PatientFields v={v} set={set} />
       <div className="flex gap-3">
         <Button type="submit" busy={busy}>
           {patient ? 'حفظ التعديلات' : 'إضافة المريض'}

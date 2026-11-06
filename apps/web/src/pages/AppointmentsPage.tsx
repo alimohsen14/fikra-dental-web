@@ -5,6 +5,7 @@ import { AppointmentDialog } from '../components/AppointmentDialog.tsx'
 import { AppointmentCard, StatusBadge, StatusCards } from '../components/appointment-ui.tsx'
 import { ClinicBanner } from '../components/clinic-ui.tsx'
 import { Icon } from '../components/icons.tsx'
+import { SimulateIncoming } from '../components/SimulateIncoming.tsx'
 import { Button } from '../components/ui.tsx'
 import { dayTitle, addDays, dayRange, isDate, localParts, timeLabel, todayDate, weekStart } from '../lib/schedule.ts'
 import { filterDay, listAppointments, listDoctors } from '../lib/appointments.ts'
@@ -51,6 +52,7 @@ export default function AppointmentsPage() {
           )
         }
       />
+      <SimulateIncoming />
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex items-center gap-2">
           <Button variant="secondary" size="sm" aria-label="السابق" onClick={() => setDate(addDays(date, -step))}>
