@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Put, Query } from '@nestjs/common';
 import { CurrentUser } from '../auth/auth.decorators.js';
 import { parseBody } from '../auth/auth.dto.js';
 import type { AuthUser } from '../auth/auth.types.js';
@@ -14,6 +14,7 @@ import {
   renewSchema,
   statusChangeSchema,
   voidPaymentSchema,
+  whatsappSchema,
 } from './admin.dto.js';
 import { AdminService } from './admin.service.js';
 
@@ -44,6 +45,21 @@ export class AdminController {
   @Patch('clinics/:id')
   update(@CurrentUser() actor: AuthUser, @Param('id') id: string, @Body() body: unknown) {
     return this.clinics.update(parseBody(idSchema, id), actor.id, parseBody(updateClinicSchema, body), 'CLINIC_UPDATED');
+  }
+
+  @Get('clinics/:id/whatsapp')
+  whatsapp(@Param('id') id: string) {
+    return this.admin.getWhatsapp(parseBody(idSchema, id));
+  }
+
+  @Put('clinics/:id/whatsapp')
+  setWhatsapp(@CurrentUser() actor: AuthUser, @Param('id') id: string, @Body() body: unknown) {
+    return this.admin.setWhatsapp(actor.id, parseBody(idSchema, id), parseBody(whatsappSchema, body));
+  }
+
+  @Delete('clinics/:id/whatsapp')
+  removeWhatsapp(@CurrentUser() actor: AuthUser, @Param('id') id: string) {
+    return this.admin.removeWhatsapp(actor.id, parseBody(idSchema, id));
   }
 
   @Post('clinics/:id/suspend')

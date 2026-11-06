@@ -260,6 +260,46 @@ describe('Platform admin panel (e2e)', () => {
     await asAdmin(http().get('/admin/clinics/not-a-uuid')).expect(400);
   });
 
+  it('WhatsApp number: only the platform admin sets it; the token is stored encrypted and never returned', async () => {
+    const id = clinicIds[0]!;
+    const url = `/admin/clinics/${id}/whatsapp`;
+    const token = 'EAAG' + 'x'.repeat(40);
+    expect((await asAdmin(http().get(url)).expect(200)).body).toMatchObject({ configured: false, phoneNumberId: null });
+
+    // the clinic owner can neither read nor write it
+    await http().get(url).set('Authorization', `Bearer ${ownerToken}`).expect(403);
+    await http().put(url).set('Authorization', `Bearer ${ownerToken}`).send({ phoneNumberId: '123456789012345', accessToken: token }).expect(403);
+    await http().get(url).expect(401);
+
+    await asAdmin(http().put(url).send({ phoneNumberId: '123456789012345' })).expect(400); // first time: token is required
+    await asAdmin(http().put(url).send({ phoneNumberId: 'abc', accessToken: token })).expect(400);
+    await asAdmin(http().put(url).send({ phoneNumberId: '123456789012345', accessToken: token, extra: 1 })).expect(400);
+
+    const saved = await asAdmin(http().put(url).send({ phoneNumberId: '123456789012345', businessAccountId: '998877665544', accessToken: token })).expect(200);
+    expect(saved.body).toMatchObject({ configured: true, phoneNumberId: '123456789012345', businessAccountId: '998877665544' });
+    expect(JSON.stringify(saved.body)).not.toContain(token);
+    expect(JSON.stringify((await asAdmin(http().get(url)).expect(200)).body)).not.toContain('accessToken');
+
+    const row = await prisma.clinicWhatsapp.findUniqueOrThrow({ where: { clinicId: id } });
+    expect(row.accessTokenEnc).not.toContain(token); // encrypted in the database
+    expect(row.accessTokenEnc.startsWith('v1:')).toBe(true);
+
+    // changing only the number keeps the saved token
+    await asAdmin(http().put(url).send({ phoneNumberId: '555666777888' })).expect(200);
+    const kept = await prisma.clinicWhatsapp.findUniqueOrThrow({ where: { clinicId: id } });
+    expect(kept.phoneNumberId).toBe('555666777888');
+    expect(kept.accessTokenEnc).toBe(row.accessTokenEnc);
+
+    // the audit log never contains the token
+    const logs = await prisma.auditLog.findMany({ where: { clinicId: id, action: { in: ['WHATSAPP_SET', 'WHATSAPP_REMOVED'] } } });
+    expect(logs).toHaveLength(2);
+    expect(JSON.stringify(logs)).not.toContain(token);
+
+    await asAdmin(http().delete(url)).expect(200);
+    expect((await asAdmin(http().get(url)).expect(200)).body.configured).toBe(false);
+    await asAdmin(http().get(`/admin/clinics/${randomUUID()}/whatsapp`)).expect(404);
+  });
+
   it('a platform admin whose password is still temporary cannot use the panel', async () => {
     const hash = await app.get(PasswordService).hash(password);
     const u = await prisma.user.create({

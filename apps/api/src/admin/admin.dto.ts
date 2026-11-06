@@ -91,3 +91,12 @@ export const addPaymentSchema = z
   .strict();
 
 export const voidPaymentSchema = z.object({ reason: z.string().trim().min(2).max(200) }).strict();
+
+// Meta gives these three values. The token is only ever sent IN (never returned).
+export const whatsappSchema = z
+  .object({
+    phoneNumberId: z.string().trim().regex(/^\d{5,30}$/, 'phoneNumberId'),
+    businessAccountId: z.string().trim().regex(/^\d{5,30}$/, 'businessAccountId').nullable().optional(),
+    accessToken: z.string().trim().min(20).max(1000).optional(), // left out = keep the saved one
+  })
+  .strict();

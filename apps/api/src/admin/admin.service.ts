@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { TEMP_PASSWORD_TTL_DAYS } from '../auth/auth.constants.js';
 import { checkClinicAccess } from '../auth/clinic-access.js';
 import { PasswordService } from '../auth/password.service.js';
+import { TotpService } from '../auth/totp.service.js';
 import { PrismaService } from '../database/prisma.service.js';
 import type { Clinic } from '../generated/prisma/client.js';
 import type {
@@ -12,6 +13,7 @@ import type {
   renewSchema,
   statusChangeSchema,
   voidPaymentSchema,
+  whatsappSchema,
 } from './admin.dto.js';
 import type { z } from 'zod';
 
@@ -79,6 +81,7 @@ export class AdminService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly passwords: PasswordService,
+    private readonly crypto: TotpService, // only used for its AES-256-GCM encrypt()
   ) {}
 
   private tempPasswordExpiry() {
@@ -499,6 +502,44 @@ export class AdminService {
       items: rows.map((r) => ({ ...r, actor: r.actorUserId ? (byId.get(r.actorUserId) ?? null) : null })),
       nextBefore: rows.length === q.limit ? rows[rows.length - 1]!.createdAt.toISOString() : null,
     };
+  }
+
+  // ---------------------------------------------------------------- WhatsApp number (platform admin only)
+  /** Never returns the token, only whether one is saved. */
+  async getWhatsapp(id: string) {
+    await this.mustFind(id);
+    const w = await this.prisma.clinicWhatsapp.findUnique({ where: { clinicId: id }, select: { phoneNumberId: true, businessAccountId: true, updatedAt: true } });
+    return w ? { configured: true, ...w } : { configured: false, phoneNumberId: null, businessAccountId: null, updatedAt: null };
+  }
+
+  async setWhatsapp(actorId: string, id: string, dto: z.infer<typeof whatsappSchema>) {
+    await this.mustFind(id);
+    const existing = await this.prisma.clinicWhatsapp.findUnique({ where: { clinicId: id }, select: { clinicId: true } });
+    if (!existing && !dto.accessToken) throw new BadRequestException('لازم تدخل التوكن أول مرة');
+    const data = {
+      phoneNumberId: dto.phoneNumberId,
+      ...(dto.businessAccountId !== undefined ? { businessAccountId: dto.businessAccountId } : {}),
+      ...(dto.accessToken ? { accessTokenEnc: this.crypto.encrypt(dto.accessToken) } : {}),
+    };
+    await this.prisma.$transaction(async (tx) => {
+      if (existing) await tx.clinicWhatsapp.update({ where: { clinicId: id }, data });
+      else await tx.clinicWhatsapp.create({ data: { clinicId: id, phoneNumberId: dto.phoneNumberId, businessAccountId: dto.businessAccountId ?? null, accessTokenEnc: this.crypto.encrypt(dto.accessToken!) } });
+      // The audit log says WHAT changed, never the token itself.
+      await tx.auditLog.create({
+        data: { clinicId: id, actorUserId: actorId, action: 'WHATSAPP_SET', entityType: 'Clinic', entityId: id, after: { phoneNumberId: dto.phoneNumberId, tokenChanged: !!dto.accessToken } },
+      });
+    });
+    return this.getWhatsapp(id);
+  }
+
+  async removeWhatsapp(actorId: string, id: string) {
+    await this.mustFind(id);
+    await this.prisma.$transaction(async (tx) => {
+      const r = await tx.clinicWhatsapp.deleteMany({ where: { clinicId: id } });
+      if (r.count === 0) return;
+      await tx.auditLog.create({ data: { clinicId: id, actorUserId: actorId, action: 'WHATSAPP_REMOVED', entityType: 'Clinic', entityId: id } });
+    });
+    return this.getWhatsapp(id);
   }
 
   private async mustFind(id: string) {

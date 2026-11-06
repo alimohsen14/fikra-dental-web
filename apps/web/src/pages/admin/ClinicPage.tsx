@@ -10,6 +10,7 @@ import { endOfDayIso, parseShekels, todayInput } from '../../lib/format.ts'
 import { useLoad } from '../../lib/useLoad.ts'
 import { ROLE_LABELS } from '../../auth/paths.ts'
 import { BillingSection } from './BillingSection.tsx'
+import { WhatsappCard } from './WhatsappCard.tsx'
 
 const messageOf = (e: unknown) => (e instanceof ApiError ? e.message : 'صار خطأ غير متوقع، جرب مرة ثانية')
 
@@ -271,6 +272,7 @@ export default function ClinicPage() {
         </div>
         <div className="flex min-w-0 flex-[2_1_320px] flex-col gap-5">
           <IdentityCard key={clinic.name + clinic.themeColor} clinic={clinic} onChanged={reload} />
+          <WhatsappCard clinicId={clinic.id} />
           <StatusCard clinic={clinic} onChanged={reload} />
           <UsersCard clinic={clinic} />
         </div>

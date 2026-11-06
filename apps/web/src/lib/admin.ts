@@ -115,3 +115,14 @@ export const addPayment = (id: string, body: { amount: number; paidAt?: string; 
   request<Billing>(`/admin/clinics/${id}/payments`, { method: 'POST', body })
 export const voidPayment = (id: string, paymentId: string, reason: string) =>
   request<Billing>(`/admin/clinics/${id}/payments/${paymentId}/void`, { method: 'POST', body: { reason } })
+
+export interface WhatsappSettings {
+  configured: boolean
+  phoneNumberId: string | null
+  businessAccountId: string | null
+  updatedAt: string | null
+}
+export const getWhatsapp = (id: string) => request<WhatsappSettings>(`/admin/clinics/${id}/whatsapp`)
+export const saveWhatsapp = (id: string, body: { phoneNumberId: string; businessAccountId: string | null; accessToken?: string }) =>
+  request<WhatsappSettings>(`/admin/clinics/${id}/whatsapp`, { method: 'PUT', body })
+export const removeWhatsapp = (id: string) => request<WhatsappSettings>(`/admin/clinics/${id}/whatsapp`, { method: 'DELETE' })
