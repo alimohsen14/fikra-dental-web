@@ -9,6 +9,8 @@ import type { ToothSet } from '../lib/teeth.ts'
 import { useLoad } from '../lib/useLoad.ts'
 import { TreatmentBadge } from '../pages/TreatmentPage.tsx'
 import { Card, DateText, Loading, Money } from './admin-ui.tsx'
+import { buildStatement } from '../lib/statement.ts'
+import { AccountStatement } from './AccountStatement.tsx'
 import { ToothChart, ToothSetToggle } from './ToothChart.tsx'
 
 /** The "treatments" tab of the patient file: money cards, the chart with treated teeth colored, and the list. */
@@ -25,6 +27,7 @@ export function PatientTreatments({ patientId, birthDate }: { patientId: string;
   const marks = toothMarks(all)
   const treated = Object.keys(marks).map(Number)
   const set = override ?? (treated.length > 0 ? setOfTeeth(treated) : defaultSet(birthDate))
+  const statement = buildStatement(all)
   const history = tooth === null ? [] : all.filter((t) => t.toothCodes.includes(tooth))
 
   return (
@@ -105,6 +108,7 @@ export function PatientTreatments({ patientId, birthDate }: { patientId: string;
           </ul>
         )}
       </Card>
+      {statement && statement.rows.length > 0 && <AccountStatement statement={statement} patientName={all[0]!.patient.fullName} />}
     </div>
   )
 }

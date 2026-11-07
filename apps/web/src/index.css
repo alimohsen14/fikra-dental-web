@@ -54,3 +54,21 @@ body {
 .fikra-banner {
   background: linear-gradient(120deg, #033f8c 0%, #0560c8 60%, #0a82e6 100%);
 }
+
+/* Printing the patient's statement: hide the whole app and show only the sheet that was rendered for the printer. */
+.print-only {
+  display: none;
+}
+@media print {
+  #root {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+    color: #000;
+    background: #fff;
+  }
+  .print-only * {
+    color: #000 !important;
+  }
+}
