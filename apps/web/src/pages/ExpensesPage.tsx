@@ -437,6 +437,7 @@ export default function ExpensesPage() {
           )}
         </Card>
 
+
         {cats.data && cats.data.length === 0 && (
           <Card title="لسا ما في أنواع مصاريف" hint="ضيف القائمة الجاهزة (رواتب، كهربا، مي...) وبتقدر تضيف أنواع غيرها وقت ما بدك.">
             <Button

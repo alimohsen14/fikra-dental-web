@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { buildExpenseBody, buildExpensePayment, isCurrent, periodTitle, shiftDate } from './expenses.ts'
+import { buildExpenseBody, buildExpensePayment, isCurrent, monthsForTable, periodTitle, profitChange, shiftDate } from './expenses.ts'
+import type { MonthRow } from './expenses.ts'
 
 const form = { categoryId: 'c', supplierId: '', description: '', amount: '250', day: '2020-01-15', paid: 'full' as const, paidAmount: '', method: 'CASH' as const }
 
@@ -64,5 +65,29 @@ describe('buildExpensePayment', () => {
   it('never above the remaining', () => {
     expect(buildExpensePayment({ ...f, amount: '101' }, 10000)).toHaveProperty('error')
     expect(buildExpensePayment({ ...f, amount: '' }, 10000)).toHaveProperty('error')
+  })
+})
+
+const row = (month: string, income: number, expensesPaid = 0, salariesPaid = 0): MonthRow => ({ month, income, expensesPaid, salariesPaid, profit: income - expensesPaid - salariesPaid })
+
+describe('monthsForTable', () => {
+  it('newest first, skipping the empty months before the first activity', () => {
+    const rows = [row('2026-08', 0), row('2026-09', 100), row('2026-10', 0), row('2026-11', 300, 50)]
+    expect(monthsForTable(rows).map((r) => r.month)).toEqual(['2026-11', '2026-10', '2026-09'])
+  })
+  it('keeps the current month when nothing ever happened', () => {
+    expect(monthsForTable([row('2026-10', 0), row('2026-11', 0)]).map((r) => r.month)).toEqual(['2026-11'])
+  })
+})
+
+describe('profitChange', () => {
+  const rows = [row('2026-09', 100), row('2026-10', 300, 50), row('2026-11', 0, 40)]
+  it('compares with the month before', () => {
+    expect(profitChange(rows, '2026-10')).toBe(150)
+    expect(profitChange(rows, '2026-11')).toBe(-290)
+  })
+  it('nothing to compare with for the first month or an unknown one', () => {
+    expect(profitChange(rows, '2026-09')).toBeNull()
+    expect(profitChange(rows, '1999-01')).toBeNull()
   })
 })

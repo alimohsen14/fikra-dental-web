@@ -10,6 +10,7 @@ import {
   expensePaymentSchema,
   idSchema,
   listExpensesQuerySchema,
+  monthsQuerySchema,
   summaryQuerySchema,
   updateCategorySchema,
   updateExpenseSchema,
@@ -72,6 +73,12 @@ export class ExpensesController {
   summary(@CurrentUser() user: AuthUser, @Query() q: unknown) {
     const query = parseBody(summaryQuerySchema, q);
     return this.expenses.summary(user, query.period, query.date);
+  }
+
+  @Get('expenses/months')
+  months(@CurrentUser() user: AuthUser, @Query() q: unknown) {
+    const query = parseBody(monthsQuerySchema, q);
+    return this.expenses.months(user, query.year ? { year: query.year } : { count: query.count ?? 12 });
   }
 
   @Get('expenses/:id')

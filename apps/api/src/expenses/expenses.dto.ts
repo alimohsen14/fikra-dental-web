@@ -66,6 +66,11 @@ export const listExpensesQuerySchema = z
 
 export const summaryQuerySchema = z.object({ period: z.enum(['day', 'week', 'month', 'year']), date }).strict();
 
+export const monthsQuerySchema = z
+  .object({ count: z.coerce.number().int().min(2).max(24).optional(), year: z.coerce.number().int().min(2000).max(2100).optional() })
+  .strict()
+  .refine((q) => !(q.count && q.year), { message: 'count or year, not both' });
+
 export type CreateExpenseDto = z.infer<typeof createExpenseSchema>;
 export type UpdateExpenseDto = z.infer<typeof updateExpenseSchema>;
 export type ExpensePaymentDto = z.infer<typeof expensePaymentSchema>;

@@ -28,3 +28,10 @@ export interface PaymentLike {
 }
 export const paidTotal = (payments: PaymentLike[]): number => payments.reduce((t, p) => (p.status === 'ACTIVE' ? t + p.amount : t), 0);
 export const remainingOf = (amount: number, payments: PaymentLike[]): number => Math.max(0, amount - paidTotal(payments));
+
+/** "2026-11" moved by whole months (negative = back). */
+export function shiftMonth(month: string, steps: number): string {
+  const [y, m] = month.split('-').map(Number) as [number, number];
+  const t = y * 12 + (m - 1) + steps;
+  return `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, '0')}`;
+}

@@ -55,6 +55,8 @@ describe('Expenses (e2e)', () => {
 
   afterAll(async () => {
     const w = { clinicId: { in: clinicIds } };
+    await prisma.salaryPayment.deleteMany({ where: w });
+    await prisma.salaryEntry.deleteMany({ where: w });
     await prisma.expensePayment.deleteMany({ where: w });
     await prisma.expense.deleteMany({ where: w });
     await prisma.supplier.deleteMany({ where: w });
@@ -225,5 +227,37 @@ describe('Expenses (e2e)', () => {
     await spend(b, { categoryId: ka, amount: 100 }).expect(404);
     await spend(b, { categoryId: await cat(b), supplierId: sa, amount: 100 }).expect(404);
     expect((await summary(b, 'day', today())).owedNow).toBe(0);
+  });
+  it('months side by side: income, expenses paid, salaries paid and profit; owner only', async () => {
+    const c = await makeClinic('months');
+    const o = bearer(c.users.OWNER.token);
+    const k = await cat(c);
+    const tr = (await http().post('/treatments').set(bearer(c.users.DOCTOR.token)).send({ patientId: c.patient, teeth: [{ toothCode: 16, treatmentTypeId: c.type }], totalCost: 100_000, plannedSessions: 1 }).expect(201)).body;
+    await http().post(`/treatments/${tr.id}/payments`).set(bearer(c.users.DOCTOR.token)).send({ amount: 40_000, method: 'CASH', paidAt: now() }).expect(201);
+    await spend(c, { categoryId: k, amount: 10_000 }).expect(201);
+    await spend(c, { categoryId: k, amount: 7_000, incurredAt: '2026-08-10T10:00:00+03:00' }).expect(201);
+    await http().patch(`/salaries/staff/${c.users.DOCTOR.id}`).set(o).send({ monthlySalary: 300_000 }).expect(200);
+    const entry = (await http().get(`/salaries?month=${today().slice(0, 7)}`).set(o).expect(200)).body.entries[0];
+    await http().post(`/salaries/${entry.id}/payments`).set(o).send({ kind: 'ADVANCE', amount: 5_000, method: 'CASH', paidAt: now() }).expect(201);
+    const list = (await http().get('/expenses/months').set(o).expect(200)).body;
+    expect(list).toHaveLength(12);
+    expect(list[11].month).toBe(today().slice(0, 7));
+    expect(list[11]).toMatchObject({ income: 40_000, expensesPaid: 10_000, salariesPaid: 5_000, profit: 25_000 });
+    expect(list.slice(0, 11).every((r: { income: number; profit: number }) => r.income === 0)).toBe(true);
+    const three = (await http().get('/expenses/months?count=3').set(o).expect(200)).body;
+    expect(three.map((r: { month: string }) => r.month)).toEqual([list[9].month, list[10].month, list[11].month]);
+    const year = Number(today().slice(0, 4));
+    const whole = (await http().get(`/expenses/months?year=${year}`).set(o).expect(200)).body;
+    expect(whole.map((r: { month: string }) => r.month)).toEqual(Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`));
+    expect(whole.find((r: { month: string }) => r.month === today().slice(0, 7))).toMatchObject({ income: 40_000, profit: 25_000 });
+    expect((await http().get('/expenses/months?year=2020').set(o).expect(200)).body.every((r: { income: number; profit: number }) => r.income === 0 && r.profit === 0)).toBe(true);
+    await http().get('/expenses/months?year=1999').set(o).expect(400);
+    await http().get(`/expenses/months?year=${year}&count=5`).set(o).expect(400);
+    await http().get('/expenses/months?count=1').set(o).expect(400);
+    await http().get('/expenses/months?count=99').set(o).expect(400);
+    await http().get('/expenses/months').set(bearer(c.users.DOCTOR.token)).expect(403);
+    // another clinic sees nothing of it
+    const other = await makeClinic('months2');
+    expect((await http().get('/expenses/months').set(bearer(other.users.OWNER.token)).expect(200)).body[11]).toMatchObject({ income: 0, profit: 0 });
   });
 });

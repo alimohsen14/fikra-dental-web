@@ -61,6 +61,30 @@ export interface Summary {
   owedNow: number
 }
 
+export interface MonthRow {
+  month: string
+  income: number
+  expensesPaid: number
+  salariesPaid: number
+  profit: number
+}
+/** January to December of one year, oldest first (months that have not come yet are all zero). */
+export const listYearMonths = (year: number) => request<MonthRow[]>(`/expenses/months?year=${year}`)
+
+/** Newest first, so the current month is on top; months with nothing at all before the first activity are dropped. */
+export function monthsForTable(rows: MonthRow[]): MonthRow[] {
+  const first = rows.findIndex((r) => r.income !== 0 || r.expensesPaid !== 0 || r.salariesPaid !== 0)
+  return first === -1 ? rows.slice(-1) : rows.slice(first).reverse()
+}
+
+/** How much the profit moved compared with the month before it; null for the first month shown. */
+export function profitChange(oldestFirst: MonthRow[], month: string): number | null {
+  const i = oldestFirst.findIndex((r) => r.month === month)
+  const here = oldestFirst[i]
+  const before = oldestFirst[i - 1]
+  return i <= 0 || !here || !before ? null : here.profit - before.profit
+}
+
 export const listCategories = () => request<Category[]>('/expense-categories')
 export const createCategory = (name: string) => request<Category>('/expense-categories', { method: 'POST', body: { name } })
 export const addDefaultCategories = () => request<Category[]>('/expense-categories/defaults', { method: 'POST', body: {} })

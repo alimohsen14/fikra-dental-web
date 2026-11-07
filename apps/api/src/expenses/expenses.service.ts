@@ -2,10 +2,10 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import type { AuthUser } from '../auth/auth.types.js';
 import { PrismaService } from '../database/prisma.service.js';
 import type { Prisma } from '../generated/prisma/client.js';
-import { addDaysTo, instantAt } from '../scheduling/clinic-time.js';
+import { addDaysTo, instantAt, localDate } from '../scheduling/clinic-time.js';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service.js';
 import type { CreateExpenseDto, ExpensePaymentDto, ListExpensesQuery, UpdateExpenseDto } from './expenses.dto.js';
-import { paidTotal, periodRange, remainingOf } from './period.js';
+import { paidTotal, periodRange, remainingOf, shiftMonth } from './period.js';
 import type { Period } from './period.js';
 
 type Tx = Prisma.TransactionClient;
@@ -282,6 +282,37 @@ export class ExpensesService {
       ].sort((a, b) => b.paid + b.incurred - (a.paid + a.incurred) || a.name.localeCompare(b.name, 'ar')),
       owedNow: [...owed.values()].reduce((t, v) => t + v, 0),
     };
+  }
+
+  /**
+   * Months side by side, oldest first: either a whole calendar year (January to December, months that have not
+   * come yet are empty) or the last `count` months ending with the current one. For each: what patients paid, what
+   * the clinic paid out (expenses + salaries, by the day the money moved) and the difference.
+   */
+  async months(user: AuthUser, which: { count: number } | { year: number }) {
+    const tz = await this.tz(user.clinicId!);
+    const thisMonth = localDate(new Date(), tz).slice(0, 7);
+    const list: string[] = [];
+    if ('year' in which) for (let m = 1; m <= 12; m++) list.push(`${which.year}-${String(m).padStart(2, '0')}`);
+    else for (let i = which.count - 1; i >= 0; i--) list.push(shiftMonth(thisMonth, -i));
+    const last = list[list.length - 1]!;
+    const range = { gte: instantAt(`${list[0]}-01`, 0, tz), lt: instantAt(shiftMonth(last, 1) + '-01', 0, tz) };
+    const [income, expenses, salaries] = await Promise.all([
+      this.tenant.db.payment.findMany({ where: { status: 'ACTIVE', paidAt: range }, select: { amount: true, paidAt: true } }),
+      this.tenant.db.expensePayment.findMany({ where: { status: 'ACTIVE', paidAt: range }, select: { amount: true, paidAt: true } }),
+      this.tenant.db.salaryPayment.findMany({ where: { status: 'ACTIVE', paidAt: range }, select: { amount: true, paidAt: true } }),
+    ]);
+    const rows = new Map(list.map((month) => [month, { month, income: 0, expensesPaid: 0, salariesPaid: 0, profit: 0 }]));
+    const add = (src: { amount: number; paidAt: Date }[], key: 'income' | 'expensesPaid' | 'salariesPaid') => {
+      for (const r of src) {
+        const row = rows.get(localDate(r.paidAt, tz).slice(0, 7));
+        if (row) row[key] += r.amount;
+      }
+    };
+    add(income, 'income');
+    add(expenses, 'expensesPaid');
+    add(salaries, 'salariesPaid');
+    return [...rows.values()].map((r) => ({ ...r, profit: r.income - r.expensesPaid - r.salariesPaid }));
   }
 
   // ---------------------------------------------------------------- internals

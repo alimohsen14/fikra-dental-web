@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { paidTotal, periodRange, remainingOf } from './period.js';
+import { paidTotal, periodRange, remainingOf, shiftMonth } from './period.js';
 
 describe('periodRange', () => {
   it('a day is that day', () => expect(periodRange('day', '2026-11-07')).toEqual({ from: '2026-11-07', to: '2026-11-08' }));
@@ -24,4 +24,13 @@ describe('what is owed on a bill', () => {
     expect(remainingOf(500, [p(100), p(50, 'VOIDED')])).toBe(400);
   });
   it('never negative', () => expect(remainingOf(100, [p(150)])).toBe(0));
+});
+
+describe('shiftMonth', () => {
+  it('crosses year ends in both directions', () => {
+    expect(shiftMonth('2026-01', -1)).toBe('2025-12');
+    expect(shiftMonth('2026-12', 1)).toBe('2027-01');
+    expect(shiftMonth('2026-11', -11)).toBe('2025-12');
+    expect(shiftMonth('2026-11', 0)).toBe('2026-11');
+  });
 });

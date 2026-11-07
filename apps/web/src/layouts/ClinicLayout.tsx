@@ -19,6 +19,7 @@ const TYPES_ITEM: NavItem = { to: '/treatment-types', label: 'أنواع الع�
 const OWNER_ITEMS: NavItem[] = [
   { to: '/expenses', label: 'المصاريف', icon: 'wallet' },
   { to: '/salaries', label: 'الرواتب', icon: 'wallet' },
+  { to: '/analysis', label: 'تحليل', icon: 'chart' },
   { to: '/team', label: 'الفريق', icon: 'team' },
   { to: '/hours', label: 'أوقات الدوام', icon: 'clock' },
   { to: '/settings', label: 'الإعدادات', icon: 'settings' },
