@@ -87,6 +87,12 @@ model Clinic {
 
   whatsapp       ClinicWhatsapp?
   bookingLinks   BookingLink[]
+  expenseCategories ExpenseCategory[]
+  suppliers      Supplier[]
+  expenses       Expense[]
+  expensePayments ExpensePayment[]
+  salaryEntries   SalaryEntry[]
+  salaryPayments  SalaryPayment[]
   users          User[]
   doctors        Doctor[]
   workingPeriods DoctorWorkingPeriod[]
@@ -126,6 +132,7 @@ model User {
   role              Role
   canManagePayments Boolean  @default(false)
   isActive          Boolean  @default(true)
+  monthlySalary     Int? // agorot; set by the owner for doctors and secretaries
   createdAt         DateTime @default(now()) @db.Timestamptz(3)
 
   mustChangePassword         Boolean   @default(false)
@@ -143,6 +150,7 @@ model User {
   doctor        Doctor?
   refreshTokens RefreshToken[]
   recoveryCodes RecoveryCode[]
+  salaryEntries SalaryEntry[]
 
   @@index([clinicId])
 }
@@ -470,4 +478,132 @@ model SubscriptionPayment {
 
   @@index([periodId])
   @@index([clinicId, paidAt])
+}
+
+// ---------------------------------------------------------------- expenses (owner only)
+model ExpenseCategory {
+  id        String   @id @default(uuid()) @db.Uuid
+  clinicId  String   @db.Uuid
+  name      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  clinic   Clinic    @relation(fields: [clinicId], references: [id])
+  expenses Expense[]
+
+  @@unique([clinicId, name])
+}
+
+// Whoever the clinic buys from or owes money to (a shop, a lab, an employee).
+model Supplier {
+  id        String   @id @default(uuid()) @db.Uuid
+  clinicId  String   @db.Uuid
+  name      String
+  phone     String?
+  notes     String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  clinic   Clinic    @relation(fields: [clinicId], references: [id])
+  expenses Expense[]
+
+  @@unique([clinicId, name])
+}
+
+// One bill. What is still owed on it = amount - active payments. Never deleted: a wrong one is voided with a reason.
+model Expense {
+  id              String        @id @default(uuid()) @db.Uuid
+  clinicId        String        @db.Uuid
+  categoryId      String        @db.Uuid
+  supplierId      String?       @db.Uuid
+  description     String?
+  amount          Int // smallest currency unit, must be > 0
+  incurredAt      DateTime      @db.Timestamptz(3) // the day of the purchase / the bill
+  status          PaymentStatus @default(ACTIVE)
+  voidedAt        DateTime?     @db.Timestamptz(3)
+  voidReason      String?
+  voidedByUserId  String?       @db.Uuid
+  createdByUserId String        @db.Uuid
+  createdAt       DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime      @updatedAt @db.Timestamptz(3)
+
+  clinic   Clinic            @relation(fields: [clinicId], references: [id])
+  category ExpenseCategory   @relation(fields: [categoryId], references: [id])
+  supplier Supplier?         @relation(fields: [supplierId], references: [id])
+  payments ExpensePayment[]
+
+  @@index([clinicId, incurredAt])
+  @@index([clinicId, supplierId])
+}
+
+// Money that actually left the clinic. The profit of a period counts these, by the day they were paid.
+model ExpensePayment {
+  id              String        @id @default(uuid()) @db.Uuid
+  clinicId        String        @db.Uuid
+  expenseId       String        @db.Uuid
+  amount          Int // must be > 0
+  method          PaymentMethod
+  paidAt          DateTime      @db.Timestamptz(3)
+  note            String?
+  status          PaymentStatus @default(ACTIVE)
+  voidedAt        DateTime?     @db.Timestamptz(3)
+  voidReason      String?
+  voidedByUserId  String?       @db.Uuid
+  createdByUserId String        @db.Uuid
+  createdAt       DateTime      @default(now()) @db.Timestamptz(3)
+
+  clinic  Clinic  @relation(fields: [clinicId], references: [id])
+  expense Expense @relation(fields: [expenseId], references: [id])
+
+  @@index([clinicId, paidAt])
+  @@index([expenseId])
+}
+
+enum SalaryPaymentKind {
+  SALARY
+  ADVANCE // taken before payday; counts against the same month's salary
+}
+
+/// One employee's salary for one month ("2026-11"). baseAmount is copied from the employee's
+/// monthly salary when the month is opened, so raising the salary later never rewrites old months.
+model SalaryEntry {
+  id         String   @id @default(uuid()) @db.Uuid
+  clinicId   String   @db.Uuid
+  userId     String   @db.Uuid
+  month      String
+  baseAmount Int
+  adjustment Int      @default(0) // bonus (+) or deduction (-) for this month only
+  adjustNote String?
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime @default(now()) @updatedAt @db.Timestamptz(3)
+
+  clinic   Clinic          @relation(fields: [clinicId], references: [id])
+  user     User            @relation(fields: [userId], references: [id])
+  payments SalaryPayment[]
+
+  @@unique([clinicId, userId, month])
+  @@index([clinicId, month])
+}
+
+model SalaryPayment {
+  id              String            @id @default(uuid()) @db.Uuid
+  clinicId        String            @db.Uuid
+  entryId         String            @db.Uuid
+  kind            SalaryPaymentKind
+  amount          Int // must be > 0
+  method          PaymentMethod
+  paidAt          DateTime          @db.Timestamptz(3)
+  note            String?
+  status          PaymentStatus     @default(ACTIVE)
+  voidedAt        DateTime?         @db.Timestamptz(3)
+  voidReason      String?
+  voidedByUserId  String?           @db.Uuid
+  createdByUserId String            @db.Uuid
+  createdAt       DateTime          @default(now()) @db.Timestamptz(3)
+
+  clinic Clinic      @relation(fields: [clinicId], references: [id])
+  entry  SalaryEntry @relation(fields: [entryId], references: [id])
+
+  @@index([clinicId, paidAt])
+  @@index([entryId])
 }

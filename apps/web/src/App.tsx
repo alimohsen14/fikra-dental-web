@@ -14,8 +14,10 @@ import HomePage from './pages/HomePage.tsx'
 import HoursPage from './pages/HoursPage.tsx'
 import LoginPage from './pages/LoginPage.tsx'
 import { NewPatientPage, PatientPage } from './pages/PatientFormPage.tsx'
+import ExpensesPage from './pages/ExpensesPage.tsx'
 import PatientsPage from './pages/PatientsPage.tsx'
 import TeamPage from './pages/TeamPage.tsx'
+import SalariesPage from './pages/SalariesPage.tsx'
 import SettingsPage from './pages/SettingsPage.tsx'
 import { EditTreatmentPage, NewTreatmentPage } from './pages/TreatmentFormPage.tsx'
 import TreatmentPage from './pages/TreatmentPage.tsx'
@@ -60,6 +62,8 @@ export default function App() {
                 <Route path="/treatment-types" element={<TreatmentTypesPage />} />
               </Route>
               <Route element={<RequireAuth roles={['OWNER']} />}>
+                <Route path="/expenses" element={<ExpensesPage />} />
+                <Route path="/salaries" element={<SalariesPage />} />
                 <Route path="/team" element={<TeamPage />} />
                 <Route path="/hours" element={<HoursPage />} />
                 <Route path="/settings" element={<SettingsPage />} />

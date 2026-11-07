@@ -17,6 +17,8 @@ const ITEMS: NavItem[] = [
 const TREATMENT_ITEM: NavItem = { to: '/treatments', label: 'العلاجات', icon: 'tooth' }
 const TYPES_ITEM: NavItem = { to: '/treatment-types', label: 'أنواع العلاج', icon: 'types' }
 const OWNER_ITEMS: NavItem[] = [
+  { to: '/expenses', label: 'المصاريف', icon: 'wallet' },
+  { to: '/salaries', label: 'الرواتب', icon: 'wallet' },
   { to: '/team', label: 'الفريق', icon: 'team' },
   { to: '/hours', label: 'أوقات الدوام', icon: 'clock' },
   { to: '/settings', label: 'الإعدادات', icon: 'settings' },

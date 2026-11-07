@@ -17,6 +17,12 @@ export const TENANT_MODELS = new Set([
   'Payment',
   'AuditLog',
   'BookingLink',
+  'ExpenseCategory',
+  'Supplier',
+  'Expense',
+  'ExpensePayment',
+  'SalaryEntry',
+  'SalaryPayment',
   'SubscriptionPeriod',
   'SubscriptionPayment',
 ]);
