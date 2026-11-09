@@ -28,9 +28,9 @@ Multi-tenant web system for dental clinics. Many clinics share one platform; eac
 ## Domain rules
 - Appointment statuses: pending, confirmed, completed, cancelled. Every new appointment starts pending. NEVER auto-cancel or auto-delete an appointment. "Overdue" (unconfirmed and in the past) is a derived flag, not a status.
 - Prevent double booking per doctor at the database level.
-- Messages: if the appointment is more than 48h away, send a booking message now and a confirm message (yes/no buttons) 24h before. If 48h or less, send only the confirm message immediately. Log every message. Ignore a late "yes" for a cancelled appointment. Reschedule recomputes pending messages.
+- Messages: if the appointment is more than 24h away, it waits as pending and the confirm message (yes/no buttons) goes out exactly 24h before. If 24h or less, it is confirmed automatically and no message is sent. Log every message. Ignore a late "yes" for a cancelled appointment. Reschedule recomputes pending messages.
 - Treatment = one treatment type + one or more teeth + notes + ONE total cost + ONE session count. No per-tooth price. Several types in one visit = several treatments.
-- A treatment closes only when it is fully paid AND all its sessions are completed.
+- A treatment closes only when it is fully paid AND at least one session is completed; sessions not done are dropped (the doctor may finish early).
 - Self-booking via WhatsApp (phase 9): personal one-time link tied to the sender's number; new-patient data lives in a temporary booking request and becomes a patient only when the appointment is confirmed.
 
 ## Working agreement

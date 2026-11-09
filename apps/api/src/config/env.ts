@@ -47,7 +47,7 @@ export function getUploadDir(): string {
 // 0 turns the whole rule off (used by tests).
 export function getConfirmWindowHours(): number {
   const raw = process.env.AUTO_CONFIRM_WINDOW_HOURS;
-  if (raw === undefined || raw.trim() === '') return 48;
+  if (raw === undefined || raw.trim() === '') return 24;
   const n = Number(raw);
   if (!Number.isFinite(n) || n < 0) throw new Error('AUTO_CONFIRM_WINDOW_HOURS must be a number of hours (0 turns it off)');
   return n;
