@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { EMPTY_TREATMENT, buildCreateTreatment, buildEditTreatment, buildTreatmentPayment, copyTypeToAll, entriesOf, resolveTypeId, setEntrySub, setEntryType, toggleEntry, typeIdsOf } from './treatmentForm.ts'
 import type { ToothEntry } from './treatmentForm.ts'
-import { canBookSession, canClose, nextBookable, pickableTypes, sessionCaption, sessionsDone, toothMarks, typeLabel, typeLabels, typeTree } from './treatments.ts'
+import { buildNewType, canBookSession, canClose, nextBookable, pickableTypes, sessionCaption, sessionsDone, toothMarks, typeLabel, typeLabels, typeTree } from './treatments.ts'
 import type { SessionRow, TreatmentType } from './treatments.ts'
 
 const T = (id: string, name: string, parentId: string | null = null, isActive = true): TreatmentType => ({ id, name, parentId, isActive })
@@ -206,5 +206,20 @@ describe('sessionCaption', () => {
     expect(sessionCaption({ status: 'PLANNED', completedAt: null, appointment: apt } as never)).toEqual({ kind: 'appointment', at: apt.startsAt })
     expect(sessionCaption({ status: 'PLANNED', completedAt: null, appointment: { ...apt, status: 'CANCELLED' } } as never)).toBeNull()
     expect(sessionCaption({ status: 'PLANNED', completedAt: null, appointment: null } as never)).toBeNull()
+  })
+})
+
+describe('buildNewType', () => {
+  it('a main type with its sub-types: trimmed, empty rows dropped, duplicates once', () => {
+    expect(buildNewType({ parentId: '', name: '  تلبيسة ', subs: [' زركون ', '', 'بورسلان', 'زركون'] })).toEqual({ parentId: null, name: 'تلبيسة', subs: ['زركون', 'بورسلان'] })
+    expect(buildNewType({ parentId: '', name: 'حشوة', subs: [] })).toEqual({ parentId: null, name: 'حشوة', subs: [] })
+  })
+  it('under an existing type it adds just one sub-type', () => {
+    expect(buildNewType({ parentId: 'p1', name: 'زركون', subs: ['x'] })).toEqual({ parentId: 'p1', name: 'زركون', subs: [] })
+  })
+  it('refuses short or missing names', () => {
+    expect(buildNewType({ parentId: '', name: 'ح', subs: [] })).toHaveProperty('error')
+    expect(buildNewType({ parentId: '', name: 'حشوة', subs: ['ز'] })).toHaveProperty('error')
+    expect(buildNewType({ parentId: 'p1', name: '', subs: [] })).toHaveProperty('error')
   })
 })
