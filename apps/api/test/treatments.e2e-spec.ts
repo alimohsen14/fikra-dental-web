@@ -315,7 +315,7 @@ describe('Treatments, sessions and payments (e2e)', () => {
   });
 
   // ---------------------------------------------------------------- sessions and closing
-  it('nothing closes by itself: the close button works only when every session is done AND everything is paid', async () => {
+  it('nothing closes by itself: the close button works only after a session is done AND everything is paid', async () => {
     const c = await makeClinic('close');
     const d = c.users.DOCTOR.token;
     await prisma.user.update({ where: { id: c.users.DOCTOR.id }, data: { canManagePayments: true } });
@@ -323,12 +323,11 @@ describe('Treatments, sessions and payments (e2e)', () => {
     const a = (await create(d, c, { totalCost: 20_000, plannedSessions: 2 }).expect(201)).body;
     await close(d, a.id).expect(409); // nothing done, nothing paid
     expect((await pay(d, a.id, { amount: 20_000 }).expect(201)).body.status).toBe('OPEN'); // paid, still open
-    await close(d, a.id).expect(409); // paid but sessions missing
+    await close(d, a.id).expect(409); // paid but nothing done
     const half = await complete(d, a.id, 1).expect(200);
     expect(half.body.status).toBe('OPEN');
     expect(half.body.sessions[0]).toMatchObject({ status: 'COMPLETED' });
     expect(half.body.sessions[0].completedAt).toBeTruthy();
-    await close(d, a.id).expect(409); // one session left
     const done = await complete(d, a.id, 2).expect(200);
     expect(done.body.status).toBe('OPEN'); // everything is ready, but it waits for the button
     const closed = await close(d, a.id).expect(200);
@@ -379,6 +378,36 @@ describe('Treatments, sessions and payments (e2e)', () => {
     await close(c.users.OWNER.token, cancelled.id).expect(409);
     await close(c.users.OWNER.token, randomUUID()).expect(404);
     await close('bad', mine.id).expect(401);
+  });
+
+  it('closing early: session 3 of 3 is not needed, its appointment is released; completing a session early closes its future appointment', async () => {
+    const c = await makeClinic('early');
+    const d = c.users.DOCTOR.token;
+    const t = (await create(d, c, { plannedSessions: 3, totalCost: 0 }).expect(201)).body;
+    await close(d, t.id).expect(409); // nothing done yet
+    const future = new Date(Date.now() + 5 * 86_400_000);
+    const apt = await prisma.appointment.create({ data: { clinicId: c.id, patientId: c.patient, doctorId: c.doc1, startsAt: future, endsAt: new Date(future.getTime() + 1_800_000), status: 'CONFIRMED' } });
+    const apt3 = await prisma.appointment.create({ data: { clinicId: c.id, patientId: c.patient, doctorId: c.doc1, startsAt: new Date(future.getTime() + 86_400_000), endsAt: new Date(future.getTime() + 86_400_000 + 1_800_000), status: 'CONFIRMED' } });
+    await prisma.session.updateMany({ where: { treatmentId: t.id, number: 2 }, data: { appointmentId: apt.id } });
+    await prisma.session.updateMany({ where: { treatmentId: t.id, number: 3 }, data: { appointmentId: apt3.id } });
+    await complete(d, t.id, 1).expect(200);
+    const res = await complete(d, t.id, 2).expect(200); // patient came 5 days before the booked time
+    const s2 = res.body.sessions.find((s: { number: number }) => s.number === 2);
+    expect(new Date(s2.completedAt).getTime()).toBeLessThan(future.getTime()); // the real day, not the booked one
+    expect(await prisma.appointment.findUnique({ where: { id: apt.id } })).toMatchObject({ status: 'COMPLETED' });
+    // the doctor is free at the old time again
+    const rebook = await prisma.appointment.create({ data: { clinicId: c.id, patientId: c.patient, doctorId: c.doc1, startsAt: future, endsAt: new Date(future.getTime() + 1_800_000), status: 'CONFIRMED' } });
+    expect(rebook.id).toBeTruthy();
+    const closed = await close(d, t.id).expect(200); // session 3 is not needed
+    expect(closed.body).toMatchObject({ status: 'CLOSED', plannedSessions: 2 });
+    expect(closed.body.sessions).toHaveLength(2);
+    expect(await prisma.appointment.findUnique({ where: { id: apt3.id } })).toMatchObject({ status: 'CANCELLED' });
+    expect(await prisma.auditLog.count({ where: { clinicId: c.id, action: 'TREATMENT_CLOSED' } })).toBe(1);
+    // money still has to be settled
+    const u = (await create(d, c, { plannedSessions: 3, totalCost: 10_000 }).expect(201)).body;
+    await prisma.user.update({ where: { id: c.users.DOCTOR.id }, data: { canManagePayments: true } });
+    await complete(d, u.id, 1).expect(200);
+    await close(d, u.id).expect(409);
   });
 
   it('sessions: notes are kept, a session finishes once, unknown numbers are 404', async () => {

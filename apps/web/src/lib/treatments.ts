@@ -113,14 +113,21 @@ export function pickableTypes(types: TreatmentType[], keep: string[] = []): Type
     .map((n) => ({ ...n, children: n.children.filter((c) => c.isActive || keep.includes(c.id)) }))
 }
 
+/** What shows under a session: a finished one always shows the day it was closed (even if that is before its appointment); an open one shows its live appointment. */
+export type SessionCaption = { kind: 'closed'; at: string } | { kind: 'appointment'; at: string } | null
+export function sessionCaption(s: Pick<SessionRow, 'status' | 'completedAt' | 'appointment'>): SessionCaption {
+  if (s.status === 'COMPLETED') return s.completedAt ? { kind: 'closed', at: s.completedAt } : null
+  return s.appointment && s.appointment.status !== 'CANCELLED' ? { kind: 'appointment', at: s.appointment.startsAt } : null
+}
+
 export const sessionsDone = (t: Pick<Treatment, 'sessions'>): number => t.sessions.filter((s) => s.status === 'COMPLETED').length
 
 /** Booking the next session: whoever may edit the treatment, or a secretary with the payments key. Never a doctor on a colleague's treatment. */
 export const canBookSession = (t: Pick<Treatment, 'access'>): boolean => t.access.edit || t.access.pay
 
-/** The close button shows only when every session is done AND nothing is owed. A doctor without the payments key cannot see money: the server then makes the final check. */
+/** The close button shows once at least one session is done AND nothing is owed; sessions not yet done are dropped (the doctor may finish early). A doctor without the payments key cannot see money: the server then makes the final check. */
 export function canClose(t: Pick<Treatment, 'sessions' | 'status' | 'remaining'>): boolean {
-  return t.status === 'OPEN' && t.sessions.length > 0 && t.sessions.every((s) => s.status === 'COMPLETED') && (t.remaining === undefined || t.remaining === 0)
+  return t.status === 'OPEN' && t.sessions.some((s) => s.status === 'COMPLETED') && (t.remaining === undefined || t.remaining === 0)
 }
 
 /** The first session that is not finished and has no live appointment yet. */

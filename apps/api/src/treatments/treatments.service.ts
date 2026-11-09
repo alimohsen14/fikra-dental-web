@@ -277,10 +277,18 @@ export class TreatmentsService {
     await this.prisma.$transaction(async (tx) => {
       const t = await this.lock(tx, clinicId, id);
       if (t.status !== 'OPEN') throw new ConflictException('العلاج مش مفتوح');
-      if (t.sessions.length === 0 || t.sessions.some((s) => s.status !== 'COMPLETED')) throw new ConflictException('لسا في جلسات ما تمت');
+      const done = t.sessions.filter((s) => s.status === 'COMPLETED');
+      if (done.length === 0) throw new ConflictException('لازم تتم جلسة وحدة على الأقل');
       if (paidTotal(t.payments) < t.totalCost) throw new ConflictException('لسا في مبلغ متبقي ما انستلم');
-      await tx.treatment.update({ where: { id }, data: { status: 'CLOSED', closedAt: new Date() } });
-      await this.audit(tx, clinicId, user.id, 'TREATMENT_CLOSED', id);
+      // The doctor may finish early: sessions that never happened are dropped, and their appointments are released.
+      const dropped = t.sessions.filter((s) => s.status !== 'COMPLETED');
+      if (dropped.length > 0) {
+        const aptIds = dropped.map((s) => s.appointmentId).filter((x): x is string => !!x);
+        if (aptIds.length > 0) await tx.appointment.updateMany({ where: { id: { in: aptIds }, clinicId, status: { in: ['PENDING', 'CONFIRMED'] } }, data: { status: 'CANCELLED' } });
+        await tx.session.deleteMany({ where: { clinicId, treatmentId: id, status: 'PLANNED' } });
+      }
+      await tx.treatment.update({ where: { id }, data: { status: 'CLOSED', closedAt: new Date(), plannedSessions: done.length } });
+      await this.audit(tx, clinicId, user.id, 'TREATMENT_CLOSED', id, dropped.length > 0 ? { before: { plannedSessions: t.plannedSessions }, after: { plannedSessions: done.length, droppedSessions: dropped.map((s) => s.number) } } : {});
     });
     return this.get(user, id);
   }

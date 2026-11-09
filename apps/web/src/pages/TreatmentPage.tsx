@@ -12,7 +12,7 @@ import { listDoctors } from '../lib/appointments.ts'
 import { todayInput } from '../lib/format.ts'
 import { localParts, timeLabel } from '../lib/schedule.ts'
 import { buildTreatmentPayment } from '../lib/treatmentForm.ts'
-import { addPayment, canBookSession, canClose, closeTreatment, completeSession, getTreatment, METHOD_LABELS, nextBookable, sessionsDone, STATUS_TEXT, TREATMENT_STYLE, typeLabel, typeLabels, voidPayment } from '../lib/treatments.ts'
+import { addPayment, canBookSession, canClose, closeTreatment, completeSession, getTreatment, METHOD_LABELS, nextBookable, sessionCaption, sessionsDone, STATUS_TEXT, TREATMENT_STYLE, typeLabel, typeLabels, voidPayment } from '../lib/treatments.ts'
 import type { PaymentMethod, PaymentRow, SessionRow, Treatment } from '../lib/treatments.ts'
 import { useLoad } from '../lib/useLoad.ts'
 
@@ -54,8 +54,9 @@ function CompleteSessionModal({ t, s, onClose, onDone }: { t: Treatment; s: Sess
   )
 }
 
-/** Closing is always a button: it appears only when every session is done and everything is paid. */
+/** Closing is always a button: it appears once a session is done and everything is paid. Sessions not done are dropped. */
 function CloseCard({ t, onChanged }: { t: Treatment; onChanged: () => void }) {
+  const left = t.sessions.length - sessionsDone(t)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   async function close() {
@@ -71,7 +72,7 @@ function CloseCard({ t, onChanged }: { t: Treatment; onChanged: () => void }) {
     }
   }
   return (
-    <Card title="إغلاق العلاج" hint="بعد الإغلاق ما بينعدل العلاج ولا بتنضاف عليه دفعات.">
+    <Card title="إغلاق العلاج" hint={left > 0 ? `باقي ${left} جلسة ما تمت: بتنحذف وبتتلغى مواعيدها لما تغلق العلاج. بعد الإغلاق ما بينعدل العلاج ولا بتنضاف عليه دفعات.` : 'بعد الإغلاق ما بينعدل العلاج ولا بتنضاف عليه دفعات.'}>
       {error && <Alert tone="error">{error}</Alert>}
       <div>
         <Button busy={busy} onClick={() => void close()}>
@@ -89,15 +90,15 @@ function SessionsCard({ t, canEdit, onChanged }: { t: Treatment; canEdit: boolea
   const next = nextBookable(t)
   const done = sessionsDone(t)
   return (
-    <Card title="الجلسات" hint={t.status === 'OPEN' && canEdit ? 'كبس على الجلسة لما تخلص عشان تصير خضراء.' : undefined}>
+    <Card title="الجلسات" hint={t.status === 'OPEN' && canEdit ? 'كبس على الجلسة لما تخلص عشان تصير خضراء. بيظهر تحتها تاريخ التسكير الفعلي.' : undefined}>
       <p className="text-sm text-muted" data-testid="sessions-count">
         تمت {done} من {t.plannedSessions}
       </p>
       <ol className="flex flex-wrap gap-3" aria-label="الجلسات">
         {t.sessions.map((s) => {
           const completed = s.status === 'COMPLETED'
-          const apt = s.appointment && s.appointment.status !== 'CANCELLED' ? s.appointment : null
           const clickable = !completed && canEdit && t.status === 'OPEN'
+          const caption = sessionCaption(s)
           return (
             <li key={s.id} className="flex w-20 flex-col items-center gap-1.5">
               <button
@@ -112,15 +113,15 @@ function SessionsCard({ t, canEdit, onChanged }: { t: Treatment; canEdit: boolea
               >
                 {completed ? '✓' : s.number}
               </button>
-              {apt ? (
+              {caption?.kind === 'appointment' ? (
                 <span className="text-center text-xs leading-5 text-muted" data-testid={`session-${s.number}-apt`}>
                   <bdi dir="ltr">
-                    {localParts(apt.startsAt).date.slice(5)} {timeLabel(apt.startsAt)}
+                    {localParts(caption.at).date.slice(5)} {timeLabel(caption.at)}
                   </bdi>
                 </span>
-              ) : completed && s.completedAt ? (
-                <span className="text-xs text-muted">
-                  <DateText value={s.completedAt} />
+              ) : caption?.kind === 'closed' ? (
+                <span className="text-center text-xs leading-5 text-muted" data-testid={`session-${s.number}-closed`}>
+                  <DateText value={caption.at} />
                 </span>
               ) : null}
             </li>
@@ -333,9 +334,10 @@ function statusNote(t: Treatment, canEdit: boolean): { tone: 'success' | 'warnin
   if (t.status === 'CLOSED') return { tone: 'success', text: 'العلاج مغلق: مدفوع بالكامل وكل الجلسات تمت.' }
   if (t.status === 'CANCELLED') return { tone: 'warning', text: 'هذا العلاج ملغي.' }
   const allDone = sessionsDone(t) === t.sessions.length
-  if (canClose(t)) return { tone: 'success', text: canEdit ? 'كل الجلسات تمت والمبلغ كله انستلم. تقدر تغلق العلاج.' : 'كل الجلسات تمت والمبلغ كله انستلم. الدكتور أو المالك بيغلق العلاج.' }
-  if (t.remaining === 0 && !allDone) return { tone: 'warning', text: 'مدفوع بالكامل. بيظهر زر إغلاق العلاج لما تخلص كل الجلسات.' }
-  if (allDone && t.remaining !== undefined && t.remaining > 0) return { tone: 'warning', text: 'كل الجلسات تمت. بيظهر زر إغلاق العلاج لما يندفع المتبقي.' }
+  const some = sessionsDone(t) > 0
+  if (canClose(t)) return { tone: 'success', text: canEdit ? (allDone ? 'كل الجلسات تمت والمبلغ كله انستلم. تقدر تغلق العلاج.' : 'المبلغ كله انستلم. تقدر تغلق العلاج هلأ والجلسات الباقية بتنحذف.') : 'المبلغ كله انستلم. الدكتور أو المالك بيغلق العلاج.' }
+  if (t.remaining === 0 && !some) return { tone: 'warning', text: 'مدفوع بالكامل. بيظهر زر إغلاق العلاج بعد ما تتم جلسة وحدة على الأقل.' }
+  if (some && t.remaining !== undefined && t.remaining > 0) return { tone: 'warning', text: allDone ? 'كل الجلسات تمت. بيظهر زر إغلاق العلاج لما يندفع المتبقي.' : 'بيظهر زر إغلاق العلاج لما يندفع المتبقي (بتقدر تغلقه قبل ما تخلص كل الجلسات).' }
   return null
 }
 
