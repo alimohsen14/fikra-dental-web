@@ -16,6 +16,7 @@ import LoginPage from './pages/LoginPage.tsx'
 import { NewPatientPage, PatientPage } from './pages/PatientFormPage.tsx'
 import AnalysisPage from './pages/AnalysisPage.tsx'
 import ExpensesPage from './pages/ExpensesPage.tsx'
+import MyIncomePage from './pages/MyIncomePage.tsx'
 import PatientsPage from './pages/PatientsPage.tsx'
 import TeamPage from './pages/TeamPage.tsx'
 import SalariesPage from './pages/SalariesPage.tsx'
@@ -60,6 +61,7 @@ export default function App() {
               <Route element={<RequireAuth roles={['OWNER', 'DOCTOR']} />}>
                 <Route path="/treatments/new" element={<NewTreatmentPage />} />
                 <Route path="/treatments/:id/edit" element={<EditTreatmentPage />} />
+                <Route path="/my-income" element={<MyIncomePage />} />
                 <Route path="/treatment-types" element={<TreatmentTypesPage />} />
               </Route>
               <Route element={<RequireAuth roles={['OWNER']} />}>
