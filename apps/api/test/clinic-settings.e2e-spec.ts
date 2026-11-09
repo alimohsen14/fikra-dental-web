@@ -139,8 +139,12 @@ describe('Clinic identity: branding in /auth/me and settings (e2e)', () => {
 
   it('the platform admin edits any clinic; clinic users cannot', async () => {
     const { clinic, users } = await makeClinic('adm', '#444444');
-    const res = await http().patch(`/admin/clinics/${clinic.id}`).set(bearer(adminToken)).send({ name: `Renamed ${tag}`, themeColor: '#058ffb' }).expect(200);
-    expect(res.body).toMatchObject({ id: clinic.id, name: `Renamed ${tag}`, themeColor: '#058ffb' });
+    const res = await http().patch(`/admin/clinics/${clinic.id}`).set(bearer(adminToken)).send({ name: `Renamed ${tag}` }).expect(200);
+    expect(res.body).toMatchObject({ id: clinic.id, name: `Renamed ${tag}`, themeColor: '#444444' }); // the color stays the clinic's
+    // the platform admin cannot touch the look, neither when renaming nor alone
+    await http().patch(`/admin/clinics/${clinic.id}`).set(bearer(adminToken)).send({ themeColor: '#058ffb' }).expect(400);
+    await http().patch(`/admin/clinics/${clinic.id}`).set(bearer(adminToken)).send({ name: 'Valid Name', themeColor: null }).expect(400);
+    expect((await prisma.clinic.findUnique({ where: { id: clinic.id } }))!.themeColor).toBe('#444444');
     const log = await prisma.auditLog.findFirst({ where: { clinicId: clinic.id, action: 'CLINIC_UPDATED' } });
     expect(log!.actorUserId).toBe(adminId);
 

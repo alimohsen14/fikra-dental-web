@@ -3,7 +3,7 @@ import { CurrentUser } from '../auth/auth.decorators.js';
 import { parseBody } from '../auth/auth.dto.js';
 import type { AuthUser } from '../auth/auth.types.js';
 import { Roles } from '../auth/roles.decorator.js';
-import { updateClinicSchema } from '../clinic/clinic.dto.js';
+import { adminUpdateClinicSchema } from '../clinic/clinic.dto.js';
 import { ClinicService } from '../clinic/clinic.service.js';
 import {
   addPaymentSchema,
@@ -44,7 +44,7 @@ export class AdminController {
 
   @Patch('clinics/:id')
   update(@CurrentUser() actor: AuthUser, @Param('id') id: string, @Body() body: unknown) {
-    return this.clinics.update(parseBody(idSchema, id), actor.id, parseBody(updateClinicSchema, body), 'CLINIC_UPDATED');
+    return this.clinics.update(parseBody(idSchema, id), actor.id, parseBody(adminUpdateClinicSchema, body), 'CLINIC_UPDATED');
   }
 
   @Get('clinics/:id/whatsapp')

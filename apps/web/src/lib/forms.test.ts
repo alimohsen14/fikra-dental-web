@@ -2,17 +2,17 @@ import { describe, expect, it } from 'vitest'
 import type { ClinicRow } from './admin.ts'
 import { buildCreateInput, buildPaymentInput, endedNote } from './forms.ts'
 
-const good = { name: ' عيادة البسمة ', color: '#0b5d57' as string | null, ownerName: 'د. سامر', username: ' Owner_Basma ', phone: '', specialty: '', months: 12, price: '3,000' }
+const good = { name: ' عيادة البسمة ', ownerName: 'د. سامر', username: ' Owner_Basma ', phone: '', specialty: '', months: 12, price: '3,000' }
 
 describe('buildCreateInput', () => {
   it('builds the request: trimmed, lowercase username, price in agorot, empty optionals left out', () => {
     expect(buildCreateInput(good)).toEqual({
-      input: { name: 'عيادة البسمة', themeColor: '#0b5d57', subscription: { months: 12, price: 300000 }, owner: { fullName: 'د. سامر', username: 'owner_basma' } },
+      input: { name: 'عيادة البسمة', subscription: { months: 12, price: 300000 }, owner: { fullName: 'د. سامر', username: 'owner_basma' } },
     })
   })
 
-  it('leaves themeColor out when no color is picked, and keeps phone/specialty when given', () => {
-    const r = buildCreateInput({ ...good, color: null, phone: '0599123456', specialty: 'طب أسنان عام' })
+  it('never sends a theme color (it belongs to the clinic), and keeps phone/specialty when given', () => {
+    const r = buildCreateInput({ ...good, phone: '0599123456', specialty: 'طب أسنان عام' })
     expect(r).toMatchObject({ input: { owner: { phone: '0599123456', specialty: 'طب أسنان عام' } } })
     expect('themeColor' in (r as { input: object }).input).toBe(false)
   })

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link } from 'react-router'
-import { Card, ColorPicker, PageBanner, SecretBox } from '../../components/admin-ui.tsx'
+import { Card, PageBanner, SecretBox } from '../../components/admin-ui.tsx'
 import { Alert, Button, SelectField, TextField } from '../../components/ui.tsx'
 import { createClinic } from '../../lib/admin.ts'
 import type { TempCredentials } from '../../lib/admin.ts'
@@ -17,7 +17,7 @@ const MONTHS = [
 ] as const
 
 export default function CreateClinicPage() {
-  const [f, setF] = useState({ name: '', color: null as string | null, ownerName: '', username: '', phone: '', specialty: '', months: 12, price: '' })
+  const [f, setF] = useState({ name: '', ownerName: '', username: '', phone: '', specialty: '', months: 12, price: '' })
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState<(TempCredentials & { clinic: { id: string; name: string } }) | null>(null)
@@ -59,8 +59,7 @@ export default function CreateClinicPage() {
           {error && <Alert tone="error">{error}</Alert>}
           <Card title="بيانات العيادة">
             <TextField label="اسم العيادة" required value={f.name} onChange={(e) => set('name', e.target.value)} />
-            <ColorPicker value={f.color} onChange={(v) => set('color', v)} />
-            <p className="text-[13px] text-muted">المالك بيقدر يغيّر اللون واللوغو لاحقاً من إعدادات العيادة. بدون اختيار بيكون اللون الافتراضي.</p>
+            <p className="text-[13px] text-muted">اللون واللوغو بيختارهم مالك العيادة من إعدادات العيادة.</p>
           </Card>
           <Card title="حساب المالك">
             <div className="grid gap-4 sm:grid-cols-2">

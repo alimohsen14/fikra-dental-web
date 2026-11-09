@@ -105,7 +105,6 @@ export class AdminService {
         const clinic = await tx.clinic.create({
           data: {
             name: dto.name,
-            themeColor: dto.themeColor ?? null,
             subscriptionEndsAt: endsAt,
           },
         });

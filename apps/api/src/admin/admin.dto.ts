@@ -21,10 +21,6 @@ const futureDate = z
 export const createClinicSchema = z
   .object({
     name: z.string().trim().min(2).max(120),
-    themeColor: z
-      .string()
-      .regex(/^#[0-9a-fA-F]{6}$/)
-      .optional(),
     // Option 1: a billed term. Ends `months` from now and records what the clinic owes.
     subscription: z.object({ months: z.number().int().min(1).max(60), price }).strict().optional(),
     // Option 2: just an end date, nothing billed. Leave both out for "no end date".

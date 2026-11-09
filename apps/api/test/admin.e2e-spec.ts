@@ -93,7 +93,7 @@ describe('Platform admin panel (e2e)', () => {
   });
 
   it('creates a clinic: owner login with a temporary password, owner is also a doctor, shown once', async () => {
-    const c = await createViaApi('create', { themeColor: '#0b5d57', subscriptionEndsAt: daysFromNow(30).toISOString() });
+    const c = await createViaApi('create', { subscriptionEndsAt: daysFromNow(30).toISOString() });
     expect(c.temp.length).toBeGreaterThanOrEqual(12);
 
     const res = await login(c.username, c.temp).expect(200);

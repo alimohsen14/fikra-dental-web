@@ -8,7 +8,6 @@ const USERNAME = /^[a-z0-9_.-]{3,32}$/
 /** Checks the create-clinic form and builds what the API wants. Returns an Arabic problem, or the request body. */
 export function buildCreateInput(f: {
   name: string
-  color: string | null
   ownerName: string
   username: string
   phone: string
@@ -29,7 +28,6 @@ export function buildCreateInput(f: {
   return {
     input: {
       name,
-      ...(f.color ? { themeColor: f.color } : {}),
       subscription: { months: f.months, price },
       owner: {
         fullName: ownerName,

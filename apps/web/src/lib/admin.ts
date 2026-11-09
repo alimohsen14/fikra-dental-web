@@ -94,7 +94,6 @@ export interface TempCredentials {
 
 export interface CreateClinicInput {
   name: string
-  themeColor?: string
   subscription: { months: number; price: number }
   owner: { fullName: string; username: string; phone?: string; specialty?: string }
 }
@@ -103,7 +102,7 @@ export const listClinics = (q: string) => request<ClinicList>('/admin/clinics' +
 export const getClinic = (id: string) => request<ClinicDetail>(`/admin/clinics/${id}`)
 export const createClinic = (input: CreateClinicInput) =>
   request<TempCredentials & { clinic: { id: string; name: string } }>('/admin/clinics', { method: 'POST', body: input })
-export const updateClinic = (id: string, body: { name?: string; themeColor?: string | null }) =>
+export const updateClinic = (id: string, body: { name: string }) =>
   request<unknown>(`/admin/clinics/${id}`, { method: 'PATCH', body })
 export const setClinicActive = (id: string, active: boolean, reason?: string) =>
   request<ClinicDetail>(`/admin/clinics/${id}/${active ? 'activate' : 'suspend'}`, { method: 'POST', body: reason ? { reason } : {} })

@@ -14,3 +14,6 @@ export const updateClinicSchema = z
   })
   .strict()
   .refine((v) => v.name !== undefined || v.themeColor !== undefined, { message: 'nothing to update' });
+
+// The platform admin may only rename a clinic. The look (color, logo) belongs to the clinic itself.
+export const adminUpdateClinicSchema = z.object({ name: z.string().trim().min(2).max(120) }).strict();
