@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import type { ReactNode } from 'react'
 import { Badge, Card, DateText, Loading, Money } from '../components/admin-ui.tsx'
 import { ClinicBanner } from '../components/clinic-ui.tsx'
 import { Modal } from '../components/Modal.tsx'
@@ -11,8 +12,12 @@ import {
   adjustmentForm,
   buildAdjustment,
   buildMonthlySalary,
+  afterAdvances,
   buildSalaryPayment,
   getSalaryMonth,
+  isSalaryDue,
+  monthNumber,
+  salaryDueDate,
   monthName,
   monthOf,
   paySalary,
@@ -28,11 +33,17 @@ import { useLoad } from '../lib/useLoad.ts'
 const messageOf = (e: unknown) => (e instanceof ApiError ? e.message : 'صار خطأ غير متوقع، جرب مرة ثانية')
 const METHODS = Object.keys(METHOD_LABELS) as PaymentMethod[]
 
-function PayModal({ entry, kind, onClose, onDone }: { entry: SalaryEntry; kind: PayKind; onClose: () => void; onDone: () => void }) {
-  const [f, setF] = useState({ kind, amount: kind === 'SALARY' ? String(entry.remaining / 100) : '', method: 'CASH' as PaymentMethod, day: todayInput(), note: '' })
+/** Paying the month's salary. */
+function PayModal({ entry, onClose, onDone }: { entry: SalaryEntry; onClose: () => void; onDone: () => void }) {
+  return <PayForm title={`دفع راتب ${entry.user.fullName}`} kind="SALARY" entry={entry} onClose={onClose} onDone={onDone} />
+}
+
+function PayForm({ title, kind, entry, onClose, onDone, top }: { title: string; kind: PayKind; entry: SalaryEntry | null; onClose: () => void; onDone: () => void; top?: ReactNode }) {
+  const [f, setF] = useState({ kind, amount: kind === 'SALARY' && entry ? String(entry.remaining / 100) : '', method: 'CASH' as PaymentMethod, day: todayInput(), note: '' })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   async function submit() {
+    if (!entry) return setError('اختر الموظف')
     const r = buildSalaryPayment(f, entry.remaining)
     if ('error' in r) return setError(r.error)
     setBusy(true)
@@ -46,11 +57,14 @@ function PayModal({ entry, kind, onClose, onDone }: { entry: SalaryEntry; kind: 
     }
   }
   return (
-    <Modal title={kind === 'SALARY' ? `دفع راتب ${entry.user.fullName}` : `سلفة لـ ${entry.user.fullName}`} onClose={onClose}>
-      <p className="text-sm text-muted">
-        المتبقي من راتب الشهر: <Money agorot={entry.remaining} />
-        {kind === 'ADVANCE' && ' · السلفة بتنخصم من راتب نفس الشهر'}
-      </p>
+    <Modal title={title} onClose={onClose}>
+      {top}
+      {entry && (
+        <p className="text-sm text-muted">
+          المتبقي من راتب شهر {monthNumber(entry.month)}: <Money agorot={entry.remaining} />
+          {kind === 'ADVANCE' && ' · السلفة بتنخصم من راتبه'}
+        </p>
+      )}
       <TextField label="المبلغ (₪)" inputMode="decimal" dir="ltr" className="text-right" value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value })} />
       <SelectField label="طريقة الدفع" value={f.method} onChange={(e) => setF({ ...f, method: e.target.value as PaymentMethod })}>
         {METHODS.map((m) => (
@@ -71,6 +85,68 @@ function PayModal({ entry, kind, onClose, onDone }: { entry: SalaryEntry; kind: 
         </Button>
       </div>
     </Modal>
+  )
+}
+
+/** A new advance: pick the employee. It always comes off the coming salary, the current month's (due on the 25th). */
+function AdvanceModal({ thisMonth, userId: startUser, onClose, onDone }: { thisMonth: string; userId?: string; onClose: () => void; onDone: () => void }) {
+  const [userId, setUserId] = useState(startUser ?? '')
+  const res = useLoad(() => getSalaryMonth(thisMonth), [thisMonth])
+  const entries = res.data?.entries ?? []
+  const entry = entries.find((e) => e.userId === userId) ?? entries[0] ?? null
+  if (res.data && !entry) {
+    return (
+      <Modal title="سلفة جديدة" onClose={onClose}>
+        <Alert tone="error">ما في رواتب لهالشهر. حدد راتب الموظفين أول.</Alert>
+        <Button variant="secondary" onClick={onClose}>
+          رجوع
+        </Button>
+      </Modal>
+    )
+  }
+  const picker = (
+    <SelectField label="الموظف" value={entry?.userId ?? ''} onChange={(e) => setUserId(e.target.value)}>
+      {entries.map((e) => (
+        <option key={e.id} value={e.userId}>
+          {e.user.fullName} · {ROLE_LABELS[e.user.role]}
+        </option>
+      ))}
+    </SelectField>
+  )
+  if (entry && entry.remaining === 0) {
+    return (
+      <Modal title="سلفة جديدة" onClose={onClose}>
+        {picker}
+        <div data-testid="advance-closed">
+          <Alert tone="error">
+            راتب شهر {monthNumber(entry.month)} لـ{entry.user.fullName} انصرف كامل، ما بتنفع سلفة عليه. السلفة بتنخصم من الراتب القادم.
+          </Alert>
+        </div>
+        <Button variant="secondary" onClick={onClose}>
+          رجوع
+        </Button>
+      </Modal>
+    )
+  }
+  return (
+    <PayForm
+      key={entry?.id ?? 'none'}
+      title="سلفة جديدة"
+      kind="ADVANCE"
+      entry={entry}
+      onClose={onClose}
+      onDone={onDone}
+      top={
+        <>
+          {picker}
+          {entry && (
+            <p className="rounded-xl bg-page p-3 text-sm font-semibold" data-testid="advance-target">
+              بتنخصم من راتب شهر {monthNumber(entry.month)} (بيستحق بتاريخ {salaryDueDate(entry.month)})
+            </p>
+          )}
+        </>
+      }
+    />
   )
 }
 
@@ -100,7 +176,14 @@ function AdjustModal({ entry, onClose, onDone }: { entry: SalaryEntry; onClose: 
         <option value="bonus">مكافأة (زيادة)</option>
         <option value="deduction">خصم</option>
       </SelectField>
-      <TextField label="المبلغ (₪) — فاضي لإلغاء التعديل" inputMode="decimal" dir="ltr" className="text-right" value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value })} />
+      <TextField
+        label="المبلغ (₪) — فاضي لإلغاء التعديل"
+        inputMode="decimal"
+        dir="ltr"
+        className="text-right"
+        value={f.amount}
+        onChange={(e) => setF({ ...f, amount: e.target.value })}
+      />
       <TextAreaField label="السبب (اختياري)" value={f.note} maxLength={300} onChange={(e) => setF({ ...f, note: e.target.value })} />
       {error && <Alert tone="error">{error}</Alert>}
       <div className="flex flex-wrap gap-3">
@@ -182,7 +265,15 @@ function StaffSalaryRow({ s, onSaved }: { s: StaffSalary; onSaved: () => void })
             <Button size="sm" busy={busy} className="mb-1.5" onClick={() => void save()}>
               حفظ
             </Button>
-            <Button size="sm" variant="secondary" className="mb-1.5" onClick={() => { setEditing(false); setError(null) }}>
+            <Button
+              size="sm"
+              variant="secondary"
+              className="mb-1.5"
+              onClick={() => {
+                setEditing(false)
+                setError(null)
+              }}
+            >
               رجوع
             </Button>
           </span>
@@ -200,7 +291,7 @@ function StaffSalaryRow({ s, onSaved }: { s: StaffSalary; onSaved: () => void })
   )
 }
 
-type Modal = { kind: 'pay'; entry: SalaryEntry; pay: PayKind } | { kind: 'adjust'; entry: SalaryEntry } | { kind: 'void'; p: SalaryPaymentRow }
+type Modal = { kind: 'pay'; entry: SalaryEntry } | { kind: 'advance'; userId?: string } | { kind: 'adjust'; entry: SalaryEntry } | { kind: 'void'; p: SalaryPaymentRow }
 
 export default function SalariesPage() {
   const thisMonth = monthOf(todayInput())
@@ -228,6 +319,13 @@ export default function SalariesPage() {
               ←
             </Button>
           </div>
+          {data && (
+            <div className="mt-4 flex justify-center border-t border-line pt-4">
+              <Button variant="secondary" data-action="new-advance" onClick={() => setModal({ kind: 'advance' })}>
+                + سلفة جديدة
+              </Button>
+            </div>
+          )}
         </Card>
 
         {!data ? (
@@ -260,26 +358,53 @@ export default function SalariesPage() {
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <span className="text-lg font-bold">
                         {e.user.fullName} <span className="text-sm font-normal text-muted">· {ROLE_LABELS[e.user.role]}</span>
-                        {!e.user.isActive && <span className="ms-2"><Badge label="موقوف" bg="#eceff3" fg="#4a5a70" /></span>}
+                        {!e.user.isActive && (
+                          <span className="ms-2">
+                            <Badge label="موقوف" bg="#eceff3" fg="#4a5a70" />
+                          </span>
+                        )}
                       </span>
-                      {e.remaining === 0 ? <Badge label="مكتمل" bg="#d1fadf" fg="#05603a" /> : <Badge label="باقي" bg="#fef0c7" fg="#93370d" />}
+                      {e.remaining === 0 ? (
+                        <Badge label={`تم صرف راتب شهر ${monthNumber(e.month)} ✓`} bg="#d1fadf" fg="#05603a" />
+                      ) : isSalaryDue(e.month, todayInput()) ? (
+                        <Badge label="حان موعد الصرف" bg="#fef0c7" fg="#93370d" />
+                      ) : (
+                        <Badge label={`يستحق بتاريخ ${salaryDueDate(e.month)}`} bg="#eceff3" fg="#4a5a70" />
+                      )}
                     </div>
-                    <dl className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+                    <p className="text-sm font-semibold" data-testid="salary-month">
+                      راتب شهر {monthNumber(e.month)}
+                    </p>
+                    <dl className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-5">
                       <div>
                         <dt className="text-muted">الراتب{e.adjustment !== 0 ? ' بعد التعديل' : ''}</dt>
-                        <dd className="font-bold"><Money agorot={e.net} /></dd>
+                        <dd className="font-bold">
+                          <Money agorot={e.net} />
+                        </dd>
                       </div>
                       <div>
                         <dt className="text-muted">سلف</dt>
-                        <dd className="font-bold"><Money agorot={e.advances} /></dd>
+                        <dd className="font-bold">
+                          <Money agorot={e.advances} />
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-muted">الراتب بعد السلف</dt>
+                        <dd className="font-bold" data-testid="after-advances">
+                          <Money agorot={afterAdvances(e)} />
+                        </dd>
                       </div>
                       <div>
                         <dt className="text-muted">دفعات راتب</dt>
-                        <dd className="font-bold"><Money agorot={e.salaryPaid} /></dd>
+                        <dd className="font-bold">
+                          <Money agorot={e.salaryPaid} />
+                        </dd>
                       </div>
                       <div>
                         <dt className="text-muted">المتبقي</dt>
-                        <dd className="font-bold" data-testid="remaining"><Money agorot={e.remaining} /></dd>
+                        <dd className="font-bold" data-testid="remaining">
+                          <Money agorot={e.remaining} />
+                        </dd>
                       </div>
                     </dl>
                     {e.adjustment !== 0 && (
@@ -289,10 +414,10 @@ export default function SalariesPage() {
                       </p>
                     )}
                     <div className="flex flex-wrap gap-2">
-                      <Button size="sm" disabled={e.remaining === 0} onClick={() => setModal({ kind: 'pay', entry: e, pay: 'SALARY' })}>
+                      <Button size="sm" disabled={e.remaining === 0 || !isSalaryDue(e.month, todayInput())} onClick={() => setModal({ kind: 'pay', entry: e })}>
                         دفع الراتب
                       </Button>
-                      <Button size="sm" variant="secondary" disabled={e.remaining === 0} onClick={() => setModal({ kind: 'pay', entry: e, pay: 'ADVANCE' })}>
+                      <Button size="sm" variant="secondary" onClick={() => setModal({ kind: 'advance', userId: e.userId })}>
                         سلفة
                       </Button>
                       <Button size="sm" variant="secondary" onClick={() => setModal({ kind: 'adjust', entry: e })}>
@@ -304,7 +429,12 @@ export default function SalariesPage() {
                         {e.payments.map((p) => (
                           <li key={p.id} className="flex flex-wrap items-center gap-2">
                             <span className={p.status === 'VOIDED' ? 'text-muted line-through' : ''}>
-                              {p.kind === 'ADVANCE' ? 'سلفة' : 'راتب'} <Money agorot={p.amount} /> · {METHOD_LABELS[p.method]} · <DateText value={p.paidAt} />
+                              {p.kind === 'ADVANCE' ? 'أخذ سلفة' : 'راتب'} <Money agorot={p.amount} /> · بتاريخ{' '}
+                              <strong className="font-bold">
+                                <DateText value={p.paidAt} />
+                              </strong>{' '}
+                              · {METHOD_LABELS[p.method]}
+                              {p.kind === 'ADVANCE' && p.status === 'ACTIVE' ? ' · انخصمت من الراتب' : ''}
                               {p.note ? ` · ${p.note}` : ''}
                             </span>
                             {p.status === 'VOIDED' ? (
@@ -323,7 +453,10 @@ export default function SalariesPage() {
               ))
             )}
 
-            <Card title="الرواتب الشهرية للموظفين" hint="الراتب الأساسي لكل موظف فعّال. تغييره بيأثر على الشهور الجاي بس، والشهور اللي انفتحت بتضل زي ما هي. الموظف الموقوف بيختفي من الشهور الجاي.">
+            <Card
+              title="الرواتب الشهرية للموظفين"
+              hint="الراتب الأساسي لكل موظف فعّال. تغييره بيأثر على الشهور الجاي بس، والشهور اللي انفتحت بتضل زي ما هي. الموظف الموقوف بيختفي من الشهور الجاي."
+            >
               {data.staff.length === 0 ? (
                 <p className="text-muted">ما في موظفين (دكاترة أو سكرتارية). ضيفهم من صفحة الفريق.</p>
               ) : (
@@ -337,7 +470,8 @@ export default function SalariesPage() {
           </>
         )}
       </div>
-      {modal?.kind === 'pay' && <PayModal entry={modal.entry} kind={modal.pay} onClose={() => setModal(null)} onDone={done} />}
+      {modal?.kind === 'pay' && <PayModal entry={modal.entry} onClose={() => setModal(null)} onDone={done} />}
+      {modal?.kind === 'advance' && <AdvanceModal thisMonth={thisMonth} {...(modal.userId ? { userId: modal.userId } : {})} onClose={() => setModal(null)} onDone={done} />}
       {modal?.kind === 'adjust' && <AdjustModal entry={modal.entry} onClose={() => setModal(null)} onDone={done} />}
       {modal?.kind === 'void' && <VoidModal p={modal.p} onClose={() => setModal(null)} onDone={done} />}
     </>

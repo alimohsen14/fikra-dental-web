@@ -1,5 +1,5 @@
 import { request } from './api.ts'
-import { formatMoney, paidAtIso, parseShekels } from './format.ts'
+import { formatMoney, FUTURE_DAY_ERROR, isFutureDay, paidAtIso, parseShekels } from './format.ts'
 import type { PaymentMethod } from './treatments.ts'
 
 export type Period = 'day' | 'week' | 'month' | 'year'
@@ -153,6 +153,7 @@ export function buildExpenseBody(f: ExpenseForm): { error: string } | { body: Re
     paidAmount = p
   }
   if (f.paid !== 'none' && !f.method) return { error: 'اختر طريقة الدفع' }
+  if (isFutureDay(f.day)) return { error: FUTURE_DAY_ERROR }
   return {
     body: {
       categoryId: f.categoryId,
@@ -174,5 +175,6 @@ export function buildExpensePayment(
   if (amount === null || amount < 1) return { error: 'اكتب مبلغ الدفعة كرقم، مثال: 300' }
   if (amount > remaining) return { error: `المبلغ أكبر من المتبقي (${formatMoney(remaining)})` }
   if (!f.day) return { error: 'اختر تاريخ الدفعة' }
+  if (isFutureDay(f.day)) return { error: FUTURE_DAY_ERROR }
   return { body: { amount, method: f.method, paidAt: paidAtIso(f.day), ...(f.note.trim() ? { note: f.note.trim() } : {}) } }
 }

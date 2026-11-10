@@ -1,5 +1,5 @@
 import { request } from './api.ts'
-import { formatMoney, paidAtIso, parseShekels } from './format.ts'
+import { formatMoney, FUTURE_DAY_ERROR, isFutureDay, paidAtIso, parseShekels } from './format.ts'
 import type { PaymentMethod } from './treatments.ts'
 
 export type PayKind = 'SALARY' | 'ADVANCE'
@@ -70,6 +70,7 @@ export function buildSalaryPayment(
   if (amount === null || amount < 1) return { error: 'اكتب المبلغ كرقم، مثال: 500' }
   if (amount > remaining) return { error: `المبلغ أكبر من المتبقي من راتب الشهر (${formatMoney(remaining)})` }
   if (!f.day) return { error: 'اختر التاريخ' }
+  if (isFutureDay(f.day)) return { error: FUTURE_DAY_ERROR }
   return { body: { kind: f.kind, amount, method: f.method, paidAt: paidAtIso(f.day), ...(f.note.trim() ? { note: f.note.trim() } : {}) } }
 }
 
@@ -98,3 +99,13 @@ export function buildMonthlySalary(input: string): { error: string } | { amount:
   const a = parseShekels(input)
   return a === null ? { error: 'اكتب الراتب كرقم، مثال: 3000' } : { amount: a }
 }
+
+/** Salaries are paid from the 25th of their own month. Earlier than that only advances make sense. */
+export const SALARY_DUE_DAY = 25
+export const salaryDueDate = (month: string): string => `${month}-${String(SALARY_DUE_DAY).padStart(2, '0')}`
+/** Due once the 25th of that month has come (and always for earlier months). `today` is "YYYY-MM-DD". */
+export const isSalaryDue = (month: string, today: string): boolean => today >= salaryDueDate(month)
+export const monthNumber = (month: string): number => Number(month.slice(5, 7))
+
+/** Net salary after the advances were taken out. */
+export const afterAdvances = (e: { net: number; advances: number }): number => e.net - e.advances

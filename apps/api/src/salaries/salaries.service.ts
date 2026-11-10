@@ -111,8 +111,11 @@ export class SalariesService {
     const clinicId = user.clinicId!;
     await this.exists(entryId);
     if (dto.paidAt.getTime() > Date.now() + GRACE_MS) throw new BadRequestException('تاريخ الدفعة بالمستقبل');
+    const tz = await this.tz(clinicId);
     await this.prisma.$transaction(async (tx) => {
       const e = await this.lock(tx, clinicId, entryId);
+      // An advance always comes off the coming salary: the current month's, never one that is over.
+      if (dto.kind === 'ADVANCE' && e.month !== localDate(new Date(), tz).slice(0, 7)) throw new BadRequestException('السلفة بتنخصم من راتب الشهر الحالي بس');
       if (dto.amount > figures(e).remaining) throw new BadRequestException(dto.kind === 'ADVANCE' ? 'السلفة أكبر من المتبقي من راتب الشهر' : 'المبلغ أكبر من المتبقي من الراتب');
       const p = await tx.salaryPayment.create({
         data: { clinicId, entryId, kind: dto.kind, amount: dto.amount, method: dto.method, paidAt: dto.paidAt, note: dto.note ?? null, createdByUserId: user.id },

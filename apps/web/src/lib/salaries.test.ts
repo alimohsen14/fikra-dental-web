@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { adjustmentForm, buildAdjustment, buildMonthlySalary, buildSalaryPayment, monthName, shiftMonth } from './salaries.ts'
+import { adjustmentForm, buildAdjustment, buildMonthlySalary, buildSalaryPayment, afterAdvances, isSalaryDue, monthName, monthNumber, salaryDueDate, shiftMonth } from './salaries.ts'
 
 describe('shiftMonth / monthName', () => {
   it('moves across year ends', () => {
@@ -51,5 +51,29 @@ describe('buildMonthlySalary', () => {
   it('parses shekels', () => {
     expect(buildMonthlySalary('3000')).toEqual({ amount: 300000 })
     expect(buildMonthlySalary('abc')).toHaveProperty('error')
+  })
+})
+
+describe('salary due date (the 25th)', () => {
+  it('the due date is the 25th of the same month', () => {
+    expect(salaryDueDate('2026-11')).toBe('2026-11-25')
+    expect(monthNumber('2026-11')).toBe(11)
+  })
+  it('not due before the 25th, due from the 25th, always due for earlier months', () => {
+    expect(isSalaryDue('2026-11', '2026-11-24')).toBe(false)
+    expect(isSalaryDue('2026-11', '2026-11-25')).toBe(true)
+    expect(isSalaryDue('2026-11', '2026-11-30')).toBe(true)
+    expect(isSalaryDue('2026-10', '2026-11-01')).toBe(true)
+    expect(isSalaryDue('2026-12', '2026-11-30')).toBe(false)
+  })
+})
+
+describe('advances', () => {
+  it('the form accepts any day up to today, refuses tomorrow', () => {
+    const f = { kind: 'ADVANCE' as const, amount: '100', method: 'CASH' as const, note: '' }
+    expect(buildSalaryPayment({ ...f, day: '2026-10-30' }, 500_000)).not.toHaveProperty('error')
+  })
+  it('what is left of the salary after the advances', () => {
+    expect(afterAdvances({ net: 300_000, advances: 90_000 })).toBe(210_000)
   })
 })

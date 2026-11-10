@@ -1,7 +1,7 @@
 // Form checks that turn what people typed into what the API wants (or an Arabic problem message).
 import type { ClinicRow, CreateClinicInput } from './admin.ts'
 import { daysLabel } from '../auth/paths.ts'
-import { formatMoney, paidAtIso, parseShekels } from './format.ts'
+import { formatMoney, FUTURE_DAY_ERROR, isFutureDay, paidAtIso, parseShekels } from './format.ts'
 
 const USERNAME = /^[a-z0-9_.-]{3,32}$/
 
@@ -47,6 +47,7 @@ export function buildPaymentInput(
   const amount = parseShekels(f.amount)
   if (amount === null || amount < 1) return { error: 'اكتب مبلغ الدفعة كرقم، مثال: 500' }
   if (amount > remaining) return { error: `المبلغ أكبر من المتبقي على هذه الفترة (${formatMoney(remaining)})` }
+  if (f.day && isFutureDay(f.day)) return { error: FUTURE_DAY_ERROR }
   return { input: { amount, periodId: f.periodId, ...(f.day ? { paidAt: paidAtIso(f.day) } : {}), ...(f.note.trim() ? { note: f.note.trim() } : {}) } }
 }
 

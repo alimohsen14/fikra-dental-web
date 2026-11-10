@@ -111,6 +111,21 @@ describe('Salaries (e2e)', () => {
     await setSalary(c, c.users.DOCTOR.id, -1).expect(400);
   });
 
+  it('an advance always comes off the current month salary (the coming one), dated any day up to today; an earlier month cannot take one', async () => {
+    const c = await makeClinic('sadvm');
+    await setSalary(c, c.users.DOCTOR.id, 300_000).expect(200);
+    const now0 = entryOf(await getMonth(c), c.users.DOCTOR.id);
+    await give(c, now0.id, { kind: 'ADVANCE', amount: 100, paidAt: new Date(Date.now() - 5 * 60_000).toISOString() }).expect(201);
+    await give(c, now0.id, { kind: 'ADVANCE', amount: 200, paidAt: new Date(Date.now() - 40 * 86_400_000).toISOString() }).expect(201); // handed over earlier
+    expect(entryOf(await getMonth(c), c.users.DOCTOR.id)).toMatchObject({ advances: 300, remaining: 299_700 });
+    // a month that is over (its entry is made by hand) refuses advances but still takes its salary payment
+    const last = new Date(`${today().slice(0, 7)}-01T00:00:00Z`);
+    last.setUTCDate(0);
+    const old = await prisma.salaryEntry.create({ data: { clinicId: c.id, userId: c.users.DOCTOR.id, month: last.toISOString().slice(0, 7), baseAmount: 100_000 } });
+    await give(c, old.id, { kind: 'ADVANCE', amount: 100 }).expect(400);
+    await give(c, old.id, { kind: 'SALARY', amount: 100_000 }).expect(201);
+  });
+
   it('advances count against the same month: salary - advance = what is left; cannot give more than that', async () => {
     const c = await makeClinic('sadv');
     await setSalary(c, c.users.DOCTOR.id, 300_000).expect(200);

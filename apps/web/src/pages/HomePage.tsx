@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { useAuth } from '../auth/AuthContext.tsx'
-import { Card, Loading } from '../components/admin-ui.tsx'
+import { Card, Loading, Money } from '../components/admin-ui.tsx'
 import { AppointmentDialog } from '../components/AppointmentDialog.tsx'
 import { AppointmentCard, StatusCards } from '../components/appointment-ui.tsx'
 import { ClinicBanner } from '../components/clinic-ui.tsx'
 import { Icon } from '../components/icons.tsx'
 import { awaitingReply, filterDay, listAppointments, listDoctors } from '../lib/appointments.ts'
 import type { Appointment, DayFilter } from '../lib/appointments.ts'
+import { getSalaryMonth, isSalaryDue, monthNumber } from '../lib/salaries.ts'
 import { addDays, dayRange, dayTitle, todayDate } from '../lib/schedule.ts'
 import { useLoad } from '../lib/useLoad.ts'
 
@@ -18,6 +19,11 @@ export default function HomePage() {
   const list = useLoad(() => listAppointments(dayRange(today)), [today])
   // Unanswered ones: from last week (already missed) to the end of the coming weeks.
   const waiting = useLoad(() => listAppointments(dayRange(addDays(today, -7), 30)), [today])
+  // From the 25th the owner is reminded to pay this month's salaries.
+  const month = today.slice(0, 7)
+  const salariesDue = session?.user.role === 'OWNER' && isSalaryDue(month, today)
+  const salaries = useLoad(() => (salariesDue ? getSalaryMonth(month) : Promise.resolve(null)), [salariesDue, month])
+  const owed = salaries.data?.entries.filter((e) => e.remaining > 0) ?? []
   const [filter, setFilter] = useState<DayFilter>('ALL')
   const [dialog, setDialog] = useState<{ edit?: Appointment } | null>(null)
 
@@ -44,6 +50,18 @@ export default function HomePage() {
       ) : (
         <>
           <StatusCards list={all} value={filter} onChange={setFilter} />
+          {owed.length > 0 && salaries.data && (
+            <Card title={`رواتب شهر ${monthNumber(month)} جاهزة للصرف`} hint={`${owed.length} موظف لسا ما انصرفلهم الراتب كامل.`}>
+              <div className="flex flex-wrap items-center justify-between gap-3" data-testid="salary-reminder">
+                <span className="text-lg font-bold">
+                  المتبقي <Money agorot={salaries.data.totals.remaining} />
+                </span>
+                <Link to="/salaries" className="text-sm font-bold text-brand-dark underline">
+                  صرف الرواتب
+                </Link>
+              </div>
+            </Card>
+          )}
           <Card title="مواعيد اليوم">
             <div className="flex flex-col gap-3" data-testid="today-list">
               {shown.map((a) => (

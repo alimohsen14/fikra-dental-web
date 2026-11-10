@@ -1,5 +1,5 @@
 // Turns what the doctor typed on the treatment page into what the API wants (or an Arabic problem message).
-import { formatMoney, paidAtIso, parseShekels } from './format.ts'
+import { formatMoney, FUTURE_DAY_ERROR, isFutureDay, paidAtIso, parseShekels } from './format.ts'
 import { toothLabel, toothOrder } from './teeth.ts'
 import type { PaymentMethod, Treatment, TreatmentType } from './treatments.ts'
 
@@ -84,6 +84,7 @@ export function buildCreateTreatment(v: TreatmentFormValues, types: TreatmentTyp
   if (!v.doctorId) return { error: 'اختر الدكتور' }
   const c = common(v, types)
   if ('error' in c) return c
+  if (!v.appointmentId && v.day && isFutureDay(v.day)) return { error: FUTURE_DAY_ERROR }
   return {
     body: {
       patientId: v.patientId,
@@ -110,5 +111,6 @@ export function buildTreatmentPayment(
   if (amount === null || amount < 1) return { error: 'اكتب مبلغ الدفعة كرقم، مثال: 300' }
   if (amount > remaining) return { error: `المبلغ أكبر من المتبقي (${formatMoney(remaining)})` }
   if (!f.day) return { error: 'اختر تاريخ الدفعة' }
+  if (isFutureDay(f.day)) return { error: FUTURE_DAY_ERROR }
   return { body: { amount, method: f.method, paidAt: paidAtIso(f.day), ...(f.note.trim() ? { note: f.note.trim() } : {}) } }
 }

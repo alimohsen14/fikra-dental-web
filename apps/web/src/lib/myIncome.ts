@@ -1,5 +1,6 @@
 import { request } from './api.ts'
 import type { Period } from './expenses.ts'
+import { isDate } from './schedule.ts'
 import type { PaymentMethod } from './treatments.ts'
 
 export interface MyPayment {
@@ -31,4 +32,9 @@ export function yearSummary(months: MyMonth[]): { total: number; best: MyMonth |
   const total = months.reduce((t, m) => t + m.income, 0)
   const best = months.reduce<MyMonth | null>((b, m) => (m.income > 0 && (b === null || m.income > b.income) ? m : b), null)
   return { total, best }
+}
+
+/** A day picked from the calendar: only a real date, not in the future. Anything else is ignored (null), e.g. a cleared field. */
+export function pickedDay(value: string, today: string): string | null {
+  return isDate(value) && value <= today ? value : null
 }

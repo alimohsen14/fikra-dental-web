@@ -81,8 +81,29 @@ function QuickAdd({ label, onAdd }: { label: string; onAdd: (name: string) => Pr
   )
 }
 
-function ExpenseModal({ categories, suppliers, onClose, onDone, reloadLists }: { categories: Category[]; suppliers: Supplier[]; onClose: () => void; onDone: () => void; reloadLists: () => void }) {
-  const [f, setF] = useState({ categoryId: '', supplierId: '', description: '', amount: '', day: todayInput(), paid: 'full' as 'full' | 'none' | 'part', paidAmount: '', method: 'CASH' as PaymentMethod })
+function ExpenseModal({
+  categories,
+  suppliers,
+  onClose,
+  onDone,
+  reloadLists,
+}: {
+  categories: Category[]
+  suppliers: Supplier[]
+  onClose: () => void
+  onDone: () => void
+  reloadLists: () => void
+}) {
+  const [f, setF] = useState({
+    categoryId: '',
+    supplierId: '',
+    description: '',
+    amount: '',
+    day: todayInput(),
+    paid: 'full' as 'full' | 'none' | 'part',
+    paidAmount: '',
+    method: 'CASH' as PaymentMethod,
+  })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   async function submit() {
@@ -102,22 +123,40 @@ function ExpenseModal({ categories, suppliers, onClose, onDone, reloadLists }: {
     <Modal title="مصروف جديد" onClose={onClose}>
       <SelectField label="النوع" value={f.categoryId} onChange={(e) => setF({ ...f, categoryId: e.target.value })}>
         <option value="">اختر...</option>
-        {categories.filter((c) => c.isActive).map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.name}
-          </option>
-        ))}
+        {categories
+          .filter((c) => c.isActive)
+          .map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
       </SelectField>
-      <QuickAdd label="نوع جديد" onAdd={async (name) => { const c = await createCategory(name); reloadLists(); setF((x) => ({ ...x, categoryId: c.id })) }} />
+      <QuickAdd
+        label="نوع جديد"
+        onAdd={async (name) => {
+          const c = await createCategory(name)
+          reloadLists()
+          setF((x) => ({ ...x, categoryId: c.id }))
+        }}
+      />
       <SelectField label="اشتريت من / الجهة (اختياري)" value={f.supplierId} onChange={(e) => setF({ ...f, supplierId: e.target.value })}>
         <option value="">بدون</option>
-        {suppliers.filter((s) => s.isActive).map((s) => (
-          <option key={s.id} value={s.id}>
-            {s.name}
-          </option>
-        ))}
+        {suppliers
+          .filter((s) => s.isActive)
+          .map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+            </option>
+          ))}
       </SelectField>
-      <QuickAdd label="جهة جديدة (محل، مختبر، موظف...)" onAdd={async (name) => { const s = await createSupplier({ name }); reloadLists(); setF((x) => ({ ...x, supplierId: s.id })) }} />
+      <QuickAdd
+        label="جهة جديدة (محل، مختبر، موظف...)"
+        onAdd={async (name) => {
+          const s = await createSupplier({ name })
+          reloadLists()
+          setF((x) => ({ ...x, supplierId: s.id }))
+        }}
+      />
       <TextField label="المبلغ الكامل (₪)" inputMode="decimal" dir="ltr" className="text-right" value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value })} />
       <TextField label="التاريخ" type="date" max={todayInput()} value={f.day} onChange={(e) => setF({ ...f, day: e.target.value })} />
       <SelectField label="الدفع" value={f.paid} onChange={(e) => setF({ ...f, paid: e.target.value as 'full' | 'none' | 'part' })}>
@@ -125,7 +164,9 @@ function ExpenseModal({ categories, suppliers, onClose, onDone, reloadLists }: {
         <option value="part">مدفوع جزء والباقي علينا</option>
         <option value="none">ما اندفع شي (علينا كامل)</option>
       </SelectField>
-      {f.paid === 'part' && <TextField label="المدفوع (₪)" inputMode="decimal" dir="ltr" className="text-right" value={f.paidAmount} onChange={(e) => setF({ ...f, paidAmount: e.target.value })} />}
+      {f.paid === 'part' && (
+        <TextField label="المدفوع (₪)" inputMode="decimal" dir="ltr" className="text-right" value={f.paidAmount} onChange={(e) => setF({ ...f, paidAmount: e.target.value })} />
+      )}
       {f.paid !== 'none' && <MethodSelect value={f.method} onChange={(method) => setF({ ...f, method })} />}
       <TextAreaField label="ملاحظة (اختياري)" value={f.description} maxLength={500} onChange={(e) => setF({ ...f, description: e.target.value })} />
       {error && <Alert tone="error">{error}</Alert>}
@@ -142,7 +183,12 @@ function ExpenseModal({ categories, suppliers, onClose, onDone, reloadLists }: {
 }
 
 function PayModal({ e, onClose, onDone }: { e: Expense; onClose: () => void; onDone: () => void }) {
-  const [f, setF] = useState({ amount: '', method: 'CASH' as PaymentMethod, day: todayInput(), note: '' })
+  const [f, setF] = useState({
+    amount: '',
+    method: 'CASH' as PaymentMethod,
+    day: todayInput(),
+    note: '',
+  })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   async function submit() {
@@ -240,14 +286,20 @@ function ExpenseRow({ e, onPay, onVoid }: { e: Expense; onPay: () => void; onVoi
           </span>
           {e.description && <span className="text-sm text-muted">{e.description}</span>}
           <span className="text-sm text-muted">
-            <DateText value={e.incurredAt} />
+            تاريخ المصروف: <DateText value={e.incurredAt} />
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <strong>
             <Money agorot={e.amount} />
           </strong>
-          {voided ? <Badge label="ملغي" bg="#eceff3" fg="#4a5a70" /> : e.remaining > 0 ? <Badge label={`علينا ${Math.round(e.remaining / 100)}₪`} bg="#fef0c7" fg="#93370d" /> : <Badge label="مدفوع" bg="#d1fadf" fg="#05603a" />}
+          {voided ? (
+            <Badge label="ملغي" bg="#eceff3" fg="#4a5a70" />
+          ) : e.remaining > 0 ? (
+            <Badge label={`علينا ${Math.round(e.remaining / 100)}₪`} bg="#fef0c7" fg="#93370d" />
+          ) : (
+            <Badge label="مدفوع" bg="#d1fadf" fg="#05603a" />
+          )}
           {!voided && e.remaining > 0 && (
             <Button size="sm" variant="secondary" onClick={onPay}>
               دفع
@@ -266,7 +318,11 @@ function ExpenseRow({ e, onPay, onVoid }: { e: Expense; onPay: () => void; onVoi
           {e.payments.map((p) => (
             <li key={p.id} className="flex flex-wrap items-center gap-2">
               <span className={p.status === 'VOIDED' ? 'text-muted line-through' : ''}>
-                <Money agorot={p.amount} /> · {METHOD_LABELS[p.method]} · <DateText value={p.paidAt} />
+                دفعة <Money agorot={p.amount} /> · بتاريخ{' '}
+                <strong className="font-bold">
+                  <DateText value={p.paidAt} />
+                </strong>{' '}
+                · {METHOD_LABELS[p.method]}
                 {p.note ? ` · ${p.note}` : ''}
               </span>
               {p.status === 'VOIDED' ? (
@@ -331,19 +387,46 @@ export default function ExpensesPage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex gap-2" role="tablist">
               {(Object.keys(PERIOD_LABELS) as Period[]).map((p) => (
-                <Button key={p} size="sm" role="tab" aria-selected={p === period} variant={p === period ? 'primary' : 'secondary'} onClick={() => { setPeriod(p); setSupplierId(null) }}>
+                <Button
+                  key={p}
+                  size="sm"
+                  role="tab"
+                  aria-selected={p === period}
+                  variant={p === period ? 'primary' : 'secondary'}
+                  onClick={() => {
+                    setPeriod(p)
+                    setSupplierId(null)
+                  }}
+                >
                   {PERIOD_LABELS[p]}
                 </Button>
               ))}
             </div>
             <div className="flex items-center gap-2">
-              <Button size="sm" variant="secondary" aria-label="السابق" onClick={() => { setDate(shiftDate(date, period, -1)); setSupplierId(null) }}>
+              <Button
+                size="sm"
+                variant="secondary"
+                aria-label="السابق"
+                onClick={() => {
+                  setDate(shiftDate(date, period, -1))
+                  setSupplierId(null)
+                }}
+              >
                 →
               </Button>
               <strong data-testid="period-title" className="min-w-40 text-center">
                 {s ? periodTitle(s) : '...'}
               </strong>
-              <Button size="sm" variant="secondary" aria-label="التالي" disabled={!s || isCurrent(s, todayInput())} onClick={() => { setDate(shiftDate(date, period, 1)); setSupplierId(null) }}>
+              <Button
+                size="sm"
+                variant="secondary"
+                aria-label="التالي"
+                disabled={!s || isCurrent(s, todayInput())}
+                onClick={() => {
+                  setDate(shiftDate(date, period, 1))
+                  setSupplierId(null)
+                }}
+              >
                 ←
               </Button>
             </div>
@@ -393,20 +476,25 @@ export default function ExpensesPage() {
           ) : (
             <>
               <p className="text-lg">
-                المجموع: <strong data-testid="owed-total"><Money agorot={sups.data.owedTotal} /></strong>
+                المجموع:{' '}
+                <strong data-testid="owed-total">
+                  <Money agorot={sups.data.owedTotal} />
+                </strong>
               </p>
               <ul className="flex flex-col divide-y divide-line">
-                {sups.data.suppliers.filter((x) => x.owed > 0).map((x) => (
-                  <li key={x.id} className="flex flex-wrap items-center justify-between gap-3 py-2" data-testid={`owed-${x.name}`}>
-                    <span className="font-semibold">{x.name}</span>
-                    <span className="flex items-center gap-3">
-                      <Money agorot={x.owed} />
-                      <Button size="sm" variant="secondary" onClick={() => setSupplierId(x.id)}>
-                        فواتيره
-                      </Button>
-                    </span>
-                  </li>
-                ))}
+                {sups.data.suppliers
+                  .filter((x) => x.owed > 0)
+                  .map((x) => (
+                    <li key={x.id} className="flex flex-wrap items-center justify-between gap-3 py-2" data-testid={`owed-${x.name}`}>
+                      <span className="font-semibold">{x.name}</span>
+                      <span className="flex items-center gap-3">
+                        <Money agorot={x.owed} />
+                        <Button size="sm" variant="secondary" onClick={() => setSupplierId(x.id)}>
+                          فواتيره
+                        </Button>
+                      </span>
+                    </li>
+                  ))}
                 {sups.data.owedUnassigned > 0 && (
                   <li className="flex justify-between gap-3 py-2">
                     <span className="text-muted">بدون جهة</span>
@@ -437,7 +525,6 @@ export default function ExpensesPage() {
           )}
         </Card>
 
-
         {cats.data && cats.data.length === 0 && (
           <Card title="لسا ما في أنواع مصاريف" hint="ضيف القائمة الجاهزة (رواتب، كهربا، مي...) وبتقدر تضيف أنواع غيرها وقت ما بدك.">
             <Button
@@ -447,7 +534,10 @@ export default function ExpensesPage() {
               className="self-start"
               onClick={() => {
                 setSeeding(true)
-                void addDefaultCategories().finally(() => { setSeeding(false); cats.reload() })
+                void addDefaultCategories().finally(() => {
+                  setSeeding(false)
+                  cats.reload()
+                })
               }}
             >
               إضافة القائمة الجاهزة
@@ -456,7 +546,9 @@ export default function ExpensesPage() {
         )}
       </div>
 
-      {modal === 'new' && cats.data && sups.data && <ExpenseModal categories={cats.data} suppliers={sups.data.suppliers} onClose={() => setModal(null)} onDone={reloadAll} reloadLists={reloadLists} />}
+      {modal === 'new' && cats.data && sups.data && (
+        <ExpenseModal categories={cats.data} suppliers={sups.data.suppliers} onClose={() => setModal(null)} onDone={reloadAll} reloadLists={reloadLists} />
+      )}
       {modal && typeof modal === 'object' && 'pay' in modal && <PayModal e={modal.pay} onClose={() => setModal(null)} onDone={reloadAll} />}
       {modal && typeof modal === 'object' && 'void' in modal && <VoidModal target={modal.void} onClose={() => setModal(null)} onDone={reloadAll} />}
     </>

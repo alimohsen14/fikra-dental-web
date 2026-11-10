@@ -6,7 +6,7 @@ import { Button } from '../components/ui.tsx'
 import { isCurrent, PERIOD_LABELS, periodTitle, shiftDate } from '../lib/expenses.ts'
 import type { Period } from '../lib/expenses.ts'
 import { todayInput } from '../lib/format.ts'
-import { getMyIncome, getMyMonths, yearSummary } from '../lib/myIncome.ts'
+import { getMyIncome, getMyMonths, pickedDay, yearSummary } from '../lib/myIncome.ts'
 import { METHOD_LABELS } from '../lib/treatments.ts'
 import { useLoad } from '../lib/useLoad.ts'
 
@@ -43,6 +43,26 @@ export default function MyIncomePage() {
                 ←
               </Button>
             </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-3 border-t border-line pt-4">
+            <label htmlFor="pick-day" className="text-sm font-semibold">
+              اختر يوم معين
+            </label>
+            <input
+              id="pick-day"
+              type="date"
+              dir="ltr"
+              max={todayInput()}
+              value={period === 'day' ? date : ''}
+              onChange={(e) => {
+                const day = pickedDay(e.target.value, todayInput())
+                if (day) {
+                  setPeriod('day')
+                  setDate(day)
+                }
+              }}
+              className="h-10 rounded-xl border border-line bg-white px-3"
+            />
           </div>
         </Card>
 
