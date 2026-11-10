@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { DateText, Loading, Money, PageBanner, StateBadge } from '../../components/admin-ui.tsx'
+import { Flash } from '../../components/Flash.tsx'
 import { Icon } from '../../components/icons.tsx'
 import type { ClinicRow } from '../../lib/admin.ts'
 import { listClinics } from '../../lib/admin.ts'
@@ -59,6 +60,7 @@ export default function ClinicsPage() {
           </Link>
         }
       />
+      <Flash />
       {!data ? (
         <Loading error={error} />
       ) : (

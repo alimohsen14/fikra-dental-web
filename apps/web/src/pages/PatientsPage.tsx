@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { Badge, DateText, Loading } from '../components/admin-ui.tsx'
 import { BannerLink, ClinicBanner } from '../components/clinic-ui.tsx'
+import { Flash } from '../components/Flash.tsx'
 import { Icon } from '../components/icons.tsx'
 import { Button } from '../components/ui.tsx'
 import { dateOnly } from '../lib/format.ts'
@@ -36,6 +37,7 @@ export default function PatientsPage() {
           </BannerLink>
         }
       />
+      <Flash />
       <div className="flex flex-wrap items-end justify-between gap-3">
         <label className="flex max-w-md flex-1 basis-72 flex-col gap-1.5 text-sm font-semibold">
           بحث بالاسم أو الهاتف أو الهوية

@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import { useLocation, useParams } from 'react-router'
+import { useLocation, useNavigate, useParams } from 'react-router'
 import { Badge, Card, DateText, Loading, PageBanner, SecretBox, StateBadge } from '../../components/admin-ui.tsx'
 import { Alert, Button, SelectField, TextField } from '../../components/ui.tsx'
 import { getClinic, renewClinic, resetOwnerPassword, setClinicActive, updateClinic } from '../../lib/admin.ts'
 import type { ClinicDetail, TempCredentials } from '../../lib/admin.ts'
 import { ApiError } from '../../lib/api.ts'
+import { flashState } from '../../lib/flash.ts'
 import { endOfDayIso, parseShekels, todayInput } from '../../lib/format.ts'
 import { useLoad } from '../../lib/useLoad.ts'
 import { ROLE_LABELS } from '../../auth/paths.ts'
@@ -143,18 +144,17 @@ function RenewCard({ clinic, onChanged }: { clinic: ClinicDetail; onChanged: () 
 function IdentityCard({ clinic, onChanged }: { clinic: ClinicDetail; onChanged: () => void }) {
   const [name, setName] = useState(clinic.name)
   const { error, setError, busy, run } = useAction()
-  const [ok, setOk] = useState(false)
+  const navigate = useNavigate()
   const dirty = name.trim() !== clinic.name
 
   function submit(e: FormEvent) {
     e.preventDefault()
-    setOk(false)
     if (name.trim().length < 2) return setError('اكتب اسم العيادة')
     void run(
       () => updateClinic(clinic.id, { name: name.trim() }),
       () => {
-        setOk(true)
         onChanged()
+        navigate('/admin', { state: flashState(`تم حفظ اسم العيادة «${name.trim()}».`) })
       },
     )
   }
@@ -163,7 +163,6 @@ function IdentityCard({ clinic, onChanged }: { clinic: ClinicDetail; onChanged: 
     <Card title="هوية العيادة" hint="اللون واللوغو من إعدادات العيادة نفسها، المالك بس بيغيّرهم.">
       <form onSubmit={submit} noValidate className="flex flex-col gap-4">
         {error && <Alert tone="error">{error}</Alert>}
-        {ok && <Alert tone="success">تم الحفظ.</Alert>}
         <TextField label="اسم العيادة" value={name} onChange={(e) => setName(e.target.value)} />
         <div className="flex flex-wrap items-center gap-3">
           <Button type="submit" size="sm" busy={busy} disabled={!dirty}>

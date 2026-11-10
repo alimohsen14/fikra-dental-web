@@ -1,8 +1,10 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router'
 import { Card, Loading } from '../components/admin-ui.tsx'
 import { ClinicBanner } from '../components/clinic-ui.tsx'
 import { Alert, Button } from '../components/ui.tsx'
 import { ApiError } from '../lib/api.ts'
+import { flashState } from '../lib/flash.ts'
 import { listDoctors, setWorkingPeriods } from '../lib/appointments.ts'
 import type { Doctor } from '../lib/appointments.ts'
 import { emptyWeek, minuteLabel, periodsFromWeek, weekFromPeriods, WEEKDAYS } from '../lib/schedule.ts'
@@ -12,6 +14,7 @@ import { useLoad } from '../lib/useLoad.ts'
 const TIMES = Array.from({ length: 49 }, (_, i) => i * 30) // 00:00 .. 24:00
 
 function Editor({ doctor, onSaved }: { doctor: Doctor; onSaved: () => void }) {
+  const navigate = useNavigate()
   const [week, setWeek] = useState<WeekRows>(() => weekFromPeriods(doctor.workingPeriods))
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState(false)
@@ -28,8 +31,8 @@ function Editor({ doctor, onSaved }: { doctor: Doctor; onSaved: () => void }) {
     setError(null)
     try {
       await setWorkingPeriods(doctor.id, r.periods)
-      setDone(true)
       onSaved()
+      navigate('/home', { state: flashState(`تم حفظ دوام ${doctor.fullName}.`) })
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'صار خطأ غير متوقع، جرب مرة ثانية')
     } finally {

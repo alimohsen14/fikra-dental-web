@@ -5,6 +5,7 @@ import { Card, Loading, Money } from '../components/admin-ui.tsx'
 import { AppointmentDialog } from '../components/AppointmentDialog.tsx'
 import { AppointmentCard, StatusCards } from '../components/appointment-ui.tsx'
 import { ClinicBanner } from '../components/clinic-ui.tsx'
+import { Flash } from '../components/Flash.tsx'
 import { Icon } from '../components/icons.tsx'
 import { awaitingReply, filterDay, listAppointments, listDoctors } from '../lib/appointments.ts'
 import type { Appointment, DayFilter } from '../lib/appointments.ts'
@@ -45,6 +46,7 @@ export default function HomePage() {
           </button>
         )
       } />
+      <Flash />
       {!list.data || !doctors.data || !waiting.data ? (
         <Loading error={list.error ?? doctors.error ?? waiting.error} />
       ) : (

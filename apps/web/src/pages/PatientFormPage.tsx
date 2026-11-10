@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
+import { flashState } from '../lib/flash.ts'
 import { useAuth } from '../auth/AuthContext.tsx'
 import { Card, DateText, Loading } from '../components/admin-ui.tsx'
 import { ClinicBanner } from '../components/clinic-ui.tsx'
@@ -61,13 +62,14 @@ export function NewPatientPage() {
   return (
     <>
       <ClinicBanner title="مريض جديد" back={{ to: '/patients', label: 'رجوع للمرضى' }} />
-      <PatientForm onSaved={(p, shared) => navigate(`/patients/${p.id}`, { state: { created: true, shared } })} />
+      <PatientForm onSaved={(p, shared) => navigate('/patients', { state: shared.length > 0 ? flashState(`تمت إضافة ${p.fullName}. نفس رقم الهاتف مسجل لـ: ${shared.join('، ')} (طبيعي إذا كانوا من نفس العائلة).`, 'warning') : flashState(`تمت إضافة ${p.fullName}.`) })} />
     </>
   )
 }
 
 export function PatientPage() {
   const { id = '' } = useParams()
+  const navigate = useNavigate()
   const location = useLocation()
   const state = location.state as { created?: boolean; shared?: string[] } | null
   const { data: patient, error, reload } = useLoad(() => getPatient(id), [id])
@@ -75,7 +77,6 @@ export function PatientPage() {
   const [params, setParams] = useSearchParams()
   const hasTreatments = session ? canSeeTreatments(session.user) : false
   const tab = hasTreatments && params.get('tab') === 'treatments' ? 'treatments' : 'info'
-  const [saved, setSaved] = useState(false)
   const [asking, setAsking] = useState(false)
   const [archiveError, setArchiveError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -124,15 +125,11 @@ export function PatientPage() {
       {tab === 'treatments' && <PatientTreatments patientId={patient.id} birthDate={patient.birthDate} />}
       {tab === 'info' && state?.created && <Alert tone="success">تمت إضافة المريض.</Alert>}
       {tab === 'info' && state?.shared && state.shared.length > 0 && <Alert tone="warning">نفس رقم الهاتف مسجل لـ: {state.shared.join('، ')}. (طبيعي إذا كانوا من نفس العائلة.)</Alert>}
-      {tab === 'info' && saved && <Alert tone="success">تم حفظ التعديلات.</Alert>}
       {tab === 'info' && (<>
       <PatientForm
         key={patient.id + patient.createdAt + JSON.stringify(patientToForm(patient))}
         patient={patient}
-        onSaved={() => {
-          setSaved(true)
-          reload()
-        }}
+        onSaved={(p) => navigate('/patients', { state: flashState(`تم حفظ تعديلات ${p.fullName}.`) })}
       />
       <Card title={archived ? 'إرجاع من الأرشيف' : 'أرشفة المريض'} hint={archived ? 'بيرجع يظهر بقائمة المرضى.' : 'المريض ما بينحذف أبداً، بس بيختفي من القائمة العادية وبتلاقيه بتبويب الأرشيف.'}>
         <p className="text-[13px] text-muted">

@@ -1,16 +1,19 @@
 import { useRef, useState } from 'react'
 import type { ChangeEvent, FormEvent } from 'react'
+import { useNavigate } from 'react-router'
 import { Card, ColorPicker } from '../components/admin-ui.tsx'
 import { ClinicBanner } from '../components/clinic-ui.tsx'
 import { Alert, Button, TextField } from '../components/ui.tsx'
 import { useAuth } from '../auth/AuthContext.tsx'
 import { ApiError, assetUrl } from '../lib/api.ts'
+import { flashState } from '../lib/flash.ts'
 import { checkLogoFile, removeClinicLogo, saveClinicSettings, uploadClinicLogo } from '../lib/clinicSettings.ts'
 
 const messageOf = (e: unknown) => (e instanceof ApiError ? e.message : 'صار خطأ غير متوقع، جرب مرة ثانية')
 
 export default function SettingsPage() {
   const { session } = useAuth()
+  const navigate = useNavigate()
   const clinic = session!.clinic!
   const [name, setName] = useState(clinic.name)
   const [color, setColor] = useState<string | null>(clinic.themeColor)
@@ -28,7 +31,7 @@ export default function SettingsPage() {
         ...(name.trim() !== clinic.name ? { name: name.trim() } : {}),
         ...(color !== clinic.themeColor ? { themeColor: color } : {}),
       })
-      setIdentity({ ok: true })
+      navigate('/home', { state: flashState('تم حفظ إعدادات العيادة.') })
     } catch (err) {
       setIdentity({ error: messageOf(err) })
     }
