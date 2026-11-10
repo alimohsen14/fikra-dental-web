@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import { useNavigate, useParams, useSearchParams } from 'react-router'
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
 import { useAuth } from '../auth/AuthContext.tsx'
 import { Card, DateText, Loading } from '../components/admin-ui.tsx'
 import { StatusBadge } from '../components/appointment-ui.tsx'
@@ -251,7 +251,9 @@ export function NewTreatmentPage() {
   const { session } = useAuth()
   const [params] = useSearchParams()
   const presetPatient = params.get('patientId') ?? ''
-  const [mode, setMode] = useState<Mode | null>(presetPatient ? 'without' : null)
+  // "إنهاء وفتح علاج" on an appointment card arrives here with that appointment already chosen.
+  const fromCard = (useLocation().state as { appointment?: Appointment } | null)?.appointment ?? null
+  const [mode, setMode] = useState<Mode | null>(fromCard ? 'with' : presetPatient ? 'without' : null)
   const [v, setVState] = useState<TreatmentFormValues>({
     ...EMPTY_TREATMENT,
     patientId: presetPatient,
@@ -259,7 +261,7 @@ export function NewTreatmentPage() {
   })
   const setV = (f: (s: TreatmentFormValues) => TreatmentFormValues) => setVState(f)
   const [patient, setPatient] = useState<PatientPick | null>(null)
-  const [apt, setApt] = useState<Appointment | null>(null)
+  const [apt, setApt] = useState<Appointment | null>(fromCard)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 

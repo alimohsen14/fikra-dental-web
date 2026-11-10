@@ -38,12 +38,6 @@ export class AppointmentsController {
     return this.appointments.confirm(user, parseBody(idSchema, id));
   }
 
-  @Post(':id/complete')
-  @HttpCode(200)
-  complete(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    return this.appointments.complete(user, parseBody(idSchema, id));
-  }
-
   @Post(':id/cancel')
   @HttpCode(200)
   cancel(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: unknown) {

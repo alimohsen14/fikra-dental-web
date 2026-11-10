@@ -1,8 +1,10 @@
 import { useState } from 'react'
-import { Link } from 'react-router'
+import { Link, useNavigate } from 'react-router'
+import { useAuth } from '../auth/AuthContext.tsx'
 import { ApiError } from '../lib/api.ts'
-import { cancelAppointment, completeAppointment, confirmAppointment, countByStatus, finishedOnOtherDay, messageLine, sendMessageNow, STATUS_LABELS, STATUS_STYLE, testReply } from '../lib/appointments.ts'
+import { cancelAppointment, confirmAppointment, countByStatus, finishedOnOtherDay, messageLine, sendMessageNow, STATUS_LABELS, STATUS_STYLE, testReply } from '../lib/appointments.ts'
 import type { Appointment, DayFilter } from '../lib/appointments.ts'
+import { canEditTreatments } from '../lib/access.ts'
 import { dayTitle, localParts, timeLabel } from '../lib/schedule.ts'
 import { useTestMode } from '../lib/useTestMode.ts'
 import { Badge } from './admin-ui.tsx'
@@ -84,6 +86,9 @@ export function AppointmentCard({ a, onChanged, onEdit, showDoctor = true, showD
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [cancelling, setCancelling] = useState(false)
+  const navigate = useNavigate()
+  const { session } = useAuth()
+  const canOpenTreatment = !!session && canEditTreatments(session.user)
   const live = a.status === 'PENDING' || a.status === 'CONFIRMED'
   const testMode = useTestMode()
   const [showText, setShowText] = useState(false)
@@ -117,7 +122,7 @@ export function AppointmentCard({ a, onChanged, onEdit, showDoctor = true, showD
           {a.patient.fullName}
         </Link>
         <StatusBadge a={a} />
-        {a.overdue && <Badge label={a.status === 'PENDING' ? 'فات موعده ولا انأكد' : 'متأخر: ما انسجل إنهاؤه'} bg="#fff1d6" fg="#7a4b00" />}
+        {a.overdue && <Badge label={a.status === 'PENDING' ? 'فات موعده ولا انأكد' : 'مرّ وقته ولا انفتح له علاج'} bg="#fff1d6" fg="#7a4b00" />}
         {a.patient.medicalAlerts && <Badge label="تنبيه طبي" bg="#fde8e8" fg="#9b1c1c" />}
         {a.bookedByPatient && <Badge label="حجز ذاتي عبر واتساب" bg="#e3f5ea" fg="#0b6b3a" />}
         {a.patient.selfRegistered && <Badge label="مسجّل ذاتياً" bg="#efe6fb" fg="#4b2a86" />}
@@ -128,7 +133,11 @@ export function AppointmentCard({ a, onChanged, onEdit, showDoctor = true, showD
       </p>
       {a.patient.medicalAlerts && <p className="text-sm text-[#9b1c1c]">⚠ {a.patient.medicalAlerts}</p>}
       {a.notes && <p className="text-sm">{a.notes}</p>}
-      {finishedOnOtherDay(a, (iso) => localParts(iso).date) && <p className="text-sm text-muted">انتهى بتاريخ {finishedOnOtherDay(a, (iso) => localParts(iso).date)} (المريض إجا قبل موعده).</p>}
+      {finishedOnOtherDay(a, (iso) => localParts(iso).date) && (
+        <p className="text-sm text-muted">
+          انتهى بتاريخ {finishedOnOtherDay(a, (iso) => localParts(iso).date)} ({a.completedAt && a.completedAt < a.startsAt ? 'المريض إجا قبل موعده' : 'انسجل بعد موعده'}).
+        </p>
+      )}
       {a.status === 'CANCELLED' && a.cancelReason && <p className="text-sm text-muted">سبب الإلغاء: {a.cancelReason}</p>}
       {line && (
         <p className={`text-sm ${LINE_STYLE[line.tone]}`} aria-label="واتساب">
@@ -169,9 +178,9 @@ export function AppointmentCard({ a, onChanged, onEdit, showDoctor = true, showD
               تأكيد
             </Button>
           )}
-          {started && (
-            <Button size="sm" busy={busy} onClick={() => run(() => completeAppointment(a.id))}>
-              إنهاء
+          {started && canOpenTreatment && (
+            <Button size="sm" busy={busy} onClick={() => navigate('/treatments/new', { state: { appointment: a } })}>
+              إنهاء وفتح علاج
             </Button>
           )}
           <Button size="sm" variant="secondary" disabled={busy} onClick={() => onEdit(a)}>

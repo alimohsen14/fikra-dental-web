@@ -269,7 +269,7 @@ describe('Doctors and appointments (e2e)', () => {
     expect(confirmed.body.status).toBe('CONFIRMED');
     expect(confirmed.body.confirmedAt).toBeTruthy();
     await http().post(`/appointments/${a.id}/confirm`).set(bearer(t)).expect(409);
-    await http().post(`/appointments/${a.id}/complete`).set(bearer(t)).expect(409); // it is in the future: cannot be finished yet
+    await http().post(`/appointments/${a.id}/complete`).set(bearer(t)).expect(404); // an appointment never ends by itself: only opening a treatment ends it
     const cancelled = await http().post(`/appointments/${a.id}/cancel`).set(bearer(t)).send({ reason: 'سافر' }).expect(200);
     expect(cancelled.body).toMatchObject({ status: 'CANCELLED', cancelReason: 'سافر' });
     await http().post(`/appointments/${a.id}/cancel`).set(bearer(t)).send({}).expect(409);
@@ -278,16 +278,16 @@ describe('Doctors and appointments (e2e)', () => {
     await http().post(`/appointments/${randomUUID()}/confirm`).set(bearer(t)).expect(404);
   });
 
-  it('a past appointment can be completed, and shows as overdue while it is still pending', async () => {
+  it('a past appointment shows as overdue while it is still pending, and cannot be completed without a treatment', async () => {
     const c = await makeClinic('past');
     const start = new Date(Math.floor((Date.now() - 3 * 3_600_000) / 1_800_000) * 1_800_000);
     const row = await prisma.appointment.create({ data: { clinicId: c.id, patientId: c.patient, doctorId: c.docA, startsAt: start, endsAt: new Date(start.getTime() + 30 * 60_000) } });
     const range = `from=${encodeURIComponent(new Date(start.getTime() - 3_600_000).toISOString())}&to=${encodeURIComponent(new Date(start.getTime() + 3_600_000).toISOString())}`;
     const list = await http().get(`/appointments?${range}`).set(bearer(c.users.OWNER.token)).expect(200);
     expect(list.body[0]).toMatchObject({ id: row.id, status: 'PENDING', overdue: true });
-    const done = await http().post(`/appointments/${row.id}/complete`).set(bearer(c.users.OWNER.token)).expect(200);
-    expect(done.body).toMatchObject({ status: 'COMPLETED', overdue: false });
-    expect(done.body.completedAt).toBeTruthy();
+    await http().post(`/appointments/${row.id}/complete`).set(bearer(c.users.OWNER.token)).expect(404);
+    await http().patch(`/appointments/${row.id}`).set(bearer(c.users.OWNER.token)).send({ status: 'COMPLETED' }).expect(400); // no back door through the edit either
+    expect((await prisma.appointment.findUnique({ where: { id: row.id } }))!.status).toBe('PENDING');
   });
 
   it('listing needs a sane range', async () => {

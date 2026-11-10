@@ -125,8 +125,18 @@ export class TreatmentsService {
   }
 
   /** Marks a still-open appointment as done. A cancelled or already finished one is left alone. */
-  private completeAppointment(tx: Tx, clinicId: string, appointmentId: string) {
-    return tx.appointment.updateMany({ where: { id: appointmentId, clinicId, status: { in: ['PENDING', 'CONFIRMED'] } }, data: { status: 'COMPLETED', completedAt: new Date() } });
+  /**
+   * The visit happened: the appointment is completed. If the patient came before the booked time, the appointment
+   * moves to the real time of the visit, so the booked day empties and the visit shows on the day it happened.
+   */
+  private async completeAppointment(tx: Tx, clinicId: string, appointmentId: string) {
+    const apt = await tx.appointment.findFirst({ where: { id: appointmentId, clinicId, status: { in: ['PENDING', 'CONFIRMED'] } }, select: { startsAt: true, endsAt: true } });
+    if (!apt) return;
+    const now = new Date();
+    const early = apt.startsAt.getTime() > now.getTime();
+    const startsAt = early ? new Date(Math.floor(now.getTime() / 60_000) * 60_000) : apt.startsAt;
+    const endsAt = early ? new Date(startsAt.getTime() + (apt.endsAt.getTime() - apt.startsAt.getTime())) : apt.endsAt;
+    await tx.appointment.updateMany({ where: { id: appointmentId, clinicId }, data: { status: 'COMPLETED', completedAt: now, ...(early ? { startsAt, endsAt } : {}) } });
   }
 
   private audit(tx: Tx, clinicId: string, actorUserId: string, action: string, id: string, extra: { before?: object; after?: object } = {}) {

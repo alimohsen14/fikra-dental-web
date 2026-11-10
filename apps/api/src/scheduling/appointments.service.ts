@@ -213,9 +213,7 @@ export class AppointmentsService {
     return this.transition(user, id, ['PENDING'], { status: 'CONFIRMED', confirmedAt: new Date() }, 'الموعد مؤكد من قبل، أو منتهي أو ملغى');
   }
 
-  complete(user: AuthUser, id: string) {
-    return this.transition(user, id, ['PENDING', 'CONFIRMED'], { status: 'COMPLETED', completedAt: new Date() }, 'ما بتقدر تنهي هالموعد (لسا ما بلّش، أو منتهي أو ملغى)', { startsAt: { lte: new Date() } });
-  }
+  // There is deliberately no "complete" here: an appointment only ends when a treatment is opened for it (treatments.service).
 
   cancel(user: AuthUser, id: string, reason?: string) {
     return this.transition(user, id, ['PENDING', 'CONFIRMED'], { status: 'CANCELLED', cancelledAt: new Date(), cancelReason: reason ?? null }, 'الموعد منتهي أو ملغى من قبل');

@@ -110,5 +110,4 @@ export const createAppointment = (body: { patientId: string; doctorId: string; s
 export const updateAppointment = (id: string, body: { doctorId?: string; startsAt?: string; durationMinutes?: number; notes?: string | null }) =>
   request<Appointment>(`/appointments/${id}`, { method: 'PATCH', body })
 export const confirmAppointment = (id: string) => request<Appointment>(`/appointments/${id}/confirm`, { method: 'POST' })
-export const completeAppointment = (id: string) => request<Appointment>(`/appointments/${id}/complete`, { method: 'POST' })
 export const cancelAppointment = (id: string, reason?: string) => request<Appointment>(`/appointments/${id}/cancel`, { method: 'POST', body: reason ? { reason } : {} })

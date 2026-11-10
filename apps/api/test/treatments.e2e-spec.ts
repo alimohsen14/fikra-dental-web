@@ -394,7 +394,11 @@ describe('Treatments, sessions and payments (e2e)', () => {
     const res = await complete(d, t.id, 2).expect(200); // patient came 5 days before the booked time
     const s2 = res.body.sessions.find((s: { number: number }) => s.number === 2);
     expect(new Date(s2.completedAt).getTime()).toBeLessThan(future.getTime()); // the real day, not the booked one
-    expect(await prisma.appointment.findUnique({ where: { id: apt.id } })).toMatchObject({ status: 'COMPLETED' });
+    const moved = (await prisma.appointment.findUnique({ where: { id: apt.id } }))!;
+    expect(moved.status).toBe('COMPLETED');
+    expect(moved.startsAt.getTime()).toBeLessThanOrEqual(Date.now()); // moved to the real day of the visit, the booked day is empty
+    expect(moved.endsAt.getTime() - moved.startsAt.getTime()).toBe(1_800_000); // same length
+    expect(await prisma.appointment.count({ where: { id: apt.id, startsAt: { gte: new Date(future.getTime() - 60_000), lt: new Date(future.getTime() + 60_000) } } })).toBe(0);
     // the doctor is free at the old time again
     const rebook = await prisma.appointment.create({ data: { clinicId: c.id, patientId: c.patient, doctorId: c.doc1, startsAt: future, endsAt: new Date(future.getTime() + 1_800_000), status: 'CONFIRMED' } });
     expect(rebook.id).toBeTruthy();

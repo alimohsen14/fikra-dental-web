@@ -84,7 +84,7 @@ export interface Busy {
  */
 export function freeStarts(o: { date: string; periods: Period[]; busy: Busy[]; duration: number; now?: Date; ignoreId?: string }): number[] {
   const now = (o.now ?? new Date()).getTime()
-  const live = o.busy.filter((b) => b.status !== 'CANCELLED' && (o.ignoreId === undefined || b.id !== o.ignoreId))
+  const live = o.busy.filter((b) => (b.status === 'PENDING' || b.status === 'CONFIRMED') && (o.ignoreId === undefined || b.id !== o.ignoreId))
   const out: number[] = []
   for (const p of o.periods) {
     if (p.weekday !== weekdayOf(o.date)) continue

@@ -53,6 +53,10 @@ describe('freeStarts', () => {
     expect(freeStarts({ date: MON, periods, busy: [b], duration: 30, now: before })).toContain(540)
     expect(freeStarts({ date: MON, periods, busy: [{ ...b, status: 'CONFIRMED' }], duration: 30, now: before, ignoreId: 'x' })).toContain(540)
   })
+  it('completed appointments free the slot too (the server only blocks pending and confirmed)', () => {
+    const b = { id: 'x', startsAt: instantAt(MON, 540).toISOString(), endsAt: instantAt(MON, 600).toISOString(), status: 'COMPLETED' }
+    expect(freeStarts({ date: MON, periods, busy: [b], duration: 30, now: before })).toContain(540)
+  })
   it('hides the past and days without hours', () => {
     const now = instantAt(MON, 620)
     expect(freeStarts({ date: MON, periods, busy: [], duration: 30, now })).toEqual([600, 630, 960, 990]) // 10:00 still running (30 min grace)
