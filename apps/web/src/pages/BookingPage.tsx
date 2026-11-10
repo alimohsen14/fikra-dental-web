@@ -104,9 +104,12 @@ function Home({ token, data, go, reload }: { token: string; data: BookingOvervie
           </Card>
         ))
       )}
-      <Button variant="secondary" onClick={() => go({ name: 'register' })}>
-        {data.patients.length === 0 ? 'سجّل بياناتك' : 'مريض جديد؟ سجّل بياناته'}
-      </Button>
+      {/* A number that is already in the clinic's records has no reason to register again: only an unknown number is offered it. */}
+      {data.patients.length === 0 && (
+        <Button variant="secondary" onClick={() => go({ name: 'register' })}>
+          سجّل بياناتك
+        </Button>
+      )}
     </div>
   )
 }
