@@ -559,6 +559,34 @@ describe('Treatments, sessions and payments (e2e)', () => {
     await http().get('/patients/nope/finance').set(bearer(o)).expect(400);
   });
 
+  it('patient balances: only who still owes, biggest first, cancelled/voided ignored, payments key required, clinics isolated', async () => {
+    const c = await makeClinic('balances');
+    const o = c.users.OWNER.token;
+    const other = await prisma.patient.create({ data: { clinicId: c.id, fullName: 'Patient two', phone: '+970599000222' } });
+    const paidUp = await prisma.patient.create({ data: { clinicId: c.id, fullName: 'Patient paid', phone: '+970599000333' } });
+    const small = (await create(o, c, { totalCost: 30_000 }).expect(201)).body; // owes 20_000 after 10_000
+    const big = (await create(o, c, { patientId: other.id, totalCost: 80_000 }).expect(201)).body; // owes 80_000 after a voided payment
+    const done = (await create(o, c, { patientId: paidUp.id, totalCost: 10_000 }).expect(201)).body;
+    const gone = (await create(o, c, { totalCost: 99_000 }).expect(201)).body;
+    await http().post(`/treatments/${gone.id}/cancel`).set(bearer(o)).send({}).expect(200);
+    await pay(o, small.id, { amount: 10_000 }).expect(201);
+    const wrong = (await pay(o, big.id, { amount: 50_000 }).expect(201)).body.payments[0];
+    await http().post(`/payments/${wrong.id}/void`).set(bearer(o)).send({ reason: 'غلط' }).expect(200);
+    await pay(o, done.id, { amount: 10_000 }).expect(201);
+
+    const res = (await http().get('/patient-balances').set(bearer(o)).expect(200)).body;
+    expect(res.items.map((i: { fullName: string; remaining: number }) => [i.fullName, i.remaining])).toEqual([['Patient two', 80_000], ['Patient balances', 20_000]]);
+    expect(res.totalRemaining).toBe(100_000);
+    expect(res.items[1].lastPaidAt).not.toBeNull();
+    expect(res.items[0].lastPaidAt).toBeNull();
+
+    await http().get('/patient-balances').set(bearer(c.users.KEYHOLDER.token)).expect(200);
+    await http().get('/patient-balances').set(bearer(c.users.SECRETARY.token)).expect(403);
+    await http().get('/patient-balances').set(bearer(c.users.DOCTOR.token)).expect(403);
+    const b = await makeClinic('balancesb');
+    expect((await http().get('/patient-balances').set(bearer(b.users.OWNER.token)).expect(200)).body).toEqual({ items: [], totalRemaining: 0 });
+  });
+
   // ---------------------------------------------------------------- isolation
   it("clinic B can neither see nor touch clinic A's treatments, payments or sessions", async () => {
     const a = await makeClinic('isoa');

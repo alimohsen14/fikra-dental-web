@@ -372,4 +372,26 @@ export class TreatmentsService {
     }
     return { treatments: rows.length, openTreatments: rows.filter((r) => r.status === 'OPEN').length, total, paid, remaining: Math.max(0, total - paid) };
   }
+  /** Who still owes the clinic: per patient, what the (non-cancelled) treatments cost minus what was actually paid. Same maths as patientFinance. */
+  async patientBalances(user: AuthUser) {
+    const scope = await this.scopeFor(user);
+    const rows = await this.tenant.db.treatment.findMany({
+      where: { status: { not: 'CANCELLED' }, ...scope },
+      select: { patientId: true, totalCost: true, status: true, patient: { select: { fullName: true, phone: true } }, payments: { select: { amount: true, status: true, paidAt: true } } },
+    });
+    const byPatient = new Map<string, { patientId: string; fullName: string; phone: string; total: number; paid: number; openTreatments: number; lastPaidAt: Date | null }>();
+    for (const r of rows) {
+      const e = byPatient.get(r.patientId) ?? { patientId: r.patientId, fullName: r.patient.fullName, phone: r.patient.phone, total: 0, paid: 0, openTreatments: 0, lastPaidAt: null };
+      e.total += r.totalCost;
+      e.paid += paidTotal(r.payments);
+      if (r.status === 'OPEN') e.openTreatments += 1;
+      for (const p of r.payments) if (p.status === 'ACTIVE' && (!e.lastPaidAt || p.paidAt > e.lastPaidAt)) e.lastPaidAt = p.paidAt;
+      byPatient.set(r.patientId, e);
+    }
+    const items = [...byPatient.values()]
+      .map((e) => ({ ...e, remaining: Math.max(0, e.total - e.paid) }))
+      .filter((e) => e.remaining > 0)
+      .sort((a, b) => b.remaining - a.remaining || a.fullName.localeCompare(b.fullName, 'ar'));
+    return { items, totalRemaining: items.reduce((t, e) => t + e.remaining, 0) };
+  }
 }

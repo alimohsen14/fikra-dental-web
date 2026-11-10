@@ -111,6 +111,13 @@ export class TreatmentsController {
     return this.treatments.voidPayment(user, parseBody(idSchema, id), parseBody(voidPaymentSchema, body).reason);
   }
 
+  // Who still owes the clinic, biggest debt first. Money screen: owner or the payments key only.
+  @RequiresPayments()
+  @Get('patient-balances')
+  balances(@CurrentUser() user: AuthUser) {
+    return this.treatments.patientBalances(user);
+  }
+
   @RequiresPayments()
   @Get('patients/:id/finance')
   finance(@CurrentUser() user: AuthUser, @Param('id') id: string) {
