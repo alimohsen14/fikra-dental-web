@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { awaitingReply, confirmedOnly, countByStatus, filterDay, finishedOnOtherDay, messageLine } from './appointments.ts'
+import { awaitingReply, confirmedOnly, countByStatus, doctorDays, filterDay, finishedOnOtherDay, messageLine } from './appointments.ts'
 import type { AppointmentStatus } from './appointments.ts'
 
 const A = (status: AppointmentStatus, startsAt = '2026-11-02T08:00:00Z') => ({ status, startsAt })
@@ -59,5 +59,25 @@ describe('WhatsApp line on the card', () => {
   it('shows a failure, and nothing extra on a cancelled one without an answer', () => {
     expect(messageLine({ status: 'PENDING', confirmationMessage: msg({ status: 'FAILED' }), messageDueAt: null }, when)).toEqual({ text: 'فشل إرسال رسالة التأكيد', tone: 'bad' })
     expect(messageLine({ status: 'CANCELLED', confirmationMessage: msg({}), messageDueAt: null }, when)).toBeNull()
+  })
+})
+
+describe('doctorDays', () => {
+  const at = (h: number) => new Date(Date.UTC(2026, 10, 11, h)).toISOString()
+  const apt = (doctorId: string, status: 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED', h: number) => ({ status, startsAt: at(h), endsAt: at(h + 1), doctor: { id: doctorId, fullName: doctorId } })
+  const docs = [{ id: 'a', fullName: 'A' }, { id: 'b', fullName: 'B' }]
+  const now = Date.parse(at(10)) + 60_000
+
+  it('counts per doctor, skips cancelled ones and finds the next one still to come', () => {
+    const r = doctorDays(docs, [apt('a', 'COMPLETED', 8), apt('a', 'CONFIRMED', 12), apt('a', 'PENDING', 14), apt('a', 'CANCELLED', 9), apt('b', 'CONFIRMED', 10)], now)
+    expect(r[0]).toMatchObject({ total: 3, completed: 1, next: at(12) })
+    // B's only appointment started at 10:00 and is still going at 10:01, so it is not "next" any more once it ends; it has not ended yet
+    expect(r[1]).toMatchObject({ total: 1, completed: 0, next: at(10) })
+  })
+  it('a doctor with nothing today still gets a card', () => {
+    expect(doctorDays(docs, [], now)).toEqual([{ doctor: docs[0], total: 0, completed: 0, next: null }, { doctor: docs[1], total: 0, completed: 0, next: null }])
+  })
+  it('appointments that are over and never finished are not "next"', () => {
+    expect(doctorDays(docs, [apt('a', 'PENDING', 8)], now)[0].next).toBeNull()
   })
 })

@@ -3,11 +3,11 @@ import { Link } from 'react-router'
 import { useAuth } from '../auth/AuthContext.tsx'
 import { Card, Loading, Money } from '../components/admin-ui.tsx'
 import { AppointmentDialog } from '../components/AppointmentDialog.tsx'
-import { AppointmentCard, StatusCards } from '../components/appointment-ui.tsx'
+import { AppointmentCard, DoctorCards, StatusCards } from '../components/appointment-ui.tsx'
 import { ClinicBanner } from '../components/clinic-ui.tsx'
 import { Flash } from '../components/Flash.tsx'
 import { Icon } from '../components/icons.tsx'
-import { awaitingReply, filterDay, listAppointments, listDoctors } from '../lib/appointments.ts'
+import { awaitingReply, doctorDays, filterDay, listAppointments, listDoctors } from '../lib/appointments.ts'
 import type { Appointment, DayFilter } from '../lib/appointments.ts'
 import { getSalaryMonth, isSalaryDue, monthNumber } from '../lib/salaries.ts'
 import { addDays, dayRange, dayTitle, todayDate } from '../lib/schedule.ts'
@@ -26,10 +26,14 @@ export default function HomePage() {
   const salaries = useLoad(() => (salariesDue ? getSalaryMonth(month) : Promise.resolve(null)), [salariesDue, month])
   const owed = salaries.data?.entries.filter((e) => e.remaining > 0) ?? []
   const [filter, setFilter] = useState<DayFilter>('ALL')
+  const [doctorId, setDoctorId] = useState<string | null>(null)
   const [dialog, setDialog] = useState<{ edit?: Appointment } | null>(null)
 
   const all = (list.data ?? []).sort((a, b) => a.startsAt.localeCompare(b.startsAt))
-  const shown = filterDay(all, filter)
+  const mine = doctorId ? all.filter((a) => a.doctor.id === doctorId) : all
+  const shown = filterDay(mine, filter)
+  // A doctor only ever sees their own day, so the per-doctor cards are for the owner and the secretary.
+  const showDoctors = session?.user.role !== 'DOCTOR' && (doctors.data?.length ?? 0) > 1
   const pending = awaitingReply(waiting.data ?? [])
   const refresh = () => {
     list.reload()
@@ -51,7 +55,8 @@ export default function HomePage() {
         <Loading error={list.error ?? doctors.error ?? waiting.error} />
       ) : (
         <>
-          <StatusCards list={all} value={filter} onChange={setFilter} />
+          {showDoctors && <DoctorCards days={doctorDays(doctors.data, all, Date.now())} value={doctorId} onChange={setDoctorId} />}
+          <StatusCards list={mine} value={filter} onChange={setFilter} />
           {owed.length > 0 && salaries.data && (
             <Card title={`رواتب شهر ${monthNumber(month)} جاهزة للصرف`} hint={`${owed.length} موظف لسا ما انصرفلهم الراتب كامل.`}>
               <div className="flex flex-wrap items-center justify-between gap-3" data-testid="salary-reminder">

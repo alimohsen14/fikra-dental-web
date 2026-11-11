@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
-import { Badge, DateText, Loading } from '../components/admin-ui.tsx'
+import { Badge, Loading } from '../components/admin-ui.tsx'
 import { BannerLink, ClinicBanner } from '../components/clinic-ui.tsx'
 import { Flash } from '../components/Flash.tsx'
 import { Icon } from '../components/icons.tsx'
 import { Button } from '../components/ui.tsx'
-import { dateOnly } from '../lib/format.ts'
+import { ageLabel, dateOnly, todayInput } from '../lib/format.ts'
 import { GENDER_LABELS, listPatients, PAGE_SIZE } from '../lib/patients.ts'
 import { useLoad } from '../lib/useLoad.ts'
 
@@ -73,7 +73,7 @@ export default function PatientsPage() {
             <table className="w-full min-w-[700px] border-collapse text-sm">
               <thead>
                 <tr className="bg-brand-tint text-brand-dark">
-                  {['الاسم', 'الهاتف', 'الجنس', 'تاريخ الميلاد', 'ملاحظات'].map((h) => (
+                  {['الاسم', 'الهاتف', 'الجنس', 'العمر', 'ملاحظات'].map((h) => (
                     <th key={h} className="px-4 py-3 text-start font-semibold">
                       {h}
                     </th>
@@ -95,7 +95,7 @@ export default function PatientsPage() {
                     </td>
                     <td className="px-4 py-3.5"><bdi dir="ltr">{p.phone}</bdi></td>
                     <td className="px-4 py-3.5">{p.gender ? GENDER_LABELS[p.gender] : '-'}</td>
-                    <td className="px-4 py-3.5 text-[#33445b]">{p.birthDate ? <DateText value={dateOnly(p.birthDate)} /> : '-'}</td>
+                    <td className="px-4 py-3.5 text-[#33445b]"><span title={p.birthDate ? dateOnly(p.birthDate) : undefined}>{ageLabel(p.birthDate, todayInput())}</span></td>
                     <td className="max-w-56 truncate px-4 py-3.5 text-[#33445b]">{p.notes || '-'}</td>
                     <td className="px-4 py-3.5">
                       <Link to={`/patients/${p.id}`} className="font-bold text-brand-dark underline">

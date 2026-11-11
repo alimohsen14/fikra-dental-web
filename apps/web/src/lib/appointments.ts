@@ -111,3 +111,23 @@ export const updateAppointment = (id: string, body: { doctorId?: string; startsA
   request<Appointment>(`/appointments/${id}`, { method: 'PATCH', body })
 export const confirmAppointment = (id: string) => request<Appointment>(`/appointments/${id}/confirm`, { method: 'POST' })
 export const cancelAppointment = (id: string, reason?: string) => request<Appointment>(`/appointments/${id}/cancel`, { method: 'POST', body: reason ? { reason } : {} })
+
+export interface DoctorDay {
+  doctor: { id: string; fullName: string }
+  total: number
+  completed: number
+  /** start of the next appointment still to come (pending or confirmed, not yet over), if any */
+  next: string | null
+}
+
+/** One summary per doctor for the appointments of a day. Cancelled ones do not count. */
+export function doctorDays(doctors: { id: string; fullName: string }[], list: Pick<Appointment, 'status' | 'startsAt' | 'endsAt' | 'doctor'>[], now: number): DoctorDay[] {
+  return doctors.map((doctor) => {
+    const mine = list.filter((a) => a.doctor.id === doctor.id && a.status !== 'CANCELLED')
+    const upcoming = mine
+      .filter((a) => (a.status === 'PENDING' || a.status === 'CONFIRMED') && Date.parse(a.endsAt) > now)
+      .map((a) => a.startsAt)
+      .sort()
+    return { doctor, total: mine.length, completed: mine.filter((a) => a.status === 'COMPLETED').length, next: upcoming[0] ?? null }
+  })
+}

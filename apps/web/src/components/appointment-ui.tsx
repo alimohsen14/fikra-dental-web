@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router'
 import { useAuth } from '../auth/AuthContext.tsx'
 import { ApiError } from '../lib/api.ts'
 import { cancelAppointment, confirmAppointment, countByStatus, finishedOnOtherDay, messageLine, sendMessageNow, STATUS_LABELS, STATUS_STYLE, testReply } from '../lib/appointments.ts'
-import type { Appointment, DayFilter } from '../lib/appointments.ts'
+import type { Appointment, DayFilter, DoctorDay } from '../lib/appointments.ts'
 import { canEditTreatments } from '../lib/access.ts'
 import { dayTitle, localParts, timeLabel } from '../lib/schedule.ts'
 import { useTestMode } from '../lib/useTestMode.ts'
@@ -202,5 +202,29 @@ export function AppointmentCard({ a, onChanged, onEdit, showDoctor = true, showD
         />
       )}
     </article>
+  )
+}
+
+/** One card per doctor for today (owner and secretary). Pressing a card shows only that doctor's appointments; pressing it again shows all. */
+export function DoctorCards({ days, value, onChange }: { days: DoctorDay[]; value: string | null; onChange: (id: string | null) => void }) {
+  return (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3" role="group" aria-label="الدكاترة" data-testid="doctor-cards">
+      {days.map((d) => (
+        <button
+          key={d.doctor.id}
+          type="button"
+          data-doctor={d.doctor.id}
+          aria-pressed={value === d.doctor.id}
+          onClick={() => onChange(value === d.doctor.id ? null : d.doctor.id)}
+          className={`flex cursor-pointer flex-col gap-1 rounded-xl border-2 bg-white p-4 text-start ${value === d.doctor.id ? 'border-brand' : 'border-line'}`}
+        >
+          <span className="font-bold">{d.doctor.fullName}</span>
+          <span className="text-sm text-muted">
+            {d.total === 0 ? 'ما عنده مواعيد اليوم' : `${d.total} مواعيد اليوم · ${d.completed} منتهية`}
+          </span>
+          <span className="text-sm text-muted">{d.next ? `الجاي ${timeLabel(d.next)}` : d.total > 0 ? 'خلص مواعيده' : ''}</span>
+        </button>
+      ))}
+    </div>
   )
 }
