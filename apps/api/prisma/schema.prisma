@@ -93,6 +93,7 @@ model Clinic {
   expensePayments ExpensePayment[]
   salaryEntries   SalaryEntry[]
   salaryPayments  SalaryPayment[]
+  xrays          XRay[]
   users          User[]
   doctors        Doctor[]
   workingPeriods DoctorWorkingPeriod[]
@@ -151,6 +152,7 @@ model User {
   refreshTokens RefreshToken[]
   recoveryCodes RecoveryCode[]
   salaryEntries SalaryEntry[]
+  xrays         XRay[]
 
   @@index([clinicId])
 }
@@ -211,6 +213,7 @@ model Patient {
   appointments Appointment[]
   treatments   Treatment[]
   payments     Payment[]
+  xrays        XRay[]
 
   @@unique([clinicId, nationalId])
   @@index([clinicId, phone])
@@ -327,6 +330,7 @@ model Treatment {
   teeth         TreatmentTooth[]
   sessions      Session[]
   payments      Payment[]
+  xrays         XRay[]
 
   @@index([clinicId, patientId])
   @@index([clinicId, status])
@@ -606,4 +610,27 @@ model SalaryPayment {
 
   @@index([clinicId, paidAt])
   @@index([entryId])
+}
+
+// An X-ray image added on a treatment. It also shows in the patient's record. The file itself lives in the upload folder
+// (never served without a login), only its stored name is kept here.
+model XRay {
+  id               String   @id @default(uuid()) @db.Uuid
+  clinicId         String   @db.Uuid
+  patientId        String   @db.Uuid
+  treatmentId      String   @db.Uuid
+  file             String // stored file name, unguessable
+  mime             String
+  size             Int
+  note             String?
+  uploadedByUserId String   @db.Uuid
+  createdAt        DateTime @default(now()) @db.Timestamptz(3)
+
+  clinic     Clinic    @relation(fields: [clinicId], references: [id])
+  patient    Patient   @relation(fields: [patientId], references: [id])
+  treatment  Treatment @relation(fields: [treatmentId], references: [id])
+  uploadedBy User      @relation(fields: [uploadedByUserId], references: [id])
+
+  @@index([clinicId, patientId])
+  @@index([treatmentId])
 }

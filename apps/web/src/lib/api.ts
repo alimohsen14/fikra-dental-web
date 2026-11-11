@@ -41,6 +41,7 @@ interface Options {
   method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE'
   body?: unknown
   file?: Blob // sent as the raw body (image upload), with its own content type
+  blob?: boolean // the answer is a file (an image), not JSON
   auth?: boolean // send the access token (default true)
   retried?: boolean
 }
@@ -70,6 +71,7 @@ export async function request<T>(path: string, opts: Options = {}): Promise<T> {
     if (await refreshSession()) return request<T>(path, { ...opts, retried: true })
   }
   if (!res.ok) throw await toError(res)
+  if (opts.blob) return (await res.blob()) as T
   return (res.status === 204 ? undefined : await res.json()) as T
 }
 

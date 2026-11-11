@@ -23,6 +23,7 @@ export const TENANT_MODELS = new Set([
   'ExpensePayment',
   'SalaryEntry',
   'SalaryPayment',
+  'XRay',
   'SubscriptionPeriod',
   'SubscriptionPayment',
 ]);

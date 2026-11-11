@@ -7,6 +7,7 @@ import { Card, DateText, Loading } from '../components/admin-ui.tsx'
 import { ClinicBanner } from '../components/clinic-ui.tsx'
 import { PatientFields } from '../components/PatientFields.tsx'
 import { PatientTreatments } from '../components/PatientTreatments.tsx'
+import { PatientXrays } from '../components/XraysCard.tsx'
 import { Alert, Button } from '../components/ui.tsx'
 import { canSeeTreatments } from '../lib/access.ts'
 import { ApiError } from '../lib/api.ts'
@@ -76,7 +77,8 @@ export function PatientPage() {
   const { session } = useAuth()
   const [params, setParams] = useSearchParams()
   const hasTreatments = session ? canSeeTreatments(session.user) : false
-  const tab = hasTreatments && params.get('tab') === 'treatments' ? 'treatments' : 'info'
+  const wanted = params.get('tab')
+  const tab = wanted === 'xrays' ? 'xrays' : hasTreatments && wanted === 'treatments' ? 'treatments' : 'info'
   const [asking, setAsking] = useState(false)
   const [archiveError, setArchiveError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -101,12 +103,13 @@ export function PatientPage() {
   return (
     <>
       <ClinicBanner title={patient.fullName} subtitle={archived ? 'هذا المريض بالأرشيف' : undefined} back={{ to: '/patients', label: 'رجوع للمرضى' }} />
-      {hasTreatments && (
+      {(
         <div role="tablist" aria-label="ملف المريض" className="flex gap-2">
           {(
             [
               ['info', 'البيانات'],
-              ['treatments', 'العلاجات'],
+              ...(hasTreatments ? ([['treatments', 'العلاجات']] as const) : []),
+              ['xrays', 'الأشعة'],
             ] as const
           ).map(([v, label]) => (
             <button
@@ -122,6 +125,7 @@ export function PatientPage() {
           ))}
         </div>
       )}
+      {tab === 'xrays' && <PatientXrays patientId={patient.id} />}
       {tab === 'treatments' && <PatientTreatments patientId={patient.id} birthDate={patient.birthDate} />}
       {tab === 'info' && state?.created && <Alert tone="success">تمت إضافة المريض.</Alert>}
       {tab === 'info' && state?.shared && state.shared.length > 0 && <Alert tone="warning">نفس رقم الهاتف مسجل لـ: {state.shared.join('، ')}. (طبيعي إذا كانوا من نفس العائلة.)</Alert>}

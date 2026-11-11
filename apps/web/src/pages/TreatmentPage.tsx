@@ -5,8 +5,10 @@ import { Badge, Card, DateText, Loading, Money } from '../components/admin-ui.ts
 import { AppointmentDialog } from '../components/AppointmentDialog.tsx'
 import { BannerLink, ClinicBanner } from '../components/clinic-ui.tsx'
 import { Modal } from '../components/Modal.tsx'
+import { XraysCard } from '../components/XraysCard.tsx'
 import { toothName, toothOrder } from '../lib/teeth.ts'
 import { Alert, Button, SelectField, TextAreaField, TextField } from '../components/ui.tsx'
+import { canEditTreatments } from '../lib/access.ts'
 import { ApiError } from '../lib/api.ts'
 import { listDoctors } from '../lib/appointments.ts'
 import { todayInput } from '../lib/format.ts'
@@ -407,6 +409,7 @@ export default function TreatmentPage() {
         )}
       </Card>
       <SessionsCard t={t} canEdit={canEdit} onChanged={reload} />
+      <XraysCard treatmentId={t.id} canAdd={canEditTreatments(session.user) && t.status !== 'CANCELLED'} />
       <MoneyCard t={t} isOwner={session.user.role === 'OWNER'} onChanged={reload} />
       {canEdit && canClose(t) && <CloseCard t={t} onChanged={reload} />}
     </>

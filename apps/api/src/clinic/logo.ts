@@ -29,9 +29,9 @@ export const LOGO_FILE_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0
 export const LOGO_URL_PREFIX = '/clinic/logo/';
 
 /** Reads the raw request body, at most `limit` bytes. The extra bytes of a too-big upload are thrown away, not stored. */
-export async function readBody(req: Request, limit: number): Promise<Buffer> {
+export async function readBody(req: Request, limit: number, tooBigMessage = 'الصورة كبيرة، الحد الأقصى 512 كيلوبايت'): Promise<Buffer> {
   const declared = Number(req.headers['content-length']);
-  const tooBig = () => new PayloadTooLargeException('الصورة كبيرة، الحد الأقصى 512 كيلوبايت');
+  const tooBig = () => new PayloadTooLargeException(tooBigMessage);
   if (Number.isFinite(declared) && declared > limit * 8) {
     req.destroy();
     throw tooBig();
