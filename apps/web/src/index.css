@@ -10,8 +10,9 @@
 
   --color-ink: #152437;
   --color-muted: #4a5a70;
-  --color-line: #dfe8f3;
-  --color-page: #f1f6fc;
+  /* Tinted by the clinic color (see ThemeScope); these are the values for Fikra's own blue screens. */
+  --color-line: var(--line);
+  --color-page: var(--page);
 
   /* These follow the active theme (see ThemeScope), so classes like bg-brand always match the clinic. */
   --color-brand: var(--brand);
@@ -29,6 +30,8 @@
   --brand-active: rgba(255, 255, 255, 0.2);
   --brand-tint: #e3eefb;
   --brand-dark: #033f8c;
+  --page: #f1f6fc;
+  --line: #dfe8f3;
 }
 
 html,
@@ -59,6 +62,11 @@ body {
 .print-only {
   display: none;
 }
+/* No margin = the browser has no room for its own header and footer (page title, address, date), so only the clinic's sheet is on the paper.
+   The sheet pads itself instead. */
+@page {
+  margin: 0;
+}
 @media print {
   #root {
     display: none !important;
@@ -67,6 +75,7 @@ body {
     display: block !important;
     color: #000;
     background: #fff;
+    padding: 14mm !important;
   }
   .print-only * {
     color: #000 !important;

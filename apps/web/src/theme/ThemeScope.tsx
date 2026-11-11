@@ -8,7 +8,7 @@ import { buildTheme, FIKRA_BLUE } from './color.ts'
 export function ThemeScope({ platform, color, children }: { platform?: boolean; color?: string | null; children: ReactNode }) {
   const vars = buildTheme(platform ? FIKRA_BLUE : color)
   return (
-    <div style={vars as CSSProperties} className="min-h-screen">
+    <div style={{ ...(vars as CSSProperties), background: 'var(--page)' }} className="min-h-screen">
       {children}
     </div>
   )

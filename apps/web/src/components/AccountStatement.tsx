@@ -119,10 +119,22 @@ export function AccountStatement({ statement, patientName }: { statement: Statem
   const clinic = session?.clinic
   const [printedOn, setPrintedOn] = useState(() => formatDate(new Date()))
   useEffect(() => {
-    const refresh = () => setPrintedOn(formatDate(new Date())) // the date on the paper is the day it is printed
-    window.addEventListener('beforeprint', refresh)
-    return () => window.removeEventListener('beforeprint', refresh)
-  }, [])
+    const original = document.title
+    const before = () => {
+      setPrintedOn(formatDate(new Date())) // the date on the paper is the day it is printed
+      document.title = `كشف حساب ${patientName}` // some browsers still print the page title: it must not be the app's name
+    }
+    const after = () => {
+      document.title = original
+    }
+    window.addEventListener('beforeprint', before)
+    window.addEventListener('afterprint', after)
+    return () => {
+      window.removeEventListener('beforeprint', before)
+      window.removeEventListener('afterprint', after)
+      document.title = original
+    }
+  }, [patientName])
   return (
     <>
       <Card title="كشف الحساب" hint="كل علاج حساب واحد، مهما كان عدد أسنانه وجلساته. الدفعات الملغاة بتظهر مشطوبة وما بتنحسب.">

@@ -7,11 +7,16 @@ export const STATE_STYLE: Record<ClinicState, { label: string; bg: string; fg: s
   SUSPENDED: { label: 'موقوفة', bg: '#e8ecf1', fg: '#3d4b60' },
 }
 
+/** Hand-picked colors that look good with the rest of the app (white or dark text is chosen automatically for each). */
 export const COLOR_PRESETS: { value: string; name: string }[] = [
-  { value: '#0b5d57', name: 'أخضر مزرق' },
-  { value: '#1d4ed8', name: 'أزرق' },
-  { value: '#6d3fc0', name: 'بنفسجي' },
-  { value: '#a32a3b', name: 'أحمر داكن' },
-  { value: '#b45309', name: 'برتقالي داكن' },
-  { value: '#3d4b60', name: 'رمادي أزرق' },
+  { value: '#0b5d57', name: 'تركوازي' },
+  { value: '#0f7b6c', name: 'زمردي' },
+  { value: '#2457c5', name: 'أزرق ملكي' },
+  { value: '#0b7fa8', name: 'سماوي' },
+  { value: '#1e3a5f', name: 'كحلي' },
+  { value: '#6a42c2', name: 'بنفسجي' },
+  { value: '#9b2c46', name: 'عنابي' },
+  { value: '#c0456b', name: 'وردي' },
+  { value: '#b4540a', name: 'برتقالي محروق' },
+  { value: '#3b4a5e', name: 'رمادي فحمي' },
 ]

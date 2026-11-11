@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { COLOR_PRESETS } from '../components/admin-style.ts'
 import { buildTheme, contrast, DEFAULT_CLINIC_COLOR, FIKRA_BLUE } from './color.ts'
 
 describe('buildTheme', () => {
@@ -22,5 +23,15 @@ describe('buildTheme', () => {
 
   it('uses the given fallback (Fikra blue for the platform)', () => {
     expect(buildTheme(null, FIKRA_BLUE)['--brand']).toBe(FIKRA_BLUE)
+  })
+
+  it('every preset is readable and gives a page and border color leaning toward it', () => {
+    for (const c of COLOR_PRESETS) {
+      const th = buildTheme(c.value)
+      expect(contrast(th['--on-brand']!, c.value)).toBeGreaterThanOrEqual(4.5)
+      expect(th['--page']).toMatch(/^#[0-9a-f]{6}$/)
+      expect(th['--line']).toMatch(/^#[0-9a-f]{6}$/)
+      expect(contrast(th['--page']!, '#152437')).toBeGreaterThan(12) // body text stays very readable on it
+    }
   })
 })

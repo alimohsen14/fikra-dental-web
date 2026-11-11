@@ -43,5 +43,8 @@ export function buildTheme(color: string | null | undefined, fallback = DEFAULT_
     '--brand-active': `rgba(${r}, ${g}, ${b}, ${light ? 0.2 : 0.14})`,
     '--brand-tint': toHex(mix(rgb, [255, 255, 255], 0.9)),
     '--brand-dark': toHex(mix(rgb, [0, 0, 0], 0.4)),
+    // The page and its borders lean slightly toward the clinic color, so the whole app feels like one palette instead of a colored header on a blue-grey page.
+    '--page': toHex(mix(mix(rgb, [128, 128, 128], 0.55), [255, 255, 255], 0.955)),
+    '--line': toHex(mix(mix(rgb, [128, 128, 128], 0.5), [255, 255, 255], 0.86)),
   } as Record<string, string>
 }
