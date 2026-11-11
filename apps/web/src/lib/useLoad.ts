@@ -11,7 +11,7 @@ export function useLoad<T>(fn: () => Promise<T>, deps: unknown[]) {
     setState((s) => ({ ...s, loading: true }))
     fn().then(
       (data) => !stale && setState({ data, error: null, loading: false }),
-      (e: unknown) => !stale && setState((s) => ({ data: s.data, error: e instanceof ApiError ? e.message : 'صار خطأ غير متوقع، جرب مرة ثانية', loading: false })),
+      (e: unknown) => !stale && setState((s) => ({ data: s.data, error: e instanceof ApiError ? e.message : 'حدث خطأ غير متوقع، حاول مرة أخرى', loading: false })),
     )
     return () => {
       stale = true

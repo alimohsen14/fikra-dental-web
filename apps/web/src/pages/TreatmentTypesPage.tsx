@@ -8,7 +8,7 @@ import { createTreatmentType, DEFAULT_TYPES, listTreatmentTypes, typeTree, updat
 import type { TreatmentType } from '../lib/treatments.ts'
 import { useLoad } from '../lib/useLoad.ts'
 
-const messageOf = (e: unknown) => (e instanceof ApiError ? e.message : 'صار خطأ غير متوقع، جرب مرة ثانية')
+const messageOf = (e: unknown) => (e instanceof ApiError ? e.message : 'حدث خطأ غير متوقع، حاول مرة أخرى')
 
 /** Small inline form: one name, one button. */
 function AddForm({ label, placeholder, onAdd }: { label: string; placeholder: string; onAdd: (name: string) => Promise<void> }) {
@@ -17,7 +17,7 @@ function AddForm({ label, placeholder, onAdd }: { label: string; placeholder: st
   const [error, setError] = useState<string | null>(null)
   async function submit(e: React.FormEvent) {
     e.preventDefault()
-    if (name.trim().length < 2) return setError('الاسم لازم حرفين على الأقل')
+    if (name.trim().length < 2) return setError('يجب أن يتكون الاسم من حرفين على الأقل')
     setBusy(true)
     setError(null)
     try {
@@ -130,7 +130,7 @@ export default function TreatmentTypesPage() {
 
   return (
     <>
-      <ClinicBanner title="أنواع العلاج" subtitle="نوع رئيسي (مثل تلبيسة) وتحته أنواع فرعية (زركون، بورسلان...). الدكتور بيختار النوع الفرعي لما يسجل علاج." />
+      <ClinicBanner title="أنواع العلاج" subtitle="نوع رئيسي (مثل تلبيسة) وتحته أنواع فرعية (زركون، بورسلان...). يختار الدكتور النوع الفرعي عند تسجيل العلاج." />
       {!data ? (
         <Loading error={error} />
       ) : (
@@ -139,7 +139,7 @@ export default function TreatmentTypesPage() {
             <AddForm label="اسم النوع" placeholder="مثال: حشوة" onAdd={async (name) => { await createTreatmentType(name); reload() }} />
           </Card>
           {data.length === 0 && (
-            <Card title="لسا ما في أنواع" hint="بتقدر تضيف الأنواع بنفسك، أو تبدأ بقائمة جاهزة (تجريبية) وتعدلها لما الدكتور يعطيك القائمة الحقيقية.">
+            <Card title="لا توجد أنواع بعد" hint="يمكنك إضافة الأنواع بنفسك، أو البدء بقائمة جاهزة (تجريبية) وتعديلها عندما يزوّدك الدكتور بالقائمة الحقيقية.">
               {seedError && <Alert tone="error">{seedError}</Alert>}
               <Button variant="secondary" size="sm" busy={seeding} className="self-start" onClick={() => void seed()}>
                 إضافة القائمة الجاهزة

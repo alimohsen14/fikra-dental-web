@@ -40,7 +40,7 @@ export function paidAtIso(day: string): string {
 export const todayInput = (): string => new Date().toLocaleDateString('en-CA')
 
 /** Money and treatment dates never go forward (only appointments may). */
-export const FUTURE_DAY_ERROR = 'ما بتقدر تسجل بتاريخ بالمستقبل'
+export const FUTURE_DAY_ERROR = 'لا يمكن التسجيل بتاريخ في المستقبل'
 export const isFutureDay = (day: string): boolean => day > todayInput()
 
 /** A date column from the API ("1994-06-21T00:00:00.000Z") -> "1994-06-21", never shifted by the time zone. */

@@ -23,7 +23,7 @@ export const HORIZON_DAYS = 60; // how far ahead a patient may book
 export const MAX_SELF_REGISTERED_PER_PHONE = 5;
 const HOUR = 3_600_000;
 const LIVE = ['PENDING', 'CONFIRMED'] as const;
-const INVALID_LINK = 'الرابط مش صالح أو انتهت صلاحيته. ابعث رسالة جديدة للعيادة على واتساب وبيجيك رابط جديد.';
+const INVALID_LINK = 'الرابط غير صالح أو انتهت صلاحيته. أرسل رسالة جديدة إلى العيادة عبر واتساب ليصلك رابط جديد.';
 
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
 
@@ -85,7 +85,7 @@ export class BookingService {
   async simulateIncoming(clinicId: string, phone: string) {
     if (this.provider.name !== 'dummy') throw new BadRequestException('هذا الزر للتجربة فقط');
     const r = await this.handleIncoming(clinicId, phone);
-    if (!r.sent) throw new BadRequestException('الرقم غير صالح، أو طلبات كثيرة بوقت قصير');
+    if (!r.sent) throw new BadRequestException('الرقم غير صالح، أو أن الطلبات كثيرة في وقت قصير');
     return { url: r.url };
   }
 
@@ -128,13 +128,13 @@ export class BookingService {
   private async ownPatient(c: Ctx, patientId: string) {
     // The phone is part of the filter: another phone's record simply "does not exist" for this link.
     const p = await this.tenant.db.patient.findFirst({ where: { id: patientId, phone: c.phone, archivedAt: null }, select: { id: true, fullName: true } });
-    if (!p) throw new NotFoundException('ما لقينا هذا المريض');
+    if (!p) throw new NotFoundException('لم نعثر على هذا المريض');
     return p;
   }
 
   private async ownAppointment(c: Ctx, id: string) {
     const a = await this.tenant.db.appointment.findFirst({ where: { id, patient: { phone: c.phone }, status: { in: [...LIVE] } }, select: { id: true, patientId: true, doctorId: true, startsAt: true } });
-    if (!a) throw new NotFoundException('ما لقينا هذا الموعد');
+    if (!a) throw new NotFoundException('لم نعثر على هذا الموعد');
     return a;
   }
 
@@ -159,13 +159,13 @@ export class BookingService {
   async register(token: string, dto: z.infer<typeof registerSchema>) {
     return this.scoped(token, async (c) => {
       const already = await this.tenant.db.patient.count({ where: { phone: c.phone, selfRegistered: true } });
-      if (already >= MAX_SELF_REGISTERED_PER_PHONE) throw new BadRequestException('وصلت للحد الأقصى من التسجيل، تواصل مع العيادة');
+      if (already >= MAX_SELF_REGISTERED_PER_PHONE) throw new BadRequestException('بلغت الحد الأقصى للتسجيل، تواصل مع العيادة');
       try {
         const { patient } = await this.patients.create({ ...dto, phone: c.phone }, { selfRegistered: true });
         return { id: patient.id, fullName: patient.fullName };
       } catch (e) {
         // Do not reveal that an ID number belongs to somebody else: anyone could probe IDs this way.
-        if (e instanceof ConflictException) throw new BadRequestException('ما قدرنا نسجّلك، تواصل مع العيادة');
+        if (e instanceof ConflictException) throw new BadRequestException('تعذّر تسجيلك، تواصل مع العيادة');
         throw e;
       }
     });
@@ -208,8 +208,8 @@ export class BookingService {
 
   private checkHorizon(startsAt: Date) {
     const now = Date.now();
-    if (startsAt.getTime() <= now) throw new BadRequestException('هذا الوقت فات');
-    if (startsAt.getTime() > now + HORIZON_DAYS * 24 * HOUR) throw new BadRequestException('ما بتقدر تحجز لهالبعيد');
+    if (startsAt.getTime() <= now) throw new BadRequestException('انتهى هذا الوقت');
+    if (startsAt.getTime() > now + HORIZON_DAYS * 24 * HOUR) throw new BadRequestException('لا يمكن الحجز لموعد بعيد إلى هذا الحد');
   }
 
   /** One upcoming appointment per patient. */
@@ -218,7 +218,7 @@ export class BookingService {
       await this.ownPatient(c, dto.patientId);
       this.checkHorizon(dto.startsAt);
       return this.exclusive(dto.patientId, async () => {
-        if (await this.upcoming(dto.patientId)) throw new ConflictException('عندك موعد قادم. عدّله أو الغيه أول، وبعدين بتقدر تحجز موعد جديد.');
+        if (await this.upcoming(dto.patientId)) throw new ConflictException('لديك موعد قادم. عدّله أو ألغِه أولاً، ثم يمكنك حجز موعد جديد.');
         const d = await this.doctorFor(c, dto.doctorId);
         const a = await this.appointments.create(c.user, { patientId: dto.patientId, doctorId: dto.doctorId, startsAt: dto.startsAt, durationMinutes: d.duration }, { bookedByPatient: true });
         await this.audit(c, 'PATIENT_SELF_BOOKED', a.id, { startsAt: dto.startsAt.toISOString(), doctorId: dto.doctorId });

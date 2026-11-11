@@ -5,7 +5,7 @@ describe('confirmation text', () => {
   it('is the approved wording with the clinic, patient, doctor, day, date and local time', () => {
     const t = confirmationText({ ...base, clinicName: 'النور' });
     expect(t).toBe(
-      ['مرحباً محمد مسيمي،', 'عيادة النور بتذكّرك بموعدك مع د. علي المحسن:', '📅 الثلاثاء 2026-11-03', '🕐 10:30', '', 'للتأكيد ردّ بكلمة: نعم', 'للإلغاء ردّ بكلمة: لا', '', 'شكراً لك 🌷'].join('\n'),
+      ['مرحباً محمد مسيمي،', 'تذكّرك عيادة النور بموعدك مع د. علي المحسن:', '📅 الثلاثاء 2026-11-03', '🕐 10:30', '', 'للتأكيد ردّ بكلمة: نعم', 'للإلغاء ردّ بكلمة: لا', '', 'شكراً لك 🌷'].join('\n'),
     );
   });
   it('uses the clinic time zone, not the server one', () => {

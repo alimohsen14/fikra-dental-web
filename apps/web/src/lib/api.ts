@@ -19,9 +19,9 @@ export class ApiError extends Error {
 /** A path the API returned (like /clinic/logo/x.png) -> a full address the browser can load. */
 export const assetUrl = (path: string): string => (path.startsWith('/') ? BASE + path : path)
 
-const NETWORK_ERROR = 'ما قدرنا نوصل للسيرفر، تأكد من الإنترنت وجرب مرة ثانية'
-const TOO_MANY = 'محاولات كثيرة، استنى شوي وجرب مرة ثانية'
-const GENERIC = 'صار خطأ غير متوقع، جرب مرة ثانية'
+const NETWORK_ERROR = 'تعذّر الاتصال بالخادم، تأكد من الإنترنت وحاول مرة أخرى'
+const TOO_MANY = 'محاولات كثيرة، انتظر قليلاً ثم حاول مرة أخرى'
+const GENERIC = 'حدث خطأ غير متوقع، حاول مرة أخرى'
 
 async function toError(res: Response): Promise<ApiError> {
   if (res.status === 429) return new ApiError(429, TOO_MANY)

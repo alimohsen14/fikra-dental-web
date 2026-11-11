@@ -189,12 +189,12 @@ export type NewTypePlan = { parentId: string | null; name: string; subs: string[
 export function buildNewType(f: { parentId: string; name: string; subs: string[] }): NewTypePlan | { error: string } {
   const clean = (x: string) => x.trim().replace(/\s+/g, ' ')
   const name = clean(f.name)
-  if (name.length < 2) return { error: f.parentId ? 'اكتب اسم النوع الفرعي' : 'اسم النوع لازم حرفين على الأقل' }
+  if (name.length < 2) return { error: f.parentId ? 'اكتب اسم النوع الفرعي' : 'يجب أن يتكون اسم النوع من حرفين على الأقل' }
   if (name.length > 80) return { error: 'الاسم طويل' }
   if (f.parentId) return { parentId: f.parentId, name, subs: [] }
   const subs: string[] = []
   for (const sub of f.subs.map(clean).filter((x) => x !== '')) {
-    if (sub.length < 2) return { error: 'اسم النوع الفرعي لازم حرفين على الأقل' }
+    if (sub.length < 2) return { error: 'يجب أن يتكون اسم النوع الفرعي من حرفين على الأقل' }
     if (sub.length > 80) return { error: 'اسم النوع الفرعي طويل' }
     if (!subs.includes(sub)) subs.push(sub)
   }

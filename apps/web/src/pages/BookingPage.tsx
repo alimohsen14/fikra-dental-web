@@ -13,7 +13,7 @@ import { dayTitle, timeLabel, WEEKDAYS, weekdayOf } from '../lib/schedule.ts'
 import { useLoad } from '../lib/useLoad.ts'
 import { ThemeScope } from '../theme/ThemeScope.tsx'
 
-const messageOf = (e: unknown) => (e instanceof ApiError ? e.message : 'صار خطأ غير متوقع، جرب مرة ثانية')
+const messageOf = (e: unknown) => (e instanceof ApiError ? e.message : 'حدث خطأ غير متوقع، حاول مرة أخرى')
 const dayOfMonth = (date: string) => `${WEEKDAYS[weekdayOf(date)]} ${Number(date.slice(8))}`
 const dateOfInstant = (iso: string) => new Date(iso).toLocaleDateString('en-CA', { timeZone: 'Asia/Hebron' })
 
@@ -49,7 +49,7 @@ function Home({ token, data, go, reload }: { token: string; data: BookingOvervie
     try {
       await cancelSelf(token, id)
       setAsking(null)
-      go({ name: 'done', title: 'تم إلغاء موعدك', line: 'بتقدر تحجز موعد جديد بأي وقت من نفس الرابط.' })
+      go({ name: 'done', title: 'تم إلغاء موعدك', line: 'يمكنك حجز موعد جديد في أي وقت من الرابط نفسه.' })
       reload()
     } catch (e) {
       setError(messageOf(e))
@@ -61,7 +61,7 @@ function Home({ token, data, go, reload }: { token: string; data: BookingOvervie
   return (
     <div className="flex flex-col gap-4">
       {data.patients.length === 0 ? (
-        <Card title="أهلاً فيك" hint={`ما لقينا سجل على الرقم المنتهي بـ ${data.phoneEnding}. إذا هي أول مرة بتزورنا، سجّل بياناتك وبتحجز موعدك.`}>
+        <Card title="أهلاً بك" hint={`لم نعثر على سجل للرقم المنتهي بـ ${data.phoneEnding}. إذا كانت هذه زيارتك الأولى، سجّل بياناتك ثم احجز موعدك.`}>
           <span />
         </Card>
       ) : (
@@ -76,7 +76,7 @@ function Home({ token, data, go, reload }: { token: string; data: BookingOvervie
                 {error && asking === p.appointment.id && <Alert tone="error">{error}</Alert>}
                 {asking === p.appointment.id ? (
                   <div className="flex flex-col gap-3">
-                    <p className="font-semibold">متأكد بدك تلغي الموعد؟</p>
+                    <p className="font-semibold">هل تريد إلغاء الموعد فعلاً؟</p>
                     <div className="flex gap-2">
                       <Button variant="danger" busy={busy} onClick={() => cancel(p.appointment!.id)}>
                         نعم، ألغي الموعد
@@ -97,7 +97,7 @@ function Home({ token, data, go, reload }: { token: string; data: BookingOvervie
               </>
             ) : (
               <>
-                <p className="text-sm text-muted">ما عندك موعد قادم.</p>
+                <p className="text-sm text-muted">ليس لديك موعد قادم.</p>
                 <Button onClick={() => go({ name: 'book', patientId: p.id, patientName: p.fullName })}>حجز موعد</Button>
               </>
             )}
@@ -137,12 +137,12 @@ function Register({ token, onRegistered, onBack }: { token: string; onRegistered
 
   return (
     <form onSubmit={submit} noValidate className="flex flex-col gap-5">
-      <p className="text-sm leading-7 text-muted">رقم هاتفك بيتسجل تلقائياً من واتساب.</p>
+      <p className="text-sm leading-7 text-muted">يُسجَّل رقم هاتفك تلقائياً من واتساب.</p>
       {error && <Alert tone="error">{error}</Alert>}
       <PatientFields v={v} set={set} showPhone={false} />
       <div className="flex gap-3">
         <Button type="submit" busy={busy}>
-          تسجيل ومتابعة للحجز
+          تسجيل ومتابعة الحجز
         </Button>
         <Button type="button" variant="secondary" disabled={busy} onClick={onBack}>
           رجوع
@@ -180,7 +180,7 @@ function BookFlow({ token, data, patientId, patientName, moving, onDone, onBack 
     <div className="flex flex-col gap-4">
       <p className="text-sm text-muted">{moving ? `تعديل موعد ${patientName}` : `حجز موعد لـ ${patientName}`}</p>
       {data.doctors.length === 0 ? (
-        <Alert tone="warning">ما في دكاترة متاحين للحجز حالياً، تواصل مع العيادة.</Alert>
+        <Alert tone="warning">لا يوجد أطباء متاحون للحجز حالياً، تواصل مع العيادة.</Alert>
       ) : (
         <>
           {data.doctors.length > 1 && (
@@ -208,7 +208,7 @@ function BookFlow({ token, data, patientId, patientName, moving, onDone, onBack 
               {!days.data ? (
                 <Loading error={days.error} />
               ) : days.data.days.length === 0 ? (
-                <Alert tone="warning">ما في أيام متاحة قريباً مع هالدكتور.</Alert>
+                <Alert tone="warning">لا توجد أيام متاحة قريباً مع هذا الدكتور.</Alert>
               ) : (
                 groupByMonth(days.data.days).map((g) => (
                   <div key={g.month} className="flex flex-col gap-2">
@@ -237,7 +237,7 @@ function BookFlow({ token, data, patientId, patientName, moving, onDone, onBack 
               {!slots.data ? (
                 <Loading error={slots.error} />
               ) : slots.data.slots.length === 0 ? (
-                <Alert tone="warning">انحجزت كل الأوقات بهاليوم، اختر يوم ثاني.</Alert>
+                <Alert tone="warning">حُجزت كل الأوقات في هذا اليوم، اختر يوماً آخر.</Alert>
               ) : (
                 <div className="flex flex-wrap gap-2">
                   {slots.data.slots.map((s) => (

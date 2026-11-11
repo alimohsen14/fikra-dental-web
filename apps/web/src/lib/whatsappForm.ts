@@ -15,7 +15,7 @@ export function buildWhatsappInput(f: WhatsappForm, alreadySaved: boolean): { in
   const accessToken = f.accessToken.trim()
   if (!DIGITS.test(phoneNumberId)) return { error: 'معرّف رقم الهاتف أرقام فقط (من لوحة ميتا)' }
   if (businessAccountId && !DIGITS.test(businessAccountId)) return { error: 'معرّف حساب واتساب أرقام فقط' }
-  if (!alreadySaved && !accessToken) return { error: 'لازم تدخل التوكن أول مرة' }
-  if (accessToken && accessToken.length < 20) return { error: 'التوكن قصير، تأكد إنك نسخته كامل' }
+  if (!alreadySaved && !accessToken) return { error: 'يجب إدخال الرمز (التوكن) في المرة الأولى' }
+  if (accessToken && accessToken.length < 20) return { error: 'الرمز (التوكن) قصير، تأكد من نسخه كاملاً' }
   return { input: { phoneNumberId, businessAccountId: businessAccountId || null, ...(accessToken ? { accessToken } : {}) } }
 }

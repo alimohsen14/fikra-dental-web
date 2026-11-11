@@ -84,7 +84,7 @@ export function buildAdjustment(
   if (raw === null) return { error: 'اكتب المبلغ كرقم، مثال: 200' }
   const adjustment = f.type === 'bonus' ? raw : -raw
   if (base + adjustment < 0) return { error: 'الخصم أكبر من الراتب' }
-  if (base + adjustment < alreadyGiven) return { error: `الراتب بعد التعديل أقل من اللي انعطى (${formatMoney(alreadyGiven)})` }
+  if (base + adjustment < alreadyGiven) return { error: `الراتب بعد التعديل أقل من المبلغ المصروف (${formatMoney(alreadyGiven)})` }
   return { body: { adjustment, ...(f.note.trim() ? { adjustNote: f.note.trim() } : {}) } }
 }
 

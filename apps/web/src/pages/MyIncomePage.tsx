@@ -21,7 +21,7 @@ export default function MyIncomePage() {
 
   return (
     <>
-      <ClinicBanner title="دخلي" subtitle="اللي دفعه المرضى على علاجاتك أنت بس. ما حدا غيرك بيشوفه، ولا حتى المالك." />
+      <ClinicBanner title="دخلي" subtitle="ما دفعه المرضى على علاجاتك أنت فقط. لا يراه أحد غيرك، ولا حتى المالك." />
       <div className="flex max-w-4xl flex-col gap-5">
         <Card>
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -46,7 +46,7 @@ export default function MyIncomePage() {
           </div>
           <div className="flex flex-wrap items-center gap-3 border-t border-line pt-4">
             <label htmlFor="pick-day" className="text-sm font-semibold">
-              اختر يوم معين
+              اختر يوماً معيّناً
             </label>
             <input
               id="pick-day"
@@ -72,7 +72,7 @@ export default function MyIncomePage() {
           <>
             <div className="flex flex-wrap gap-3">
               <div className="flex flex-1 basis-44 flex-col gap-1 rounded-2xl border border-line bg-white p-5">
-                <span className="text-sm text-muted">دخلي بهالفترة</span>
+                <span className="text-sm text-muted">دخلي في هذه الفترة</span>
                 <span className="text-2xl font-bold" data-testid="my-income">
                   <Money agorot={d.income} />
                 </span>
@@ -86,7 +86,7 @@ export default function MyIncomePage() {
             </div>
             <Card title="الدفعات">
               {d.payments.length === 0 ? (
-                <p className="text-muted">ما في دفعات بهالفترة.</p>
+                <p className="text-muted">لا توجد دفعات في هذه الفترة.</p>
               ) : (
                 <ul className="flex flex-col divide-y divide-line">
                   {d.payments.map((p) => (
@@ -110,7 +110,7 @@ export default function MyIncomePage() {
           </>
         )}
 
-        <Card title={`شهور ${year}`} hint={ys?.best ? `أفضل شهر: ${Number(ys.best.month.slice(5))}` : undefined}>
+        <Card title={`أشهر ${year}`} hint={ys?.best ? `أفضل شهر: ${Number(ys.best.month.slice(5))}` : undefined}>
           {!months.data || !ys ? (
             <Loading error={months.error} />
           ) : (

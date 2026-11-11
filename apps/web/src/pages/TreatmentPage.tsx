@@ -18,7 +18,7 @@ import { addPayment, canBookSession, canClose, closeTreatment, completeSession, 
 import type { PaymentMethod, PaymentRow, SessionRow, Treatment } from '../lib/treatments.ts'
 import { useLoad } from '../lib/useLoad.ts'
 
-const messageOf = (e: unknown) => (e instanceof ApiError ? e.message : 'صار خطأ غير متوقع، جرب مرة ثانية')
+const messageOf = (e: unknown) => (e instanceof ApiError ? e.message : 'حدث خطأ غير متوقع، حاول مرة أخرى')
 
 export const TreatmentBadge = ({ status }: { status: Treatment['status'] }) => <Badge label={STATUS_TEXT[status]} {...TREATMENT_STYLE[status]} />
 
@@ -40,7 +40,7 @@ function CompleteSessionModal({ t, s, onClose, onDone }: { t: Treatment; s: Sess
   return (
     <Modal title={`إنهاء الجلسة ${s.number}`} onClose={onClose}>
       <p className="text-[15px]">
-        تأكيد إنهاء الجلسة <strong>{s.number}</strong> من <strong>{t.plannedSessions}</strong> للمريض <strong>{t.patient.fullName}</strong>؟ ما بتتراجع.
+        تأكيد إنهاء الجلسة <strong>{s.number}</strong> من <strong>{t.plannedSessions}</strong> للمريض <strong>{t.patient.fullName}</strong>؟ لا يمكن التراجع عن ذلك.
       </p>
       <TextAreaField label="ملاحظات الجلسة (اختياري)" value={notes} maxLength={1000} onChange={(e) => setNotes(e.target.value)} />
       {error && <Alert tone="error">{error}</Alert>}
@@ -68,13 +68,13 @@ function CloseCard({ t, onChanged }: { t: Treatment; onChanged: () => void }) {
       await closeTreatment(t.id)
       onChanged()
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'صار خطأ غير متوقع، جرب مرة ثانية')
+      setError(e instanceof ApiError ? e.message : 'حدث خطأ غير متوقع، حاول مرة أخرى')
     } finally {
       setBusy(false)
     }
   }
   return (
-    <Card title="إغلاق العلاج" hint={left > 0 ? `باقي ${left} جلسة ما تمت: بتنحذف وبتتلغى مواعيدها لما تغلق العلاج. بعد الإغلاق ما بينعدل العلاج ولا بتنضاف عليه دفعات.` : 'بعد الإغلاق ما بينعدل العلاج ولا بتنضاف عليه دفعات.'}>
+    <Card title="إغلاق العلاج" hint={left > 0 ? `تبقّى ${left} جلسة لم تتم: ستُحذف وتُلغى مواعيدها عند إغلاق العلاج. بعد الإغلاق لا يمكن تعديل العلاج ولا إضافة دفعات عليه.` : 'بعد الإغلاق لا يمكن تعديل العلاج ولا إضافة دفعات عليه.'}>
       {error && <Alert tone="error">{error}</Alert>}
       <div>
         <Button busy={busy} onClick={() => void close()}>
@@ -92,7 +92,7 @@ function SessionsCard({ t, canEdit, onChanged }: { t: Treatment; canEdit: boolea
   const next = nextBookable(t)
   const done = sessionsDone(t)
   return (
-    <Card title="الجلسات" hint={t.status === 'OPEN' && canEdit ? 'كبس على الجلسة لما تخلص عشان تصير خضراء. بيظهر تحتها تاريخ التسكير الفعلي.' : undefined}>
+    <Card title="الجلسات" hint={t.status === 'OPEN' && canEdit ? 'اضغط على الجلسة عند إنهائها لتصبح خضراء. يظهر تحتها تاريخ الإنهاء الفعلي.' : undefined}>
       <p className="text-sm text-muted" data-testid="sessions-count">
         تمت {done} من {t.plannedSessions}
       </p>
@@ -132,7 +132,7 @@ function SessionsCard({ t, canEdit, onChanged }: { t: Treatment; canEdit: boolea
       </ol>
       {next && doctors.data && canBookSession(t) && (
         <Button className="self-start" onClick={() => setBooking(next)}>
-          احجز الجلسة الجاية
+          احجز الجلسة التالية
         </Button>
       )}
       {finishing && (
@@ -225,7 +225,7 @@ function VoidModal({ p, onClose, onDone }: { p: PaymentRow; onClose: () => void;
   return (
     <Modal title="إلغاء الدفعة" onClose={onClose}>
       <p className="text-[15px]">
-        إلغاء دفعة بقيمة <strong><Money agorot={p.amount} /></strong>؟ الدفعة بتضل ظاهرة بالسجل كملغية، والمبلغ بيرجع مطلوب.
+        إلغاء دفعة بقيمة <strong><Money agorot={p.amount} /></strong>؟ تبقى الدفعة ظاهرة في السجل كملغاة، ويعود المبلغ مطلوباً.
       </p>
       <TextAreaField label="سبب الإلغاء" value={reason} maxLength={300} onChange={(e) => setReason(e.target.value)} />
       {error && <Alert tone="error">{error}</Alert>}
@@ -251,7 +251,7 @@ function MoneyCard({ t, isOwner, onChanged }: { t: Treatment; isOwner: boolean; 
         <p className="text-[15px]">
           التكلفة المتفق عليها: <strong><Money agorot={t.totalCost} /></strong>
         </p>
-        <p className="text-sm text-muted">تفاصيل الدفعات للمالك ولمن عنده صلاحية الدفعات.</p>
+        <p className="text-sm text-muted">تفاصيل الدفعات للمالك ولمن لديه صلاحية الدفعات.</p>
       </Card>
     )
   }
@@ -282,7 +282,7 @@ function MoneyCard({ t, isOwner, onChanged }: { t: Treatment; isOwner: boolean; 
         </Button>
       )}
       {t.payments.length === 0 ? (
-        <p className="text-[15px] text-muted">ما في دفعات لسا.</p>
+        <p className="text-[15px] text-muted">لا توجد دفعات بعد.</p>
       ) : (
         <ul className="flex flex-col gap-2" aria-label="الدفعات">
           {t.payments.map((p) => (
@@ -337,9 +337,9 @@ function statusNote(t: Treatment, canEdit: boolean): { tone: 'success' | 'warnin
   if (t.status === 'CANCELLED') return { tone: 'warning', text: 'هذا العلاج ملغي.' }
   const allDone = sessionsDone(t) === t.sessions.length
   const some = sessionsDone(t) > 0
-  if (canClose(t)) return { tone: 'success', text: canEdit ? (allDone ? 'كل الجلسات تمت والمبلغ كله انستلم. تقدر تغلق العلاج.' : 'المبلغ كله انستلم. تقدر تغلق العلاج هلأ والجلسات الباقية بتنحذف.') : 'المبلغ كله انستلم. الدكتور أو المالك بيغلق العلاج.' }
-  if (t.remaining === 0 && !some) return { tone: 'warning', text: 'مدفوع بالكامل. بيظهر زر إغلاق العلاج بعد ما تتم جلسة وحدة على الأقل.' }
-  if (some && t.remaining !== undefined && t.remaining > 0) return { tone: 'warning', text: allDone ? 'كل الجلسات تمت. بيظهر زر إغلاق العلاج لما يندفع المتبقي.' : 'بيظهر زر إغلاق العلاج لما يندفع المتبقي (بتقدر تغلقه قبل ما تخلص كل الجلسات).' }
+  if (canClose(t)) return { tone: 'success', text: canEdit ? (allDone ? 'تمت كل الجلسات واستُلم المبلغ كله. يمكنك إغلاق العلاج.' : 'استُلم المبلغ كله. يمكنك إغلاق العلاج الآن وستُحذف الجلسات المتبقية.') : 'استُلم المبلغ كله. يغلق الدكتور أو المالك العلاج.' }
+  if (t.remaining === 0 && !some) return { tone: 'warning', text: 'مدفوع بالكامل. يظهر زر إغلاق العلاج بعد إتمام جلسة واحدة على الأقل.' }
+  if (some && t.remaining !== undefined && t.remaining > 0) return { tone: 'warning', text: allDone ? 'تمت كل الجلسات. يظهر زر إغلاق العلاج عند دفع المتبقي.' : 'يظهر زر إغلاق العلاج عند دفع المتبقي (يمكنك إغلاقه قبل إتمام كل الجلسات).' }
   return null
 }
 
@@ -367,7 +367,7 @@ export default function TreatmentPage() {
       {flash?.created && <Alert tone="success">تم إنشاء العلاج.</Alert>}
       {flash?.saved && <Alert tone="success">تم حفظ التعديلات.</Alert>}
       {flash?.cancelled && <Alert tone="success">تم إلغاء العلاج.</Alert>}
-      {!t.access.edit && session.user.role === 'DOCTOR' && <Alert tone="warning">هذا العلاج مسجل باسم د. {t.doctor.fullName}: بتقدر تشوفه بس ما بتقدر تعدّل عليه.</Alert>}
+      {!t.access.edit && session.user.role === 'DOCTOR' && <Alert tone="warning">هذا العلاج مسجل باسم د. {t.doctor.fullName}: يمكنك الاطلاع عليه دون تعديله.</Alert>}
       {note && <Alert tone={note.tone}>{note.text}</Alert>}
       <Card>
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[15px]">

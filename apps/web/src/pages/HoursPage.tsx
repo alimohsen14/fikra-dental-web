@@ -34,7 +34,7 @@ function Editor({ doctor, onSaved }: { doctor: Doctor; onSaved: () => void }) {
       onSaved()
       navigate('/home', { state: flashState(`تم حفظ دوام ${doctor.fullName}.`) })
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'صار خطأ غير متوقع، جرب مرة ثانية')
+      setError(e instanceof ApiError ? e.message : 'حدث خطأ غير متوقع، حاول مرة أخرى')
     } finally {
       setBusy(false)
     }
@@ -50,7 +50,7 @@ function Editor({ doctor, onSaved }: { doctor: Doctor; onSaved: () => void }) {
   )
 
   return (
-    <Card title={`دوام ${doctor.fullName}`} hint="كل يوم ممكن يكون إله فترة أو أكتر (مثلاً صباحية ومسائية). اليوم بدون فترات = إجازة. المواعيد بتنحجز كل نص ساعة.">
+    <Card title={`دوام ${doctor.fullName}`} hint="يمكن أن يكون لكل يوم فترة أو أكثر (مثلاً صباحية ومسائية). اليوم بلا فترات = إجازة. تُحجز المواعيد كل نصف ساعة.">
       <div className="flex flex-col divide-y divide-line">
         {WEEKDAYS.map((name, d) => (
           <div key={name} className="flex flex-wrap items-center gap-3 py-3">
@@ -74,7 +74,7 @@ function Editor({ doctor, onSaved }: { doctor: Doctor; onSaved: () => void }) {
         ))}
       </div>
       {error && <Alert tone="error">{error}</Alert>}
-      {done && <Alert tone="success">انحفظ دوام الدكتور.</Alert>}
+      {done && <Alert tone="success">تم حفظ دوام الدكتور.</Alert>}
       <div>
         <Button busy={busy} onClick={save}>
           حفظ الدوام
@@ -90,7 +90,7 @@ export default function HoursPage() {
   const doctor = doctors.data?.find((d) => d.id === id) ?? doctors.data?.[0]
   return (
     <>
-      <ClinicBanner title="أوقات الدوام" subtitle="حدد متى كل دكتور متاح. بدون دوام ما بينحجز عنده أي موعد." />
+      <ClinicBanner title="أوقات الدوام" subtitle="حدّد متى يتوفر كل دكتور. بدون دوام لا يمكن حجز أي موعد عنده." />
       {!doctors.data ? (
         <Loading error={doctors.error} />
       ) : (

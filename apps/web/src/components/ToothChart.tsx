@@ -212,7 +212,7 @@ export function SelectedTeeth({ teeth, onRemove, onClear }: { teeth: number[]; o
         )}
       </div>
       {teeth.length === 0 ? (
-        <p className="text-sm text-muted">كبس على السن بالمخطط لاختياره.</p>
+        <p className="text-sm text-muted">اضغط على السن في المخطط لاختياره.</p>
       ) : (
         <ul className="flex flex-wrap gap-2">
           {teeth.map((t) => (

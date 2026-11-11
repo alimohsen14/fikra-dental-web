@@ -64,7 +64,7 @@ export class JwtAuthGuard implements CanActivate {
     ) {
       throw new ForbiddenException({
         code: 'PASSWORD_CHANGE_REQUIRED',
-        message: 'لازم تغيّر كلمة المرور المؤقتة أول',
+        message: 'يجب تغيير كلمة المرور المؤقتة أولاً',
       });
     }
 

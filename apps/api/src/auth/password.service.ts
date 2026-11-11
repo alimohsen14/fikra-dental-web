@@ -28,17 +28,17 @@ export class PasswordService {
   /** Returns an error message (Arabic, shown to the user) or null if the password is acceptable. */
   validatePolicy(password: string, username: string): string | null {
     if (password.length < MIN_PASSWORD_LENGTH) {
-      return `كلمة المرور لازم تكون ${MIN_PASSWORD_LENGTH} أحرف على الأقل`;
+      return `يجب أن تتكون كلمة المرور من ${MIN_PASSWORD_LENGTH} أحرف على الأقل`;
     }
     if (password.length > 72) {
-      return 'كلمة المرور طويلة كثير (الحد الأقصى 72 حرف)';
+      return 'كلمة المرور طويلة جداً (الحد الأقصى 72 حرفاً)';
     }
     const lower = password.toLowerCase();
     if (COMMON.has(lower) || lower === username.toLowerCase()) {
-      return 'كلمة المرور سهلة التخمين، اختار غيرها';
+      return 'كلمة المرور سهلة التخمين، اختر غيرها';
     }
     if (new Set(password).size < 5) {
-      return 'كلمة المرور لازم تحتوي على أحرف متنوعة أكثر';
+      return 'يجب أن تحتوي كلمة المرور على أحرف أكثر تنوعاً';
     }
     return null;
   }

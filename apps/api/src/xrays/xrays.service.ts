@@ -37,7 +37,7 @@ export class XraysService {
     if (!treatment) throw new NotFoundException('العلاج غير موجود');
     if (treatment.status === 'CANCELLED') throw new ConflictException('العلاج ملغي');
     const kind = detectImage(data);
-    if (!kind) throw new UnsupportedMediaTypeException('الملف لازم يكون صورة (JPG أو PNG أو WEBP)');
+    if (!kind) throw new UnsupportedMediaTypeException('يجب أن يكون الملف صورة (JPG أو PNG أو WEBP)');
     const file = await this.storage.save(clinicId, data, kind);
     try {
       const row = await this.prisma.$transaction(async (tx) => {
@@ -76,7 +76,7 @@ export class XraysService {
   async remove(user: AuthUser, id: string) {
     const x = await this.tenant.db.xRay.findUnique({ where: { id }, select: { file: true, uploadedByUserId: true, treatmentId: true } });
     if (!x) throw new NotFoundException('الصورة غير موجودة');
-    if (user.role !== 'OWNER' && x.uploadedByUserId !== user.id) throw new ForbiddenException('بتقدر تحذف الأشعة اللي أضفتها أنت بس');
+    if (user.role !== 'OWNER' && x.uploadedByUserId !== user.id) throw new ForbiddenException('يمكنك حذف الأشعة التي أضفتها أنت فقط');
     const clinicId = user.clinicId!;
     await this.prisma.$transaction(async (tx) => {
       await tx.xRay.deleteMany({ where: { id, clinicId } });

@@ -42,7 +42,7 @@ export function StatusCards({ list, value, onChange }: { list: Pick<Appointment,
 
 export const StatusBadge = ({ a }: { a: Appointment }) => <Badge label={STATUS_LABELS[a.status]} {...STATUS_STYLE[a.status]} />
 
-const message = (e: unknown) => (e instanceof ApiError ? e.message : 'صار خطأ غير متوقع، جرب مرة ثانية')
+const message = (e: unknown) => (e instanceof ApiError ? e.message : 'حدث خطأ غير متوقع، حاول مرة أخرى')
 
 function CancelModal({ a, onClose, onDone }: { a: Appointment; onClose: () => void; onDone: () => void }) {
   const [reason, setReason] = useState('')
@@ -62,7 +62,7 @@ function CancelModal({ a, onClose, onDone }: { a: Appointment; onClose: () => vo
   return (
     <Modal title="إلغاء الموعد" onClose={onClose}>
       <p className="text-[15px]">
-        إلغاء موعد <strong>{a.patient.fullName}</strong> الساعة <bdi dir="ltr">{timeLabel(a.startsAt)}</bdi>؟ الموعد بيضل بالسجل كملغي، والوقت بيرجع متاح.
+        إلغاء موعد <strong>{a.patient.fullName}</strong> الساعة <bdi dir="ltr">{timeLabel(a.startsAt)}</bdi>؟ يبقى الموعد في السجل كملغى، ويعود الوقت متاحاً.
       </p>
       <TextAreaField label="سبب الإلغاء (اختياري)" value={reason} maxLength={300} onChange={(e) => setReason(e.target.value)} />
       {error && <Alert tone="error">{error}</Alert>}
@@ -122,7 +122,7 @@ export function AppointmentCard({ a, onChanged, onEdit, showDoctor = true, showD
           {a.patient.fullName}
         </Link>
         <StatusBadge a={a} />
-        {a.overdue && <Badge label={a.status === 'PENDING' ? 'فات موعده ولا انأكد' : 'مرّ وقته ولا انفتح له علاج'} bg="#fff1d6" fg="#7a4b00" />}
+        {a.overdue && <Badge label={a.status === 'PENDING' ? 'فات موعده ولم يُؤكَّد' : 'مرّ وقته ولم يُفتح له علاج'} bg="#fff1d6" fg="#7a4b00" />}
         {a.patient.medicalAlerts && <Badge label="تنبيه طبي" bg="#fde8e8" fg="#9b1c1c" />}
         {a.bookedByPatient && <Badge label="حجز ذاتي عبر واتساب" bg="#e3f5ea" fg="#0b6b3a" />}
         {a.patient.selfRegistered && <Badge label="مسجّل ذاتياً" bg="#efe6fb" fg="#4b2a86" />}
@@ -135,7 +135,7 @@ export function AppointmentCard({ a, onChanged, onEdit, showDoctor = true, showD
       {a.notes && <p className="text-sm">{a.notes}</p>}
       {finishedOnOtherDay(a, (iso) => localParts(iso).date) && (
         <p className="text-sm text-muted">
-          انتهى بتاريخ {finishedOnOtherDay(a, (iso) => localParts(iso).date)} ({a.completedAt && a.completedAt < a.startsAt ? 'المريض إجا قبل موعده' : 'انسجل بعد موعده'}).
+          انتهى بتاريخ {finishedOnOtherDay(a, (iso) => localParts(iso).date)} ({a.completedAt && a.completedAt < a.startsAt ? 'حضر المريض قبل موعده' : 'سُجّل بعد موعده'}).
         </p>
       )}
       {a.status === 'CANCELLED' && a.cancelReason && <p className="text-sm text-muted">سبب الإلغاء: {a.cancelReason}</p>}
@@ -208,7 +208,7 @@ export function AppointmentCard({ a, onChanged, onEdit, showDoctor = true, showD
 /** One card per doctor for today (owner and secretary). Pressing a card shows only that doctor's appointments; pressing it again shows all. */
 export function DoctorCards({ days, value, onChange }: { days: DoctorDay[]; value: string | null; onChange: (id: string | null) => void }) {
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3" role="group" aria-label="الدكاترة" data-testid="doctor-cards">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3" role="group" aria-label="الأطباء" data-testid="doctor-cards">
       {days.map((d) => (
         <button
           key={d.doctor.id}
@@ -220,9 +220,9 @@ export function DoctorCards({ days, value, onChange }: { days: DoctorDay[]; valu
         >
           <span className="font-bold">{d.doctor.fullName}</span>
           <span className="text-sm text-muted">
-            {d.total === 0 ? 'ما عنده مواعيد اليوم' : `${d.total} مواعيد اليوم · ${d.completed} منتهية`}
+            {d.total === 0 ? 'لا مواعيد له اليوم' : `${d.total} مواعيد اليوم · ${d.completed} منتهية`}
           </span>
-          <span className="text-sm text-muted">{d.next ? `الجاي ${timeLabel(d.next)}` : d.total > 0 ? 'خلص مواعيده' : ''}</span>
+          <span className="text-sm text-muted">{d.next ? `التالي ${timeLabel(d.next)}` : d.total > 0 ? 'أنهى مواعيده' : ''}</span>
         </button>
       ))}
     </div>

@@ -9,7 +9,7 @@ import { ApiError, assetUrl } from '../lib/api.ts'
 import { flashState } from '../lib/flash.ts'
 import { checkLogoFile, removeClinicLogo, saveClinicSettings, uploadClinicLogo } from '../lib/clinicSettings.ts'
 
-const messageOf = (e: unknown) => (e instanceof ApiError ? e.message : 'صار خطأ غير متوقع، جرب مرة ثانية')
+const messageOf = (e: unknown) => (e instanceof ApiError ? e.message : 'حدث خطأ غير متوقع، حاول مرة أخرى')
 
 export default function SettingsPage() {
   const { session } = useAuth()
@@ -46,7 +46,7 @@ export default function SettingsPage() {
     setLogo({ busy: true })
     try {
       await uploadClinicLogo(file)
-      setLogo({ ok: 'تم رفع اللوغو.' })
+      setLogo({ ok: 'تم رفع الشعار.' })
     } catch (err) {
       setLogo({ error: messageOf(err) })
     }
@@ -56,7 +56,7 @@ export default function SettingsPage() {
     setLogo({ busy: true })
     try {
       await removeClinicLogo()
-      setLogo({ ok: 'تم حذف اللوغو.' })
+      setLogo({ ok: 'تم حذف الشعار.' })
     } catch (err) {
       setLogo({ error: messageOf(err) })
     }
@@ -64,34 +64,34 @@ export default function SettingsPage() {
 
   return (
     <>
-      <ClinicBanner title="الإعدادات" subtitle="هوية عيادتك: الاسم واللون واللوغو، بتظهر لكل موظفي العيادة." />
+      <ClinicBanner title="الإعدادات" subtitle="هوية عيادتك: الاسم واللون والشعار، وتظهر لجميع موظفي العيادة." />
       <div className="flex max-w-3xl flex-col gap-5">
-        <Card title="اللوغو" hint="PNG أو JPG أو WebP، حتى 512 كيلوبايت. الأفضل صورة مربعة بخلفية شفافة أو بيضاء.">
+        <Card title="الشعار" hint="PNG أو JPG أو WebP، حتى 512 كيلوبايت. الأفضل صورة مربعة بخلفية شفافة أو بيضاء.">
           <div className="flex flex-wrap items-center gap-5">
             {clinic.logoUrl ? (
-              <img src={assetUrl(clinic.logoUrl)} alt={`لوغو ${clinic.name}`} className="size-24 rounded-2xl border border-line bg-white object-contain p-1" />
+              <img src={assetUrl(clinic.logoUrl)} alt={`شعار ${clinic.name}`} className="size-24 rounded-2xl border border-line bg-white object-contain p-1" />
             ) : (
               <span className="inline-flex size-24 items-center justify-center rounded-2xl bg-brand text-4xl font-bold text-on-brand">{clinic.name.charAt(0)}</span>
             )}
             <div className="flex flex-col gap-3">
               <div className="flex flex-wrap gap-2">
                 <Button type="button" size="sm" busy={logo.busy} onClick={() => fileInput.current?.click()}>
-                  {clinic.logoUrl ? 'تغيير اللوغو' : 'رفع لوغو'}
+                  {clinic.logoUrl ? 'تغيير الشعار' : 'رفع شعار'}
                 </Button>
                 {clinic.logoUrl && (
                   <Button type="button" size="sm" variant="secondary" disabled={logo.busy} onClick={() => void deleteLogo()}>
-                    حذف اللوغو
+                    حذف الشعار
                   </Button>
                 )}
               </div>
-              <input ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" aria-label="اختيار ملف اللوغو" onChange={(e) => void pickLogo(e)} />
+              <input ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" aria-label="اختيار ملف الشعار" onChange={(e) => void pickLogo(e)} />
             </div>
           </div>
           {logo.error && <Alert tone="error">{logo.error}</Alert>}
           {logo.ok && <Alert tone="success">{logo.ok}</Alert>}
         </Card>
 
-        <Card title="الاسم واللون" hint="اللون بيظهر بالشريط الجانبي والأزرار والعناوين لكل الموظفين.">
+        <Card title="الاسم واللون" hint="يظهر اللون في الشريط الجانبي والأزرار والعناوين لجميع الموظفين.">
           <form onSubmit={saveIdentity} noValidate className="flex flex-col gap-4">
             {identity.error && <Alert tone="error">{identity.error}</Alert>}
             {identity.ok && <Alert tone="success">تم الحفظ.</Alert>}

@@ -40,5 +40,5 @@ export function buildStaffUpdate(
   if (phone !== (member.phone ?? '')) input.phone = phone || null
   if (member.doctor && specialty !== (member.doctor.specialty ?? '')) input.specialty = specialty || null
   if (f.canManagePayments !== member.canManagePayments) input.canManagePayments = f.canManagePayments
-  return Object.keys(input).length === 0 ? { error: 'ما غيّرت أي شي' } : { input }
+  return Object.keys(input).length === 0 ? { error: 'لم تُجرِ أي تغيير' } : { input }
 }

@@ -100,7 +100,7 @@ export class AuthService {
       if (!user.totpEnabledAt || !user.totpSecret) {
         throw new ForbiddenException({
           code: 'TWO_FACTOR_NOT_SET_UP',
-          message: 'حساب الأدمن بدون تحقق بخطوتين، أنشئه من جديد بالسكربت',
+          message: 'حساب مدير المنصة بلا تحقق بخطوتين، أنشئه من جديد عبر السكربت',
         });
       }
       // The failed-attempt counter is NOT reset here, only after the code is accepted.
@@ -216,7 +216,7 @@ export class AuthService {
     if (!ok) throw new BadRequestException('كلمة المرور الحالية غير صحيحة');
 
     if (currentPassword === newPassword) {
-      throw new BadRequestException('كلمة المرور الجديدة لازم تكون مختلفة عن الحالية');
+      throw new BadRequestException('يجب أن تختلف كلمة المرور الجديدة عن الحالية');
     }
     const policyError = this.passwords.validatePolicy(newPassword, user.username);
     if (policyError) throw new BadRequestException(policyError);

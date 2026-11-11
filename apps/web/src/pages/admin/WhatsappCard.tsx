@@ -8,7 +8,7 @@ import { ApiError } from '../../lib/api.ts'
 import { useLoad } from '../../lib/useLoad.ts'
 import { buildWhatsappInput } from '../../lib/whatsappForm.ts'
 
-const messageOf = (e: unknown) => (e instanceof ApiError ? e.message : 'صار خطأ غير متوقع، جرب مرة ثانية')
+const messageOf = (e: unknown) => (e instanceof ApiError ? e.message : 'حدث خطأ غير متوقع، حاول مرة أخرى')
 
 function Form({ clinicId, saved, onSaved }: { clinicId: string; saved: WhatsappSettings; onSaved: (s: WhatsappSettings) => void }) {
   const [phoneNumberId, setPhoneNumberId] = useState(saved.phoneNumberId ?? '')
@@ -60,7 +60,7 @@ function Form({ clinicId, saved, onSaved }: { clinicId: string; saved: WhatsappS
         autoComplete="off"
         dir="ltr"
         className="text-right"
-        hint={saved.configured ? 'التوكن محفوظ ومشفّر. اتركه فاضي إذا ما بدك تغيّره.' : 'بيتخزّن مشفّر وما بيظهر مرة ثانية.'}
+        hint={saved.configured ? 'الرمز (التوكن) محفوظ ومشفّر. اتركه فارغاً إذا لم ترد تغييره.' : 'يُخزَّن مشفّراً ولا يظهر مرة أخرى.'}
         value={accessToken}
         onChange={(e) => setAccessToken(e.target.value)}
       />
@@ -86,7 +86,7 @@ export function WhatsappCard({ clinicId }: { clinicId: string }) {
   const [override, setOverride] = useState<WhatsappSettings | null>(null)
   const saved = override ?? q.data
   return (
-    <Card title="رقم واتساب العيادة" hint="الرسائل بتنرسل من هذا الرقم. بس إنت بتعدّله.">
+    <Card title="رقم واتساب العيادة" hint="تُرسل الرسائل من هذا الرقم. وأنت وحدك من يعدّله.">
       {!saved ? (
         q.error ? <Alert tone="error">{q.error}</Alert> : <Loading />
       ) : (

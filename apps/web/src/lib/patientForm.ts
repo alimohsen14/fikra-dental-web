@@ -51,6 +51,6 @@ export function buildPatientBody(v: PatientFormValues, original?: PatientFormVal
       if (now !== original[k].trim()) body[k] = now
     } else if (now) body[k] = now
   }
-  if (original && Object.keys(body).length === 0) return { error: 'ما في تغيير لحفظه' }
+  if (original && Object.keys(body).length === 0) return { error: 'لا يوجد تغيير للحفظ' }
   return { body }
 }

@@ -81,14 +81,14 @@ export function messageLine(a: Pick<Appointment, 'status' | 'confirmationMessage
   if (a.status !== 'PENDING' && a.status !== 'CONFIRMED' && a.status !== 'CANCELLED') return null
   const m = a.confirmationMessage
   if (m) {
-    if (m.response === 'YES') return { text: 'المريض ردّ بواتساب: نعم، بيجي', tone: 'good' }
-    if (m.response === 'NO') return { text: 'المريض ردّ بواتساب: لا، ما بيجي', tone: 'bad' }
+    if (m.response === 'YES') return { text: 'ردّ المريض عبر واتساب: نعم، سيحضر', tone: 'good' }
+    if (m.response === 'NO') return { text: 'ردّ المريض عبر واتساب: لا، لن يحضر', tone: 'bad' }
     if (a.status === 'CANCELLED') return null
     if (m.status === 'FAILED') return { text: 'فشل إرسال رسالة التأكيد', tone: 'bad' }
     if (m.status === 'SCHEDULED') return { text: 'رسالة التأكيد قيد الإرسال', tone: 'info' }
-    return { text: `انرسلت رسالة التأكيد ${m.sentAt ? when(m.sentAt) : ''}${a.status === 'PENDING' ? ' · بانتظار رد المريض' : ''}`.trim(), tone: 'info' }
+    return { text: `أُرسلت رسالة التأكيد ${m.sentAt ? when(m.sentAt) : ''}${a.status === 'PENDING' ? ' · بانتظار رد المريض' : ''}`.trim(), tone: 'info' }
   }
-  if (a.status === 'PENDING' && a.messageDueAt) return { text: `بتنرسل رسالة التأكيد ${when(a.messageDueAt)}`, tone: 'warn' }
+  if (a.status === 'PENDING' && a.messageDueAt) return { text: `ستُرسل رسالة التأكيد ${when(a.messageDueAt)}`, tone: 'warn' }
   return null
 }
 

@@ -70,7 +70,7 @@ export default function ClinicLayout() {
                   <Icon name="warning" />
                 </span>
                 <span>
-                  <strong>انتهى اشتراك عيادتك.</strong> باقي لك {daysLabel(subscriptionWarning.graceDaysLeft)} قبل ما يتوقف الدخول لكل الموظفين. تواصل مع الدعم لتجديد الاشتراك.
+                  <strong>انتهى اشتراك عيادتك.</strong> تبقّى لك {daysLabel(subscriptionWarning.graceDaysLeft)} قبل توقف الدخول لجميع الموظفين. تواصل مع الدعم لتجديد الاشتراك.
                 </span>
               </span>
             </Alert>

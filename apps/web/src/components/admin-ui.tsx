@@ -127,7 +127,7 @@ export function SecretBox({ title, username, password, expiresAt, who = 'للم�
         </div>
       </div>
       <p className="rounded-xl bg-[#fff1d6] px-3.5 py-3 text-sm leading-7 text-[#5c3600]">
-        انسخها الآن وأرسلها {who}. <strong>ما رح تظهر مرة تانية.</strong> صالحة لغاية <DateText value={expiresAt} />، وبيغيّرها أول ما يدخل.
+        انسخها الآن وأرسلها {who}. <strong>لن تظهر مرة أخرى.</strong> صالحة حتى <DateText value={expiresAt} />، وسيغيّرها عند أول دخول.
       </p>
     </section>
   )

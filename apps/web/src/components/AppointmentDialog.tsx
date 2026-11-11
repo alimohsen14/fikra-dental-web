@@ -52,7 +52,7 @@ export function AppointmentDialog({ doctors, edit, forSession, initialDate, init
       else await createAppointment({ patientId: patient.id, doctorId, startsAt, durationMinutes: duration, ...(notes.trim() ? { notes: notes.trim() } : {}) })
       onSaved()
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'صار خطأ غير متوقع، جرب مرة ثانية')
+      setError(e instanceof ApiError ? e.message : 'حدث خطأ غير متوقع، حاول مرة أخرى')
       setBusy(false)
       day.reload() // somebody may have taken the time meanwhile
     }
@@ -106,7 +106,7 @@ export function AppointmentDialog({ doctors, edit, forSession, initialDate, init
               }}
               className={`h-11 cursor-pointer rounded-full border px-5 text-sm font-semibold ${duration === m ? 'border-brand bg-brand text-on-brand' : 'border-line bg-white'}`}
             >
-              {m === 30 ? 'نص ساعة' : 'ساعة'}
+              {m === 30 ? 'نصف ساعة' : 'ساعة'}
             </button>
           ))}
         </div>
@@ -117,13 +117,13 @@ export function AppointmentDialog({ doctors, edit, forSession, initialDate, init
           <p className="text-sm text-muted">اختر يوماً صحيحاً.</p>
         ) : noHours ? (
           <Alert tone="warning">
-            هذا الدكتور ما إله أوقات دوام، فما بنقدر نحجز عنده.{' '}
-            {session?.user.role === 'OWNER' ? <Link to="/hours" className="font-bold underline">حدد أوقات الدوام</Link> : 'اطلب من المالك يحدد أوقات الدوام.'}
+            ليس لهذا الدكتور أوقات دوام، لذلك لا يمكن الحجز عنده.{' '}
+            {session?.user.role === 'OWNER' ? <Link to="/hours" className="font-bold underline">حدد أوقات الدوام</Link> : 'اطلب من المالك تحديد أوقات الدوام.'}
           </Alert>
         ) : !day.data ? (
           <p className="text-sm text-muted">جاري التحميل...</p>
         ) : slots.length === 0 ? (
-          <p className="text-sm text-muted">ما في أوقات متاحة بهذا اليوم. جرب يوماً ثانياً أو مدة أقصر.</p>
+          <p className="text-sm text-muted">لا توجد أوقات متاحة في هذا اليوم. جرّب يوماً آخر أو مدة أقصر.</p>
         ) : (
           <div className="flex flex-wrap gap-2">
             {slots.map((s) => (

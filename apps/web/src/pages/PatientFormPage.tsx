@@ -17,7 +17,7 @@ import { createPatient, getPatient, setPatientArchived, updatePatient } from '..
 import type { Patient } from '../lib/patients.ts'
 import { useLoad } from '../lib/useLoad.ts'
 
-const messageOf = (e: unknown) => (e instanceof ApiError ? e.message : 'صار خطأ غير متوقع، جرب مرة ثانية')
+const messageOf = (e: unknown) => (e instanceof ApiError ? e.message : 'حدث خطأ غير متوقع، حاول مرة أخرى')
 
 function PatientForm({ patient, onSaved }: { patient?: Patient; onSaved: (p: Patient, shared: string[]) => void }) {
   const original = patient ? patientToForm(patient) : undefined
@@ -135,9 +135,9 @@ export function PatientPage() {
         patient={patient}
         onSaved={(p) => navigate('/patients', { state: flashState(`تم حفظ تعديلات ${p.fullName}.`) })}
       />
-      <Card title={archived ? 'إرجاع من الأرشيف' : 'أرشفة المريض'} hint={archived ? 'بيرجع يظهر بقائمة المرضى.' : 'المريض ما بينحذف أبداً، بس بيختفي من القائمة العادية وبتلاقيه بتبويب الأرشيف.'}>
+      <Card title={archived ? 'إرجاع من الأرشيف' : 'أرشفة المريض'} hint={archived ? 'يعود إلى الظهور في قائمة المرضى.' : 'لا يُحذف المريض أبداً، بل يختفي من القائمة العادية ويمكنك إيجاده في تبويب الأرشيف.'}>
         <p className="text-[13px] text-muted">
-          أضيف بتاريخ <DateText value={patient.createdAt} />
+          أُضيف بتاريخ <DateText value={patient.createdAt} />
         </p>
         {archiveError && <Alert tone="error">{archiveError}</Alert>}
         {asking || archived ? (

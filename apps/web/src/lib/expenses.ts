@@ -149,7 +149,7 @@ export function buildExpenseBody(f: ExpenseForm): { error: string } | { body: Re
   if (f.paid === 'part') {
     const p = parseShekels(f.paidAmount)
     if (p === null || p < 1) return { error: 'اكتب المبلغ المدفوع كرقم' }
-    if (p >= amount) return { error: 'المدفوع لازم يكون أقل من المبلغ الكامل (أو اختر "مدفوع كامل")' }
+    if (p >= amount) return { error: 'يجب أن يكون المدفوع أقل من المبلغ الكامل (أو اختر «مدفوع كامل»)' }
     paidAmount = p
   }
   if (f.paid !== 'none' && !f.method) return { error: 'اختر طريقة الدفع' }

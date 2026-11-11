@@ -26,7 +26,7 @@ function Picture({ id, className, alt }: { id: string; className?: string; alt: 
       if (made) URL.revokeObjectURL(made)
     }
   }, [id])
-  if (failed) return <span className={`flex items-center justify-center bg-page text-sm text-muted ${className ?? ''}`}>ما انفتحت الصورة</span>
+  if (failed) return <span className={`flex items-center justify-center bg-page text-sm text-muted ${className ?? ''}`}>تعذّر فتح الصورة</span>
   if (!url) return <span className={`block animate-pulse bg-page ${className ?? ''}`} />
   return <img src={url} alt={alt} className={className} />
 }
@@ -42,7 +42,7 @@ function Viewer({ x, canDelete, showTreatment, onClose, onDeleted }: { x: Xray; 
       await deleteXray(x.id)
       onDeleted()
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'صار خطأ غير متوقع، جرب مرة ثانية')
+      setError(e instanceof ApiError ? e.message : 'حدث خطأ غير متوقع، حاول مرة أخرى')
       setBusy(false)
     }
   }
@@ -51,7 +51,7 @@ function Viewer({ x, canDelete, showTreatment, onClose, onDeleted }: { x: Xray; 
       <Picture id={x.id} alt={x.note ?? 'أشعة'} className="max-h-[70vh] w-full rounded-xl bg-black object-contain" />
       <div className="flex flex-col gap-1 text-sm">
         <span>
-          أضيفت بتاريخ <DateText value={x.createdAt} /> · {x.uploadedBy.fullName} · {sizeLabel(x.size)}
+          أُضيفت بتاريخ <DateText value={x.createdAt} /> · {x.uploadedBy.fullName} · {sizeLabel(x.size)}
         </span>
         {x.note && <span className="font-semibold">{x.note}</span>}
         {showTreatment && (
@@ -64,9 +64,9 @@ function Viewer({ x, canDelete, showTreatment, onClose, onDeleted }: { x: Xray; 
       {canDelete &&
         (asking ? (
           <div className="flex flex-wrap items-center gap-3">
-            <span className="text-sm">بدك تحذف الصورة نهائياً؟</span>
+            <span className="text-sm">هل تريد حذف الصورة نهائياً؟</span>
             <Button variant="danger" size="sm" busy={busy} onClick={remove}>
-              أيوه، احذف
+              نعم، احذف
             </Button>
             <Button variant="secondary" size="sm" onClick={() => setAsking(false)}>
               لا
@@ -84,7 +84,7 @@ function Viewer({ x, canDelete, showTreatment, onClose, onDeleted }: { x: Xray; 
 /** Thumbnails newest first, each with the day it was added. `canDelete` decides per picture (the owner, or whoever added it). */
 export function XrayGallery({ items, canDelete, showTreatment = false, onChanged }: { items: Xray[]; canDelete: (x: Xray) => boolean; showTreatment?: boolean; onChanged: () => void }) {
   const [open, setOpen] = useState<Xray | null>(null)
-  if (items.length === 0) return <p className="text-muted">ما في صور أشعة.</p>
+  if (items.length === 0) return <p className="text-muted">لا توجد صور أشعة.</p>
   return (
     <>
       <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4" data-testid="xray-list">

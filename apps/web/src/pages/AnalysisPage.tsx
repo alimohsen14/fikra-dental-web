@@ -116,7 +116,7 @@ export default function AnalysisPage() {
 
   return (
     <>
-      <ClinicBanner title="تحليل" subtitle="شو صار بالشهور الأخيرة: الدخل والمصاريف والربح، وأي شهر كان الأفضل." />
+      <ClinicBanner title="تحليل" subtitle="ماذا حدث في الأشهر الأخيرة: الدخل والمصاريف والربح، وأي شهر كان الأفضل." />
       <div className="flex max-w-4xl flex-col gap-5">
         {!shown || !oldestFirst ? (
           <Loading error={error} />
@@ -129,10 +129,10 @@ export default function AnalysisPage() {
                     {monthName(best.month)} · <Money agorot={best.profit} />
                   </>
                 ) : (
-                  <span className="text-muted">لسا ما في شهر فيه ربح</span>
+                  <span className="text-muted">لا يوجد شهر فيه ربح بعد</span>
                 )}
               </Tile>
-              <Tile label="متوسط الربح بالشهر" testId="avg-profit">
+              <Tile label="متوسط الربح الشهري" testId="avg-profit">
                 <Money agorot={averageProfit(oldestFirst)} />
               </Tile>
             </div>
@@ -151,16 +151,16 @@ export default function AnalysisPage() {
               </div>
             </Card>
 
-            <Card title="الربح كل شهر" hint="شهور السنة كلها، من 1 (كانون الثاني) إلى 12 (كانون الأول). الربح = اللي قبضناه من المرضى − اللي دفعناه (مصاريف + رواتب وسلف). الأخضر ربح والأحمر خسارة. مرّر أو اضغط على أي شهر لتشوف أرقامه.">
+            <Card title="الربح كل شهر" hint="أشهر السنة كلها، من 1 (كانون الثاني) إلى 12 (كانون الأول). الربح = ما قبضناه من المرضى − ما دفعناه (مصاريف + رواتب وسلف). الأخضر ربح والأحمر خسارة. مرّر أو اضغط على أي شهر لترى أرقامه.">
               <ProfitChart key={year} rows={allMonths} best={best} />
             </Card>
 
-            <Card title="مقارنة الشهور" hint="شهور هالسنة جنب بعض، من أول نشاط لحد اليوم.">
+            <Card title="مقارنة الأشهر" hint="أشهر هذه السنة جنباً إلى جنب، من أول نشاط حتى اليوم.">
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[34rem] text-sm" data-testid="months-table">
                   <thead>
                     <tr className="border-b border-line text-muted">
-                      {['الشهر', 'الدخل', 'مصاريف', 'رواتب وسلف', 'الربح', 'عن الشهر اللي قبله'].map((h) => (
+                      {['الشهر', 'الدخل', 'مصاريف', 'رواتب وسلف', 'الربح', 'مقارنة بالشهر السابق'].map((h) => (
                         <th key={h} className="py-2 text-start font-semibold">
                           {h}
                         </th>
@@ -178,7 +178,7 @@ export default function AnalysisPage() {
                           <td className="py-2"><Money agorot={r.salariesPaid} /></td>
                           <td className="py-2 font-bold" style={{ color: r.profit >= 0 ? GOOD : BAD }}><Money agorot={r.profit} /></td>
                           <td className="py-2 text-muted">
-                            {change === null ? '-' : change === 0 ? 'نفسه' : (
+                            {change === null ? '-' : change === 0 ? 'دون تغيير' : (
                               <span style={{ color: change > 0 ? GOOD : BAD }}>
                                 {change > 0 ? '▲' : '▼'} <Money agorot={Math.abs(change)} />
                               </span>

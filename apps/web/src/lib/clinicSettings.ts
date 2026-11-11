@@ -7,9 +7,9 @@ const LOGO_TYPES = ['image/png', 'image/jpeg', 'image/webp']
 
 /** Checks a picked logo file before uploading. Returns an Arabic problem, or null when it is fine. (The server checks again.) */
 export function checkLogoFile(f: { type: string; size: number }): string | null {
-  if (!LOGO_TYPES.includes(f.type)) return 'الصورة لازم تكون PNG أو JPG أو WebP'
+  if (!LOGO_TYPES.includes(f.type)) return 'يجب أن تكون الصورة بصيغة PNG أو JPG أو WebP'
   if (f.size > LOGO_MAX_BYTES) return 'الصورة كبيرة، الحد الأقصى 512 كيلوبايت'
-  if (f.size === 0) return 'الملف فاضي'
+  if (f.size === 0) return 'الملف فارغ'
   return null
 }
 

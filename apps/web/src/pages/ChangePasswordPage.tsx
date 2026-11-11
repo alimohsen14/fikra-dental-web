@@ -32,7 +32,7 @@ export default function ChangePasswordPage() {
     try {
       await changePassword(current, next)
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'صار خطأ غير متوقع، جرب مرة ثانية')
+      setError(err instanceof ApiError ? err.message : 'حدث خطأ غير متوقع، حاول مرة أخرى')
     } finally {
       setBusy(false)
     }
@@ -40,11 +40,11 @@ export default function ChangePasswordPage() {
 
   return (
     <ThemeScope platform>
-      <AuthShell panelTitle="خطوة أخيرة لتأمين حسابك" panelText="كلمة المرور الحالية مؤقتة وعرفها غيرك. اختار كلمة جديدة بتعرفها إنت بس، وبعدها بتدخل على النظام.">
+      <AuthShell panelTitle="خطوة أخيرة لتأمين حسابك" panelText="كلمة المرور الحالية مؤقتة وقد يعرفها غيرك. اختر كلمة جديدة لا يعرفها سواك، ثم ادخل إلى النظام.">
         <form onSubmit={submit} className="flex flex-col gap-7">
           <div className="flex flex-col gap-2">
             <h1 className="text-3xl font-bold">تغيير كلمة المرور</h1>
-            <p className="text-base leading-7 text-muted">أهلاً {session.user.fullName}، لازم تغيّر كلمة المرور المؤقتة قبل ما تكمل.</p>
+            <p className="text-base leading-7 text-muted">أهلاً {session.user.fullName}، يجب تغيير كلمة المرور المؤقتة قبل المتابعة.</p>
           </div>
           {error && <Alert tone="error">{error}</Alert>}
           <div className="flex flex-col gap-4">

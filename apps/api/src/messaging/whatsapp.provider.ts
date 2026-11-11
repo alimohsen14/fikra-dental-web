@@ -35,7 +35,7 @@ export class DummyWhatsAppProvider implements WhatsAppProvider {
   async sendConfirmation(msg: OutgoingConfirmation): Promise<{ messageId: string }> {
     if (this.failNext) {
       this.failNext = false;
-      throw new Error('الإرسال فشل (تجريبي)');
+      throw new Error('فشل الإرسال (تجريبي)');
     }
     this.sent.push(msg);
     if (this.sent.length > 200) this.sent.shift();

@@ -56,5 +56,5 @@ export function endedNote(r: ClinicRow): { text: string; color: string } {
   const since = r.daysSinceEnd ?? 0
   const ago = since === 0 ? 'انتهى اليوم' : `انتهى قبل ${daysLabel(since)}`
   if (r.state === 'GRACE') return { text: `${ago}، باقي ${daysLabel(r.graceDaysLeft ?? 0)} للمهلة`, color: '#7a4a00' }
-  return { text: `${ago}، الدخول مقفول`, color: '#9b1c1c' }
+  return { text: `${ago}، الدخول مغلق`, color: '#9b1c1c' }
 }

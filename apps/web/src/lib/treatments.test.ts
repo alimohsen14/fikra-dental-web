@@ -24,7 +24,7 @@ describe('type tree', () => {
     expect(resolveTypeId(types, '', '')).toEqual({ error: 'اختر نوع العلاج' })
     expect(resolveTypeId(types, 'crown', '')).toEqual({ error: 'اختر النوع الفرعي' })
     expect(resolveTypeId(types, 'crown', 'por')).toEqual({ error: 'هذا النوع الفرعي موقوف، اختر غيره' })
-    expect(resolveTypeId(types, 'crown', 'clean')).toEqual({ error: 'النوع الفرعي مش تابع لهذا النوع' })
+    expect(resolveTypeId(types, 'crown', 'clean')).toEqual({ error: 'النوع الفرعي لا يتبع هذا النوع' })
     expect(resolveTypeId(types, 'crown', 'zir')).toEqual({ id: 'zir' })
     expect(resolveTypeId(types, 'clean', '')).toEqual({ id: 'clean' })
   })

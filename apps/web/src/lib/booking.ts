@@ -49,7 +49,7 @@ export const tokenFromLink = (link: string): string => link.split('/book/')[1] ?
 
 /** What the patient is told after booking, depending on whether it still waits for his answer to the reminder. */
 export function bookedNote(status: string): string {
-  return status === 'CONFIRMED' ? 'موعدك مؤكد، بنستناك.' : 'رح يوصلك تذكير على واتساب قبل الموعد بيومين، ردّ عليه بكلمة نعم لتأكيد موعدك.'
+  return status === 'CONFIRMED' ? 'موعدك مؤكد، بانتظارك.' : 'سيصلك تذكير عبر واتساب قبل الموعد بيومين، ردّ عليه بكلمة «نعم» لتأكيد موعدك.'
 }
 
 /** Groups the days that have free time by month so a long list stays readable. */

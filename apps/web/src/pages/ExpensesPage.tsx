@@ -29,7 +29,7 @@ import { METHOD_LABELS } from '../lib/treatments.ts'
 import type { PaymentMethod } from '../lib/treatments.ts'
 import { useLoad } from '../lib/useLoad.ts'
 
-const messageOf = (e: unknown) => (e instanceof ApiError ? e.message : 'صار خطأ غير متوقع، جرب مرة ثانية')
+const messageOf = (e: unknown) => (e instanceof ApiError ? e.message : 'حدث خطأ غير متوقع، حاول مرة أخرى')
 const METHODS = Object.keys(METHOD_LABELS) as PaymentMethod[]
 
 function MethodSelect({ value, onChange }: { value: PaymentMethod; onChange: (m: PaymentMethod) => void }) {
@@ -56,7 +56,7 @@ function QuickAdd({ label, onAdd }: { label: string; onAdd: (name: string) => Pr
       </button>
     )
   async function add() {
-    if (name.trim().length < 2) return setError('الاسم لازم حرفين على الأقل')
+    if (name.trim().length < 2) return setError('يجب أن يتكون الاسم من حرفين على الأقل')
     try {
       await onAdd(name.trim())
       setName('')
@@ -139,7 +139,7 @@ function ExpenseModal({
           setF((x) => ({ ...x, categoryId: c.id }))
         }}
       />
-      <SelectField label="اشتريت من / الجهة (اختياري)" value={f.supplierId} onChange={(e) => setF({ ...f, supplierId: e.target.value })}>
+      <SelectField label="المشتَرى منه / الجهة (اختياري)" value={f.supplierId} onChange={(e) => setF({ ...f, supplierId: e.target.value })}>
         <option value="">بدون</option>
         {suppliers
           .filter((s) => s.isActive)
@@ -161,8 +161,8 @@ function ExpenseModal({
       <TextField label="التاريخ" type="date" max={todayInput()} value={f.day} onChange={(e) => setF({ ...f, day: e.target.value })} />
       <SelectField label="الدفع" value={f.paid} onChange={(e) => setF({ ...f, paid: e.target.value as 'full' | 'none' | 'part' })}>
         <option value="full">مدفوع كامل</option>
-        <option value="part">مدفوع جزء والباقي علينا</option>
-        <option value="none">ما اندفع شي (علينا كامل)</option>
+        <option value="part">مدفوع جزئياً والباقي علينا</option>
+        <option value="none">لم يُدفع شيء (علينا كاملاً)</option>
       </SelectField>
       {f.paid === 'part' && (
         <TextField label="المدفوع (₪)" inputMode="decimal" dir="ltr" className="text-right" value={f.paidAmount} onChange={(e) => setF({ ...f, paidAmount: e.target.value })} />
@@ -248,8 +248,8 @@ function VoidModal({ target, onClose, onDone }: { target: VoidTarget; onClose: (
   return (
     <Modal title={target.kind === 'expense' ? 'إلغاء المصروف' : 'إلغاء الدفعة'} onClose={onClose}>
       <p className="text-[15px]">
-        {target.kind === 'expense' ? 'إلغاء المصروف مع كل دفعاته؟ ' : 'إلغاء هذه الدفعة؟ المبلغ بيرجع علينا. '}
-        بيضل ظاهر بالسجل كملغي.
+        {target.kind === 'expense' ? 'إلغاء المصروف مع كل دفعاته؟ ' : 'إلغاء هذه الدفعة؟ يعود المبلغ علينا. '}
+        يبقى ظاهراً في السجل كملغى.
       </p>
       <TextAreaField label="سبب الإلغاء" value={reason} maxLength={300} onChange={(e) => setReason(e.target.value)} />
       {error && <Alert tone="error">{error}</Alert>}
@@ -375,7 +375,7 @@ export default function ExpensesPage() {
     <>
       <ClinicBanner
         title="المصاريف"
-        subtitle="رواتب، كهربا، مي، مشتريات... وكمان شو علينا لكل جهة."
+        subtitle="رواتب، كهرباء، ماء، مشتريات... وما علينا لكل جهة."
         action={
           <Button variant="secondary" onClick={() => setModal('new')}>
             + مصروف جديد
@@ -450,7 +450,7 @@ export default function ExpensesPage() {
                 </span>
               </Stat>
             </div>
-            <p className="text-sm text-muted">الربح = اللي قبضناه من المرضى − اللي دفعناه فعلاً. اللي لسا ما اندفع بيظهر تحت "علينا" وما بينخصم إلا لما ينصرف.</p>
+            <p className="text-sm text-muted">الربح = ما قبضناه من المرضى − ما دفعناه فعلاً. ما لم يُدفع بعد يظهر تحت «علينا» ولا يُخصم إلا عند صرفه.</p>
             {s.byCategory.length > 0 && (
               <Card title="حسب النوع">
                 <ul className="flex flex-col divide-y divide-line">
@@ -468,11 +468,11 @@ export default function ExpensesPage() {
           </>
         )}
 
-        <Card title="علينا للموردين" hint="كل جهة وكم بدها منا">
+        <Card title="علينا للموردين" hint="كل جهة وكم تستحق منا">
           {!sups.data ? (
             <Loading error={sups.error} />
           ) : sups.data.owedTotal === 0 ? (
-            <p className="text-muted">ما علينا شي. 👍</p>
+            <p className="text-muted">لا شيء علينا. 👍</p>
           ) : (
             <>
               <p className="text-lg">
@@ -490,7 +490,7 @@ export default function ExpensesPage() {
                       <span className="flex items-center gap-3">
                         <Money agorot={x.owed} />
                         <Button size="sm" variant="secondary" onClick={() => setSupplierId(x.id)}>
-                          فواتيره
+                          فواتيرها
                         </Button>
                       </span>
                     </li>
@@ -506,7 +506,7 @@ export default function ExpensesPage() {
           )}
         </Card>
 
-        <Card title={filteredSupplier ? `فواتير غير مدفوعة: ${filteredSupplier.name}` : s ? (period === 'day' ? 'مصاريف اليوم' : 'المصاريف في هالفترة') : 'المصاريف'}>
+        <Card title={filteredSupplier ? `فواتير غير مدفوعة: ${filteredSupplier.name}` : s ? (period === 'day' ? 'مصاريف اليوم' : 'المصاريف في هذه الفترة') : 'المصاريف'}>
           {filteredSupplier && (
             <Button size="sm" variant="secondary" className="self-start" onClick={() => setSupplierId(null)}>
               رجوع لعرض الفترة
@@ -515,7 +515,7 @@ export default function ExpensesPage() {
           {!list.data ? (
             <Loading error={list.error} />
           ) : list.data.length === 0 ? (
-            <p className="text-muted">ما في مصاريف.</p>
+            <p className="text-muted">لا توجد مصاريف.</p>
           ) : (
             <ul className="flex flex-col divide-y divide-line">
               {list.data.map((e) => (
@@ -526,7 +526,7 @@ export default function ExpensesPage() {
         </Card>
 
         {cats.data && cats.data.length === 0 && (
-          <Card title="لسا ما في أنواع مصاريف" hint="ضيف القائمة الجاهزة (رواتب، كهربا، مي...) وبتقدر تضيف أنواع غيرها وقت ما بدك.">
+          <Card title="لا توجد أنواع مصاريف بعد" hint="أضف القائمة الجاهزة (رواتب، كهرباء، ماء...) ويمكنك إضافة أنواع أخرى متى شئت.">
             <Button
               variant="secondary"
               size="sm"

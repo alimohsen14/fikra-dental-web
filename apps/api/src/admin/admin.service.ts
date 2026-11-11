@@ -291,7 +291,7 @@ export class AdminService {
       const base = clinic.subscriptionEndsAt && clinic.subscriptionEndsAt > now ? clinic.subscriptionEndsAt : now;
       endsAt = addMonths(base, dto.months!);
     }
-    if (endsAt <= now) throw new BadRequestException('تاريخ الانتهاء لازم يكون بالمستقبل');
+    if (endsAt <= now) throw new BadRequestException('يجب أن يكون تاريخ الانتهاء في المستقبل');
 
     // The new term starts where the old one ends (or today, if it already ended).
     const startsAt = clinic.subscriptionEndsAt && clinic.subscriptionEndsAt > now ? clinic.subscriptionEndsAt : now;
@@ -332,7 +332,7 @@ export class AdminService {
       where: { clinicId: id, role: 'OWNER' },
       orderBy: { createdAt: 'asc' },
     });
-    if (!owner) throw new NotFoundException('ما في مالك لهذه العيادة');
+    if (!owner) throw new NotFoundException('لا يوجد مالك لهذه العيادة');
 
     const temporaryPassword = this.passwords.generateTemporary();
     const passwordHash = await this.passwords.hash(temporaryPassword);
@@ -418,7 +418,7 @@ export class AdminService {
         : await tx.subscriptionPeriod.findFirst({ where: { clinicId: id }, orderBy: { startsAt: 'desc' } });
       if (!period) {
         if (dto.periodId) throw new NotFoundException('فترة الاشتراك غير موجودة');
-        throw new BadRequestException('ما في فترة اشتراك لهذه العيادة، جدد الاشتراك مع تحديد السعر أولاً');
+        throw new BadRequestException('لا توجد فترة اشتراك لهذه العيادة، جدّد الاشتراك مع تحديد السعر أولاً');
       }
 
       // Two payments at the same moment must not both fit into the same remaining amount.
@@ -514,7 +514,7 @@ export class AdminService {
   async setWhatsapp(actorId: string, id: string, dto: z.infer<typeof whatsappSchema>) {
     await this.mustFind(id);
     const existing = await this.prisma.clinicWhatsapp.findUnique({ where: { clinicId: id }, select: { clinicId: true } });
-    if (!existing && !dto.accessToken) throw new BadRequestException('لازم تدخل التوكن أول مرة');
+    if (!existing && !dto.accessToken) throw new BadRequestException('يجب إدخال الرمز (التوكن) في المرة الأولى');
     const data = {
       phoneNumberId: dto.phoneNumberId,
       ...(dto.businessAccountId !== undefined ? { businessAccountId: dto.businessAccountId } : {}),

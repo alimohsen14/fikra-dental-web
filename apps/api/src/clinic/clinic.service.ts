@@ -48,7 +48,7 @@ export class ClinicService {
   /** Saves a new logo (replacing the old one). The file type is decided from its bytes, never from what the client says. */
   async setLogo(clinicId: string, actorId: string, data: Buffer) {
     const kind = detectImage(data);
-    if (!kind) throw new BadRequestException('الملف مش صورة صالحة، استخدم PNG أو JPG أو WebP');
+    if (!kind) throw new BadRequestException('الملف ليس صورة صالحة، استخدم PNG أو JPG أو WebP');
     const url = await this.logos.save(clinicId, data, kind);
     try {
       const { before, after } = await this.changeLogo(clinicId, actorId, url, 'CLINIC_LOGO_UPDATED');

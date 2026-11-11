@@ -25,7 +25,7 @@ export default function TreatmentsPage() {
   const [mine, setMine] = useState(false)
   const { data, error } = useLoad(() => listTreatments({ mine }), [mine])
   if (!session) return null
-  if (!canSeeTreatments(session.user)) return <Loading error="ما عندك صلاحية لهذه الصفحة." />
+  if (!canSeeTreatments(session.user)) return <Loading error="ليس لديك صلاحية لهذه الصفحة." />
   const rows = (data ?? []).filter((t) => (tab === 'ALL' || t.status === tab) && (!q.trim() || t.patient.fullName.includes(q.trim())))
   const isOwner = session.user.role === 'OWNER'
   const isDoctor = session.user.role === 'DOCTOR'
@@ -35,7 +35,7 @@ export default function TreatmentsPage() {
     <>
       <ClinicBanner
         title="العلاجات"
-        subtitle={isDoctor ? 'علاجاتك أنت: دفعاتها وجلساتها. علاجات باقي الدكاترة بتلاقيها في ملف المريض.' : 'كل علاجات العيادة ودفعاتها وجلساتها.'}
+        subtitle={isDoctor ? 'علاجاتك أنت: دفعاتها وجلساتها. تجد علاجات بقية الأطباء في ملف المريض.' : 'كل علاجات العيادة ودفعاتها وجلساتها.'}
         action={
           canEditTreatments(session.user) ? (
             <BannerLink to="/treatments/new">
@@ -140,7 +140,7 @@ export default function TreatmentsPage() {
               </tbody>
             </table>
           </div>
-          {rows.length === 0 && <p className="text-[15px] text-muted">{q.trim() ? 'ما في علاج بهالاسم.' : 'ما في علاجات هنا.'}</p>}
+          {rows.length === 0 && <p className="text-[15px] text-muted">{q.trim() ? 'لا يوجد علاج بهذا الاسم.' : 'لا توجد علاجات هنا.'}</p>}
         </>
       )}
     </>

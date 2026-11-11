@@ -45,7 +45,7 @@ export function PatientPicker({ value, onChange }: { value: PatientPick | null; 
           ))}
           {data.items.length === 0 && (
             <li className="px-4 py-3 text-sm text-muted">
-              ما في مريض بهالبحث. <Link to="/patients/new" className="font-bold text-brand-dark underline">أضف مريض جديد</Link>
+              لا يوجد مريض مطابق للبحث. <Link to="/patients/new" className="font-bold text-brand-dark underline">أضف مريض جديد</Link>
             </li>
           )}
         </ul>

@@ -20,7 +20,7 @@ export function confirmationText(i: ConfirmationInput): string {
   const time = new Intl.DateTimeFormat('en-GB', { timeZone: i.timeZone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(i.startsAt);
   return [
     `مرحباً ${i.patientName.trim()}،`,
-    `عيادة ${i.clinicName.trim()} بتذكّرك بموعدك مع ${doctorLabel(i.doctorName)}:`,
+    `تذكّرك عيادة ${i.clinicName.trim()} بموعدك مع ${doctorLabel(i.doctorName)}:`,
     `📅 ${day} ${date}`,
     `🕐 ${time}`,
     '',
@@ -43,9 +43,9 @@ export function parseAnswer(text: string): 'YES' | 'NO' | null {
 export function welcomeText(clinicName: string, url: string, validHours: number): string {
   return [
     `أهلاً وسهلاً بك في عيادة ${clinicName.trim()} 🌷`,
-    'للاستفسار عن موعدك أو حجز موعد جديد، ادخل على الرابط التالي:',
+    'للاستفسار عن موعدك أو حجز موعد جديد، ادخل إلى الرابط التالي:',
     url,
     '',
-    `الرابط خاص فيك وصالح لمدة ${validHours === 1 ? 'ساعة' : validHours === 2 ? 'ساعتين' : `${validHours} ساعات`}، لا ترسله لأحد.`,
+    `الرابط خاص بك وصالح لمدة ${validHours === 1 ? 'ساعة' : validHours === 2 ? 'ساعتين' : `${validHours} ساعات`}، لا ترسله لأحد.`,
   ].join('\n');
 }

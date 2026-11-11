@@ -171,7 +171,7 @@ describe('WhatsApp confirmation (e2e, dummy provider)', () => {
     await messages.dispatchDue(new Date(start.getTime() - 47 * HOUR));
     await http().post(`/appointments/${a.id}/message/reply`).set(bearer(c.token)).send({ answer: 'NO' }).expect(200);
     const after = await get(c, a.id);
-    expect(after).toMatchObject({ status: 'CANCELLED', cancelReason: 'المريض ألغى برد واتساب' });
+    expect(after).toMatchObject({ status: 'CANCELLED', cancelReason: 'ألغى المريض الموعد بالرد عبر واتساب' });
     expect(after.confirmationMessage).toMatchObject({ response: 'NO' });
     await book(c, start).expect(201); // the slot is free
     expect(await prisma.auditLog.count({ where: { clinicId: c.id, action: 'PATIENT_REPLIED' } })).toBe(1);

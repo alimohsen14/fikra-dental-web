@@ -39,7 +39,7 @@ export function XraysCard({ treatmentId, canAdd }: { treatmentId: string; canAdd
       setAdded(true)
       list.reload()
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'صار خطأ غير متوقع، جرب مرة ثانية')
+      setError(e instanceof ApiError ? e.message : 'حدث خطأ غير متوقع، حاول مرة أخرى')
     } finally {
       setBusy(false)
       if (input.current) input.current.value = ''
@@ -47,7 +47,7 @@ export function XraysCard({ treatmentId, canAdd }: { treatmentId: string; canAdd
   }
 
   return (
-    <Card title="صور الأشعة" hint="بتنحفظ مع تاريخ الإضافة، وبتظهر كمان بملف المريض.">
+    <Card title="صور الأشعة" hint="تُحفظ مع تاريخ الإضافة، وتظهر أيضاً في ملف المريض.">
       {canAdd && (
         <div className="flex flex-wrap items-end gap-3">
           <div className="min-w-56 flex-1">
@@ -60,7 +60,7 @@ export function XraysCard({ treatmentId, canAdd }: { treatmentId: string; canAdd
         </div>
       )}
       {error && <Alert tone="error">{error}</Alert>}
-      {added && <Alert tone="success">انضافت الصورة.</Alert>}
+      {added && <Alert tone="success">تمت إضافة الصورة.</Alert>}
       {!list.data ? <Loading error={list.error} /> : <XrayGallery items={list.data} canDelete={canDelete} onChanged={list.reload} />}
     </Card>
   )
@@ -72,7 +72,7 @@ export function PatientXrays({ patientId }: { patientId: string }) {
   const canDelete = useCanDelete()
   if (!list.data) return <Loading error={list.error} />
   return (
-    <Card title="صور الأشعة" hint="كل أشعة المريض من كل علاجاته، الأحدث أول. لإضافة صورة افتح العلاج.">
+    <Card title="صور الأشعة" hint="كل أشعة المريض من جميع علاجاته، الأحدث أولاً. لإضافة صورة افتح العلاج.">
       <XrayGallery items={list.data} canDelete={canDelete} showTreatment onChanged={list.reload} />
     </Card>
   )

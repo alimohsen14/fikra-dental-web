@@ -8,7 +8,7 @@ import { Icon } from '../components/icons.tsx'
 import { ApiError, login, verifyTwoFactor } from '../lib/api.ts'
 import { ThemeScope } from '../theme/ThemeScope.tsx'
 
-const messageOf = (e: unknown) => (e instanceof ApiError ? e.message : 'صار خطأ غير متوقع، جرب مرة ثانية')
+const messageOf = (e: unknown) => (e instanceof ApiError ? e.message : 'حدث خطأ غير متوقع، حاول مرة أخرى')
 
 export default function LoginPage() {
   const { ready, session } = useAuth()
@@ -66,7 +66,7 @@ export default function LoginPage() {
       {challenge === null ? (
         <AuthShell
           panelTitle="نظام متكامل لإدارة عيادة الأسنان"
-          panelText="ملفات المرضى، المواعيد، العلاجات والدفعات، كلها بمكان واحد، وبهوية عيادتك."
+          panelText="ملفات المرضى، المواعيد، العلاجات والدفعات، كلها في مكان واحد وبهوية عيادتك."
           features={['مواعيد مرتبة وتأكيد عبر واتساب', 'خطط علاج وجلسات ودفعات واضحة لكل مريض', 'بيانات كل عيادة معزولة ومحمية']}
         >
           <form onSubmit={submitPassword} className="flex flex-col gap-7">
@@ -106,7 +106,7 @@ export default function LoginPage() {
           </form>
         </AuthShell>
       ) : (
-        <AuthShell panelTitle="حماية إضافية لحساب مدير المنصة" panelText="حسابك بيتحكم بكل العيادات، فبنطلب منك رمز ثاني من جوالك عشان ما حدا يدخل بكلمة المرور لحالها.">
+        <AuthShell panelTitle="حماية إضافية لحساب مدير المنصة" panelText="حسابك يتحكم بجميع العيادات، لذلك نطلب منك رمزاً ثانياً من جوالك حتى لا يتمكن أحد من الدخول بكلمة المرور وحدها.">
           <form onSubmit={submitCode} className="flex flex-col gap-7">
             <div className="flex flex-col gap-3">
               <div className="flex size-14 items-center justify-center rounded-2xl bg-brand-tint text-brand">
@@ -114,13 +114,13 @@ export default function LoginPage() {
               </div>
               <h1 className="text-3xl font-bold">التحقق بخطوتين</h1>
               <p className="text-base leading-7 text-muted">
-                {useRecovery ? 'أدخل واحد من رموز الاسترداد الثمانية. كل رمز بيشتغل مرة وحدة.' : 'افتح تطبيق المصادقة على جوالك وأدخل الرمز المكوّن من 6 أرقام.'}
+                {useRecovery ? 'أدخل أحد رموز الاسترداد الثمانية. يعمل كل رمز مرة واحدة فقط.' : 'افتح تطبيق المصادقة على جوالك وأدخل الرمز المكوّن من 6 أرقام.'}
               </p>
             </div>
             {error && <Alert tone="error">{error}</Alert>}
             <TextField
               label={useRecovery ? 'رمز الاسترداد' : 'رمز التحقق'}
-              hint={useRecovery ? 'الشكل: XXXX-XXXX' : 'الرمز بيتغيّر كل 30 ثانية.'}
+              hint={useRecovery ? 'الشكل: XXXX-XXXX' : 'يتغيّر الرمز كل 30 ثانية.'}
               dir="ltr"
               inputMode={useRecovery ? 'text' : 'numeric'}
               autoComplete="one-time-code"
@@ -146,7 +146,7 @@ export default function LoginPage() {
                   setError(null)
                 }}
               >
-                {useRecovery ? 'استخدم رمز التطبيق بدل الاسترداد' : 'استخدم رمز استرداد بدل الرمز'}
+                {useRecovery ? 'استخدم رمز التطبيق بدلاً من رمز الاسترداد' : 'استخدم رمز استرداد بدلاً من الرمز'}
               </button>
               <button type="button" className="cursor-pointer text-brand-dark underline" onClick={backToPassword}>
                 رجوع لتسجيل الدخول

@@ -54,7 +54,7 @@ function isOverlapError(e: unknown): boolean {
   return text.includes('appointment_no_overlap') || text.includes('23P01');
 }
 
-const BUSY = 'الدكتور عنده موعد بنفس الوقت';
+const BUSY = 'لدى الدكتور موعد في الوقت نفسه';
 
 @Injectable()
 export class AppointmentsService {
@@ -80,7 +80,7 @@ export class AppointmentsService {
     const doctor = await this.tenant.db.doctor.findUnique({ where: { id: doctorId }, select: { id: true, userId: true, isActive: true } });
     if (!doctor) throw new NotFoundException('الدكتور غير موجود');
     // A doctor books only on their own schedule. Owner and secretary can book with any doctor.
-    if (user.role === 'DOCTOR' && doctor.userId !== user.id) throw new ForbiddenException('بتقدر تحجز على وقتك أنت بس');
+    if (user.role === 'DOCTOR' && doctor.userId !== user.id) throw new ForbiddenException('يمكنك الحجز على وقتك أنت فقط');
     if (!doctor.isActive) throw new BadRequestException('الدكتور غير فعّال');
     return doctor;
   }
@@ -91,9 +91,9 @@ export class AppointmentsService {
     const tz = await this.clinicTimeZone(clinicId);
     const local = localTime(startsAt, tz);
     if (startsAt.getUTCSeconds() !== 0 || startsAt.getUTCMilliseconds() !== 0 || local.minute % SLOT_MINUTES !== 0) {
-      throw new BadRequestException('الموعد لازم يبدأ على الساعة أو على نصها');
+      throw new BadRequestException('يجب أن يبدأ الموعد عند الساعة أو عند نصفها');
     }
-    if (startsAt.getTime() < Date.now() - PAST_GRACE_MINUTES * MINUTE) throw new BadRequestException('ما بتقدر تحجز بوقت فات');
+    if (startsAt.getTime() < Date.now() - PAST_GRACE_MINUTES * MINUTE) throw new BadRequestException('لا يمكن الحجز في وقت مضى');
 
     const periods = await this.tenant.db.doctorWorkingPeriod.findMany({ where: { doctorId }, select: { weekday: true, startMinute: true, endMinute: true } });
     if (periods.length === 0) throw new BadRequestException('حدد أوقات دوام الدكتور أولاً');
@@ -112,7 +112,7 @@ export class AppointmentsService {
     await this.mustUseDoctor(user, dto.doctorId);
     const patient = await this.tenant.db.patient.findUnique({ where: { id: dto.patientId }, select: { id: true, archivedAt: true } });
     if (!patient) throw new NotFoundException('المريض غير موجود');
-    if (patient.archivedAt) throw new BadRequestException('المريض بالأرشيف، أرجعه أولاً');
+    if (patient.archivedAt) throw new BadRequestException('المريض في الأرشيف، أعده أولاً');
 
     const endsAt = await this.checkSlot(user.clinicId!, dto.doctorId, dto.startsAt, dto.durationMinutes);
     try {
@@ -167,7 +167,7 @@ export class AppointmentsService {
 
   async update(user: AuthUser, id: string, dto: UpdateAppointmentDto) {
     const current = await this.mustFind(user, id);
-    if (current.status !== 'PENDING' && current.status !== 'CONFIRMED') throw new ConflictException('ما بتقدر تعدّل موعد منتهي أو ملغى');
+    if (current.status !== 'PENDING' && current.status !== 'CONFIRMED') throw new ConflictException('لا يمكن تعديل موعد منتهٍ أو ملغى');
 
     const doctorId = dto.doctorId ?? current.doctor.id;
     if (dto.doctorId) await this.mustUseDoctor(user, dto.doctorId);

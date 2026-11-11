@@ -116,7 +116,7 @@ export function periodsFromWeek(w: WeekRows): { ok: true; periods: Period[] } | 
   for (let d = 0; d < 7; d++) {
     const rows = [...(w[d] ?? [])].sort((a, b) => a.start - b.start)
     for (const [i, r] of rows.entries()) {
-      if (r.end <= r.start) return { ok: false, error: `${WEEKDAYS[d]}: وقت النهاية لازم يكون بعد البداية` }
+      if (r.end <= r.start) return { ok: false, error: `${WEEKDAYS[d]}: يجب أن يكون وقت النهاية بعد البداية` }
       if (i > 0 && r.start < rows[i - 1]!.end) return { ok: false, error: `${WEEKDAYS[d]}: فترتين متداخلتين` }
       periods.push({ weekday: d, startMinute: r.start, endMinute: r.end })
     }

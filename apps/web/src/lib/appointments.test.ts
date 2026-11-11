@@ -43,14 +43,14 @@ describe('WhatsApp line on the card', () => {
   const when = (iso: string) => `@${iso}`
   const msg = (o: object) => ({ status: 'SENT', sentAt: 'S', scheduledFor: null, response: null, respondedAt: null, errorMessage: null, body: 'x', ...o }) as never
   it('shows when the message will go out while it is still ahead', () => {
-    expect(messageLine({ status: 'PENDING', confirmationMessage: null, messageDueAt: 'D' }, when)).toEqual({ text: 'بتنرسل رسالة التأكيد @D', tone: 'warn' })
+    expect(messageLine({ status: 'PENDING', confirmationMessage: null, messageDueAt: 'D' }, when)).toEqual({ text: 'ستُرسل رسالة التأكيد @D', tone: 'warn' })
   })
   it('shows nothing for an appointment that never gets a message', () => {
     expect(messageLine({ status: 'CONFIRMED', confirmationMessage: null, messageDueAt: null }, when)).toBeNull()
     expect(messageLine({ status: 'COMPLETED', confirmationMessage: msg({}), messageDueAt: null }, when)).toBeNull()
   })
   it('sent and waiting for the patient', () => {
-    expect(messageLine({ status: 'PENDING', confirmationMessage: msg({}), messageDueAt: null }, when)).toEqual({ text: 'انرسلت رسالة التأكيد @S · بانتظار رد المريض', tone: 'info' })
+    expect(messageLine({ status: 'PENDING', confirmationMessage: msg({}), messageDueAt: null }, when)).toEqual({ text: 'أُرسلت رسالة التأكيد @S · بانتظار رد المريض', tone: 'info' })
   })
   it('shows the answer', () => {
     expect(messageLine({ status: 'CONFIRMED', confirmationMessage: msg({ response: 'YES' }), messageDueAt: null }, when)?.tone).toBe('good')

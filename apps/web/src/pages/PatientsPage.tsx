@@ -29,7 +29,7 @@ export default function PatientsPage() {
     <>
       <ClinicBanner
         title="المرضى"
-        subtitle="كل مرضى العيادة، يشوفهم المالك والدكاترة والسكرتارية."
+        subtitle="كل مرضى العيادة، يراهم المالك والأطباء والسكرتارية."
         action={
           <BannerLink to="/patients/new">
             <Icon name="plus" size={18} strokeWidth={2.4} />
@@ -107,7 +107,7 @@ export default function PatientsPage() {
               </tbody>
             </table>
           </div>
-          {data.items.length === 0 && <p className="text-[15px] text-muted">{debounced ? 'ما في مريض بهالبحث.' : archived ? 'الأرشيف فاضي.' : 'ما في مرضى لسا، أضف أول مريض.'}</p>}
+          {data.items.length === 0 && <p className="text-[15px] text-muted">{debounced ? 'لا يوجد مريض مطابق للبحث.' : archived ? 'الأرشيف فارغ.' : 'لا يوجد مرضى بعد، أضف أول مريض.'}</p>}
           {data.total > PAGE_SIZE && (
             <div className="flex items-center gap-3">
               <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>

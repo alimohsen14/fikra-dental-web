@@ -11,6 +11,6 @@ describe('checkLogoFile', () => {
     expect(checkLogoFile({ type: 'application/pdf', size: 1000 })).toMatch(/PNG/)
     expect(checkLogoFile({ type: '', size: 1000 })).toMatch(/PNG/)
     expect(checkLogoFile({ type: 'image/png', size: LOGO_MAX_BYTES + 1 })).toMatch(/كبيرة/)
-    expect(checkLogoFile({ type: 'image/png', size: 0 })).toMatch(/فاضي/)
+    expect(checkLogoFile({ type: 'image/png', size: 0 })).toMatch(/فارغ/)
   })
 })

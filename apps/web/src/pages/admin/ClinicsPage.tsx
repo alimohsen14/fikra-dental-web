@@ -80,7 +80,7 @@ export default function ClinicsPage() {
             <section className="flex flex-col gap-3.5 rounded-xl border border-[#f0cf8f] bg-white p-5" aria-label="تحتاج متابعة">
               <div className="flex flex-col gap-0.5">
                 <h2 className="text-lg font-bold">انتهى اشتراكها وتحتاج متابعة</h2>
-                <p className="text-sm text-muted">بعد المهلة (3 أيام) بيتقفل الدخول لحاله. لما تستلم الدفعة جدد الاشتراك وبتطلع من هون.</p>
+                <p className="text-sm text-muted">بعد المهلة (3 أيام) يُغلق الدخول تلقائياً. عند استلام الدفعة جدّد الاشتراك من هنا.</p>
               </div>
               {attention.map((r) => {
                 const note = endedNote(r)
@@ -162,7 +162,7 @@ export default function ClinicsPage() {
                 </tbody>
               </table>
             </div>
-            {rows.length === 0 && <p className="text-[15px] text-muted">{data.items.length === 0 && !debounced ? 'ما في عيادات لسا، أنشئ أول عيادة.' : 'ما في عيادات بهالتصفية.'}</p>}
+            {rows.length === 0 && <p className="text-[15px] text-muted">{data.items.length === 0 && !debounced ? 'لا توجد عيادات بعد، أنشئ أول عيادة.' : 'لا توجد عيادات بهذه التصفية.'}</p>}
           </section>
         </>
       )}

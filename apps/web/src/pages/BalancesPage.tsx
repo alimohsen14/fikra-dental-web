@@ -19,7 +19,7 @@ export default function BalancesPage() {
     <>
       <ClinicBanner
         title="المتبقي عند المرضى"
-        subtitle={session?.user.role === 'DOCTOR' ? 'مين لسا عليه مبلغ على علاجاتك أنت، من الأكبر للأصغر.' : 'مين لسا عليه مبلغ للعيادة، من الأكبر للأصغر.'}
+        subtitle={session?.user.role === 'DOCTOR' ? 'من لا يزال عليه مبلغ على علاجاتك أنت، من الأكبر إلى الأصغر.' : 'من لا يزال عليه مبلغ للعيادة، من الأكبر إلى الأصغر.'}
       />
       <div className="flex max-w-4xl flex-col gap-5">
         {session?.user.role === 'OWNER' && (
@@ -71,9 +71,9 @@ export default function BalancesPage() {
                 className="h-11 rounded-xl border border-line bg-white px-3"
               />
               {data.items.length === 0 ? (
-                <p className="text-muted">ما في مرضى عليهم مبالغ. كل شي مدفوع.</p>
+                <p className="text-muted">لا يوجد مرضى عليهم مبالغ. كل شيء مدفوع.</p>
               ) : shown.length === 0 ? (
-                <p className="text-muted">ما لقينا نتيجة.</p>
+                <p className="text-muted">لم نعثر على نتيجة.</p>
               ) : (
                 <ul className="flex flex-col divide-y divide-line">
                   {shown.map((p) => (

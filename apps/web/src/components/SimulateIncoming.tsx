@@ -22,7 +22,7 @@ export function SimulateIncoming() {
     try {
       setLink((await simulateIncoming(phone)).url)
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'صار خطأ غير متوقع، جرب مرة ثانية')
+      setError(err instanceof ApiError ? err.message : 'حدث خطأ غير متوقع، حاول مرة أخرى')
     } finally {
       setBusy(false)
     }
@@ -30,7 +30,7 @@ export function SimulateIncoming() {
 
   return (
     <form onSubmit={submit} aria-label="تجربة حجز المريض" className="flex flex-wrap items-end gap-3 rounded-xl border border-dashed border-line bg-white p-4">
-      <span className="w-full text-sm font-semibold">وضع التجربة: مريض بعث رسالة لرقم واتساب العيادة</span>
+      <span className="w-full text-sm font-semibold">وضع التجربة: مريض أرسل رسالة إلى رقم واتساب العيادة</span>
       <div className="w-64">
         <TextField label="رقم المريض" dir="ltr" inputMode="tel" className="text-right" placeholder="0599123456" value={phone} onChange={(e) => setPhone(e.target.value)} />
       </div>
@@ -40,7 +40,7 @@ export function SimulateIncoming() {
       {error && <Alert tone="error">{error}</Alert>}
       {link && (
         <p className="w-full text-sm leading-7">
-          بعتنا له الرابط:{' '}
+          أُرسل له الرابط:{' '}
           <a href={link} target="_blank" rel="noreferrer" className="break-all underline" dir="ltr">
             {link}
           </a>

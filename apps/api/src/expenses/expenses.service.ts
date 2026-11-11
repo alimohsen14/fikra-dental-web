@@ -163,7 +163,7 @@ export class ExpensesService {
 
   async create(user: AuthUser, dto: CreateExpenseDto) {
     const clinicId = user.clinicId!;
-    if (dto.incurredAt.getTime() > Date.now() + GRACE_MS) throw new BadRequestException('تاريخ المصروف بالمستقبل');
+    if (dto.incurredAt.getTime() > Date.now() + GRACE_MS) throw new BadRequestException('تاريخ المصروف في المستقبل');
     await this.usableCategory(dto.categoryId);
     if (dto.supplierId) await this.usableSupplier(dto.supplierId);
     const paid = dto.paidAmount ?? dto.amount;
@@ -186,7 +186,7 @@ export class ExpensesService {
     if (!(await this.tenant.db.expense.findUnique({ where: { id }, select: { id: true } }))) throw new NotFoundException(NOT_FOUND);
     if (dto.categoryId) await this.usableCategory(dto.categoryId);
     if (dto.supplierId) await this.usableSupplier(dto.supplierId);
-    if (dto.incurredAt && dto.incurredAt.getTime() > Date.now() + GRACE_MS) throw new BadRequestException('تاريخ المصروف بالمستقبل');
+    if (dto.incurredAt && dto.incurredAt.getTime() > Date.now() + GRACE_MS) throw new BadRequestException('تاريخ المصروف في المستقبل');
     await this.prisma.$transaction(async (tx) => {
       const e = await this.lock(tx, clinicId, id);
       if (e.status !== 'ACTIVE') throw new ConflictException('المصروف ملغي');
@@ -207,7 +207,7 @@ export class ExpensesService {
       if (done.count !== 1) throw new ConflictException('المصروف ملغي من قبل');
       await tx.expensePayment.updateMany({
         where: { expenseId: id, clinicId, status: 'ACTIVE' },
-        data: { status: 'VOIDED', voidedAt: new Date(), voidReason: `ألغي المصروف: ${reason}`, voidedByUserId: user.id },
+        data: { status: 'VOIDED', voidedAt: new Date(), voidReason: `أُلغي المصروف: ${reason}`, voidedByUserId: user.id },
       });
       await this.audit(tx, clinicId, user.id, 'EXPENSE_VOIDED', id, { before: { amount: e.amount, paid: paidTotal(e.payments) }, after: { reason } });
     });
@@ -217,7 +217,7 @@ export class ExpensesService {
   async addPayment(user: AuthUser, id: string, dto: ExpensePaymentDto) {
     const clinicId = user.clinicId!;
     if (!(await this.tenant.db.expense.findUnique({ where: { id }, select: { id: true } }))) throw new NotFoundException(NOT_FOUND);
-    if (dto.paidAt.getTime() > Date.now() + GRACE_MS) throw new BadRequestException('تاريخ الدفعة بالمستقبل');
+    if (dto.paidAt.getTime() > Date.now() + GRACE_MS) throw new BadRequestException('تاريخ الدفعة في المستقبل');
     await this.prisma.$transaction(async (tx) => {
       const e = await this.lock(tx, clinicId, id);
       if (e.status !== 'ACTIVE') throw new ConflictException('المصروف ملغي');

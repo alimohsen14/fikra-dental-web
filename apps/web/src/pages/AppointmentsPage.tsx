@@ -88,7 +88,7 @@ export default function AppointmentsPage() {
           <label className="flex flex-col gap-1 text-sm font-semibold">
             الدكتور
             <select value={doctorId} onChange={(e) => setDoctorId(e.target.value)} className="h-10 rounded-[10px] border-[1.5px] border-[#b4c4d8] bg-white px-3 font-normal">
-              <option value="">كل الدكاترة</option>
+              <option value="">كل الأطباء</option>
               {doctors.data.map((d) => (
                 <option key={d.id} value={d.id}>
                   {d.fullName}
@@ -113,7 +113,7 @@ export default function AppointmentsPage() {
           {items.map((a) => (
             <AppointmentCard key={a.id} a={a} onChanged={list.reload} onEdit={(x) => setDialog({ edit: x })} />
           ))}
-          {items.length === 0 && <p className="text-[15px] text-muted">{filter === 'ALL' ? 'ما في مواعيد بهذا اليوم.' : 'ما في مواعيد بهالحالة بهذا اليوم.'}</p>}
+          {items.length === 0 && <p className="text-[15px] text-muted">{filter === 'ALL' ? 'لا توجد مواعيد في هذا اليوم.' : 'لا توجد مواعيد بهذه الحالة في هذا اليوم.'}</p>}
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -151,7 +151,7 @@ export default function AppointmentsPage() {
                     {!doctorId && !isDoctor && <span className="text-xs text-muted">{a.doctor.fullName}</span>}
                   </button>
                 ))}
-                {mine.length === 0 && <p className="text-xs text-muted">لا مواعيد</p>}
+                {mine.length === 0 && <p className="text-xs text-muted">لا توجد مواعيد</p>}
               </section>
             )
           })}

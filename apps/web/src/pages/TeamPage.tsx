@@ -13,7 +13,7 @@ import type { StaffMember, StaffSecret } from '../lib/staff.ts'
 import { buildStaffInput, buildStaffUpdate } from '../lib/staffForm.ts'
 import { useLoad } from '../lib/useLoad.ts'
 
-const message = (e: unknown) => (e instanceof ApiError ? e.message : 'صار خطأ غير متوقع، جرب مرة ثانية')
+const message = (e: unknown) => (e instanceof ApiError ? e.message : 'حدث خطأ غير متوقع، حاول مرة أخرى')
 
 function AddDialog({ onClose, onCreated }: { onClose: () => void; onCreated: (s: StaffSecret) => void }) {
   const [role, setRole] = useState<'DOCTOR' | 'SECRETARY'>('DOCTOR')
@@ -46,7 +46,7 @@ function AddDialog({ onClose, onCreated }: { onClose: () => void; onCreated: (s:
         {role === 'DOCTOR' && <TextField label="التخصص (اختياري)" value={f.specialty} onChange={(e) => setF({ ...f, specialty: e.target.value })} />}
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={f.canManagePayments} onChange={(e) => setF({ ...f, canManagePayments: e.target.checked })} />
-          يقدر يتعامل مع الدفعات
+          يمكنه التعامل مع الدفعات
         </label>
         {error && <Alert tone="error">{error}</Alert>}
         <div className="flex gap-3">
@@ -88,7 +88,7 @@ function EditDialog({ member, onClose, onSaved }: { member: StaffMember; onClose
         {member.doctor && <TextField label="التخصص" value={f.specialty} onChange={(e) => setF({ ...f, specialty: e.target.value })} />}
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={f.canManagePayments} onChange={(e) => setF({ ...f, canManagePayments: e.target.checked })} />
-          يقدر يتعامل مع الدفعات
+          يمكنه التعامل مع الدفعات
         </label>
         {error && <Alert tone="error">{error}</Alert>}
         <div className="flex gap-3">
@@ -125,7 +125,7 @@ export default function TeamPage() {
       const { kind, member } = confirm
       if (kind === 'stop') {
         const r = await deactivateStaff(member.id)
-        setNotice(r.upcomingAppointments > 0 ? `تم إيقاف ${member.fullName}. عنده ${r.upcomingAppointments} موعد قادم لسا، ما انلغوا: انقلهم أو ألغيهم من المواعيد.` : `تم إيقاف ${member.fullName}.`)
+        setNotice(r.upcomingAppointments > 0 ? `تم إيقاف ${member.fullName}. لديه ${r.upcomingAppointments} موعد قادم لم يُلغَ بعد: انقلها أو ألغِها من صفحة المواعيد.` : `تم إيقاف ${member.fullName}.`)
       } else if (kind === 'start') {
         await activateStaff(member.id)
         setNotice(`تم تفعيل ${member.fullName}.`)
@@ -143,16 +143,16 @@ export default function TeamPage() {
   }
 
   const texts: Record<Confirm['kind'], (m: StaffMember) => { title: string; body: string; ok: string }> = {
-    stop: (m) => ({ title: 'إيقاف الحساب', body: `${m.fullName} ما رح يقدر يدخل، وبينسحب من الجلسة الحالية فوراً. ${m.doctor ? 'وبيختفي من الحجز. ' : ''}ما بينحذف أي شي وبتقدر ترجّعه.`, ok: 'إيقاف' }),
-    start: (m) => ({ title: 'تفعيل الحساب', body: `${m.fullName} بيرجع يقدر يدخل.`, ok: 'تفعيل' }),
-    reset: (m) => ({ title: 'إعادة تعيين كلمة المرور', body: `رح تنعمل كلمة مرور مؤقتة جديدة لـ ${m.fullName}، وكلمته الحالية بتتعطل وبينسحب من كل الجلسات.`, ok: 'إعادة تعيين' }),
+    stop: (m) => ({ title: 'إيقاف الحساب', body: `لن يتمكن ${m.fullName} من الدخول، وسيُخرَج من الجلسة الحالية فوراً. ${m.doctor ? 'وسيختفي من الحجز. ' : ''}لن يُحذف أي شيء ويمكنك إعادة تفعيله.`, ok: 'إيقاف' }),
+    start: (m) => ({ title: 'تفعيل الحساب', body: `سيتمكن ${m.fullName} من الدخول مجدداً.`, ok: 'تفعيل' }),
+    reset: (m) => ({ title: 'إعادة تعيين كلمة المرور', body: `ستُنشأ كلمة مرور مؤقتة جديدة لـ ${m.fullName}، وتتعطل كلمته الحالية ويُخرَج من كل الجلسات.`, ok: 'إعادة تعيين' }),
   }
 
   return (
     <>
       <ClinicBanner
         title="الفريق"
-        subtitle="الدكاترة والسكرتارية اللي بيدخلوا على العيادة."
+        subtitle="الأطباء والسكرتارية الذين يدخلون إلى العيادة."
         action={
           <button type="button" onClick={() => setAdding(true)} className="inline-flex h-12 cursor-pointer items-center gap-2 rounded-xl bg-on-brand px-5 font-bold text-brand">
             <Icon name="plus" size={18} strokeWidth={2.4} />
@@ -166,7 +166,7 @@ export default function TeamPage() {
           <div className="flex flex-wrap items-center gap-3">
             {secret.value.staff.doctor && (
               <Link to="/hours" className="text-sm font-bold text-brand-dark underline">
-                حدد أوقات دوام الدكتور (بدونها ما بينحجز عنده)
+                حدد أوقات دوام الدكتور (بدونها لا يمكن الحجز عنده)
               </Link>
             )}
             <Button variant="secondary" size="sm" onClick={() => setSecret(null)}>
@@ -209,7 +209,7 @@ export default function TeamPage() {
                     <td className="px-4 py-3.5">
                       <span className="flex flex-wrap gap-1.5">
                         {m.isActive ? <Badge label="فعّال" bg="#e3f5ea" fg="#0b4f2c" /> : <Badge label="موقوف" bg="#eceff3" fg="#4a5a70" />}
-                        {m.mustChangePassword && <Badge label="ما غيّر كلمة المرور" bg="#fff1d6" fg="#7a4b00" />}
+                        {m.mustChangePassword && <Badge label="لم يغيّر كلمة المرور" bg="#fff1d6" fg="#7a4b00" />}
                         {m.canManagePayments && m.role !== 'OWNER' && <Badge label="دفعات" bg="#e3eefb" fg="#033f8c" />}
                       </span>
                     </td>
@@ -253,7 +253,7 @@ export default function TeamPage() {
           onClose={() => setEditing(null)}
           onSaved={() => {
             setEditing(null)
-            setNotice('انحفظت التعديلات.')
+            setNotice('تم حفظ التعديلات.')
             reload()
           }}
         />

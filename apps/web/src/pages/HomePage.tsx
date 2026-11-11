@@ -58,7 +58,7 @@ export default function HomePage() {
           {showDoctors && <DoctorCards days={doctorDays(doctors.data, all, Date.now())} value={doctorId} onChange={setDoctorId} />}
           <StatusCards list={mine} value={filter} onChange={setFilter} />
           {owed.length > 0 && salaries.data && (
-            <Card title={`رواتب شهر ${monthNumber(month)} جاهزة للصرف`} hint={`${owed.length} موظف لسا ما انصرفلهم الراتب كامل.`}>
+            <Card title={`رواتب شهر ${monthNumber(month)} جاهزة للصرف`} hint={`${owed.length} موظف لم يُصرف لهم الراتب كاملاً.`}>
               <div className="flex flex-wrap items-center justify-between gap-3" data-testid="salary-reminder">
                 <span className="text-lg font-bold">
                   المتبقي <Money agorot={salaries.data.totals.remaining} />
@@ -74,14 +74,14 @@ export default function HomePage() {
               {shown.map((a) => (
                 <AppointmentCard key={a.id} a={a} onChanged={refresh} onEdit={(x) => setDialog({ edit: x })} />
               ))}
-              {shown.length === 0 && <p className="text-[15px] text-muted">{filter === 'ALL' ? 'ما في مواعيد اليوم.' : 'ما في مواعيد بهالحالة اليوم.'}</p>}
+              {shown.length === 0 && <p className="text-[15px] text-muted">{filter === 'ALL' ? 'لا توجد مواعيد اليوم.' : 'لا توجد مواعيد بهذه الحالة اليوم.'}</p>}
             </div>
             <Link to="/appointments" className="text-sm font-bold text-brand-dark underline">
               فتح التقويم
             </Link>
           </Card>
           {pending.length > 0 && (
-            <Card title={`بانتظار رد المريض (${pending.length})`} hint="المريض ما رد على رسالة التأكيد. اتصل فيه: لو جاي اضغط تأكيد، ولو لا اضغط إلغاء والوقت بيرجع متاح لغيره.">
+            <Card title={`بانتظار رد المريض (${pending.length})`} hint="لم يردّ المريض على رسالة التأكيد. اتصل به: إن كان سيحضر اضغط «تأكيد»، وإلا اضغط «إلغاء» ليعود الوقت متاحاً لغيره.">
               <div className="flex flex-col gap-3" data-testid="awaiting-list">
                 {pending.map((a) => (
                   <AppointmentCard key={a.id} a={a} showDate onChanged={refresh} onEdit={(x) => setDialog({ edit: x })} />

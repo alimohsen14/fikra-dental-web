@@ -9,7 +9,7 @@ import type { WhatsAppProvider } from './whatsapp.provider.js';
 
 const HOUR = 3_600_000;
 const BATCH = 200;
-const CANCELLED_BY_PATIENT = 'المريض ألغى برد واتساب';
+const CANCELLED_BY_PATIENT = 'ألغى المريض الموعد بالرد عبر واتساب';
 
 interface DueAppointment {
   id: string;
@@ -105,16 +105,16 @@ export class MessagesService {
     this.mustBeTestMode();
     const apt = await this.tenant.db.appointment.findUnique({ where: { id: appointmentId }, select: { id: true, status: true } });
     if (!apt) throw new NotFoundException('الموعد غير موجود');
-    if (apt.status !== 'PENDING') throw new ConflictException('الموعد مش بانتظار التأكيد');
+    if (apt.status !== 'PENDING') throw new ConflictException('الموعد ليس بانتظار التأكيد');
     const full = await this.prisma.appointment.findFirstOrThrow({
       where: { id: appointmentId, clinicId: user.clinicId! },
       select: { id: true, clinicId: true, startsAt: true, patient: { select: { fullName: true, phone: true } }, doctor: { select: { fullName: true } }, clinic: { select: { name: true, timezone: true } } },
     });
     const existing = await this.prisma.messageLog.findUnique({ where: { appointmentId_kind: { appointmentId, kind: 'CONFIRMATION' } }, select: { id: true, status: true } });
-    if (existing && existing.status !== 'FAILED' && existing.status !== 'CANCELLED') throw new ConflictException('الرسالة انرسلت من قبل');
+    if (existing && existing.status !== 'FAILED' && existing.status !== 'CANCELLED') throw new ConflictException('أُرسلت الرسالة من قبل');
     if (existing?.status === 'FAILED') await this.prisma.messageLog.update({ where: { id: existing.id }, data: { status: 'CANCELLED' } }); // free it, then the normal path claims it again
     const result = await this.send(full, new Date());
-    if (result === 'SKIPPED') throw new ConflictException('الرسالة انرسلت من قبل');
+    if (result === 'SKIPPED') throw new ConflictException('أُرسلت الرسالة من قبل');
     return { status: result };
   }
 
@@ -125,8 +125,8 @@ export class MessagesService {
   async handleReply(clinicId: string, appointmentId: string, answer: 'YES' | 'NO'): Promise<{ applied: boolean }> {
     return this.prisma.$transaction(async (tx) => {
       const row = await tx.messageLog.findUnique({ where: { appointmentId_kind: { appointmentId, kind: 'CONFIRMATION' } } });
-      if (!row || row.clinicId !== clinicId) throw new NotFoundException('ما في رسالة تأكيد لهذا الموعد');
-      if (row.status !== 'SENT' && row.status !== 'DELIVERED') throw new ConflictException('الرسالة لسا ما انرسلت');
+      if (!row || row.clinicId !== clinicId) throw new NotFoundException('لا توجد رسالة تأكيد لهذا الموعد');
+      if (row.status !== 'SENT' && row.status !== 'DELIVERED') throw new ConflictException('لم تُرسل الرسالة بعد');
       const claimed = await tx.messageLog.updateMany({ where: { id: row.id, response: null }, data: { response: answer, respondedAt: new Date() } });
       if (claimed.count !== 1) return { applied: false };
       if (answer === 'YES') {
@@ -144,7 +144,7 @@ export class MessagesService {
     const apt = await this.tenant.db.appointment.findUnique({ where: { id: appointmentId }, select: { id: true } });
     if (!apt) throw new NotFoundException('الموعد غير موجود');
     const r = await this.handleReply(user.clinicId!, appointmentId, answer);
-    if (!r.applied) throw new ConflictException('المريض رد من قبل');
+    if (!r.applied) throw new ConflictException('ردّ المريض من قبل');
     return { ok: true };
   }
 }

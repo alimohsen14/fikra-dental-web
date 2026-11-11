@@ -27,7 +27,7 @@ describe('buildStaffUpdate', () => {
     expect(buildStaffUpdate(member, { ...same, phone: '', specialty: '', canManagePayments: true })).toEqual({ input: { phone: null, specialty: null, canManagePayments: true } })
   })
   it('says so when nothing changed, and validates', () => {
-    expect(buildStaffUpdate(member, same)).toEqual({ error: 'ما غيّرت أي شي' })
+    expect(buildStaffUpdate(member, same)).toEqual({ error: 'لم تُجرِ أي تغيير' })
     expect('error' in buildStaffUpdate(member, { ...same, fullName: 'x' })).toBe(true)
     expect('error' in buildStaffUpdate(member, { ...same, phone: '12' })).toBe(true)
   })

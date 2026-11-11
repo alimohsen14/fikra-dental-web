@@ -28,7 +28,7 @@ const TYPES = ['image/jpeg', 'image/png', 'image/webp']
 
 /** null when the file is fine to send, otherwise the reason (Arabic) it is not. */
 export function xrayFileError(f: { type: string; size: number }): string | null {
-  if (!TYPES.includes(f.type)) return 'الملف لازم يكون صورة (JPG أو PNG أو WEBP)'
+  if (!TYPES.includes(f.type)) return 'يجب أن يكون الملف صورة (JPG أو PNG أو WEBP)'
   return null
 }
 

@@ -30,7 +30,7 @@ export function resolveTypeId(types: TreatmentType[], typeId: string, subTypeId:
   if (subs.length === 0) return { id: typeId }
   if (!subTypeId) return { error: 'اختر النوع الفرعي' }
   if (types.some((t) => t.id === subTypeId && t.parentId === typeId && !t.isActive)) return { error: 'هذا النوع الفرعي موقوف، اختر غيره' }
-  if (!subs.some((t) => t.id === subTypeId)) return { error: 'النوع الفرعي مش تابع لهذا النوع' }
+  if (!subs.some((t) => t.id === subTypeId)) return { error: 'النوع الفرعي لا يتبع هذا النوع' }
   return { id: subTypeId }
 }
 
@@ -65,7 +65,7 @@ export const typeIdsOf = (t: Pick<Treatment, 'teeth'>): string[] => t.teeth.flat
 type Common = { error: string } | { teeth: { toothCode: number; treatmentTypeId: string }[]; totalCost: number; plannedSessions: number }
 
 function common(v: TreatmentFormValues, types: TreatmentType[]): Common {
-  if (v.teeth.length === 0) return { error: 'اختر سن واحد على الأقل من المخطط' }
+  if (v.teeth.length === 0) return { error: 'اختر سناً واحداً على الأقل من المخطط' }
   const teeth: { toothCode: number; treatmentTypeId: string }[] = []
   for (const t of [...v.teeth].sort(byOrder)) {
     const type = resolveTypeId(types, t.typeId, t.subTypeId)
@@ -73,7 +73,7 @@ function common(v: TreatmentFormValues, types: TreatmentType[]): Common {
     teeth.push({ toothCode: t.code, treatmentTypeId: type.id })
   }
   const totalCost = parseShekels(v.cost)
-  if (totalCost === null) return { error: 'اكتب التكلفة الكلية كرقم، مثال: 800 (اكتب 0 إذا العلاج مجاني)' }
+  if (totalCost === null) return { error: 'اكتب التكلفة الكلية كرقم، مثال: 800 (اكتب 0 إذا كان العلاج مجانياً)' }
   const n = Number(v.sessions)
   if (!/^\d{1,2}$/.test(v.sessions.trim()) || n < 1 || n > 50) return { error: 'عدد الجلسات رقم من 1 إلى 50' }
   return { teeth, totalCost, plannedSessions: n }

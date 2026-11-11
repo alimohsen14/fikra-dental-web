@@ -51,6 +51,6 @@ export async function readBody(req: Request, limit: number, tooBigMessage = 'ا�
     } else if (!exceeded) chunks.push(chunk as Buffer);
   }
   if (exceeded) throw tooBig();
-  if (size === 0) throw new BadRequestException('ما في صورة بالطلب');
+  if (size === 0) throw new BadRequestException('لا توجد صورة في الطلب');
   return Buffer.concat(chunks);
 }

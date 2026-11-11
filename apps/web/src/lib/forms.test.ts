@@ -50,6 +50,6 @@ describe('endedNote', () => {
   it('grace period shows days left; expired says login is closed', () => {
     expect(endedNote({ ...base, state: 'GRACE', daysSinceEnd: 1, graceDaysLeft: 2 }).text).toBe('انتهى قبل يوم واحد، باقي يومان للمهلة')
     expect(endedNote({ ...base, state: 'GRACE' }).text).toBe('انتهى اليوم، باقي 3 أيام للمهلة')
-    expect(endedNote({ ...base, state: 'EXPIRED', daysSinceEnd: 5 }).text).toBe('انتهى قبل 5 أيام، الدخول مقفول')
+    expect(endedNote({ ...base, state: 'EXPIRED', daysSinceEnd: 5 }).text).toBe('انتهى قبل 5 أيام، الدخول مغلق')
   })
 })

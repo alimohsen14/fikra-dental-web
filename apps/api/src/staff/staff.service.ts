@@ -42,8 +42,8 @@ export class StaffService {
 
   /** The owner's own account is managed elsewhere (settings, change-password). */
   private editable(actorId: string, user: { id: string; role: string }) {
-    if (user.role === 'OWNER') throw new BadRequestException('حساب المالك ما بينعدل من هون');
-    if (user.id === actorId) throw new BadRequestException('ما بتقدر تعدل حسابك من هون');
+    if (user.role === 'OWNER') throw new BadRequestException('لا يمكن تعديل حساب المالك من هنا');
+    if (user.id === actorId) throw new BadRequestException('لا يمكنك تعديل حسابك من هنا');
   }
 
   async create(clinicId: string, actorId: string, dto: CreateStaffDto) {
@@ -86,7 +86,7 @@ export class StaffService {
   async update(clinicId: string, actorId: string, id: string, dto: UpdateStaffDto) {
     const user = await this.mustFind(clinicId, id);
     this.editable(actorId, user);
-    if (dto.specialty !== undefined && !user.doctor) throw new BadRequestException('التخصص للدكاترة بس');
+    if (dto.specialty !== undefined && !user.doctor) throw new BadRequestException('التخصص للأطباء فقط');
     return this.prisma.$transaction(async (tx) => {
       await tx.user.update({
         where: { id },

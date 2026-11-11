@@ -70,7 +70,7 @@ function Tables({ s }: { s: Statement }) {
       </div>
       <h3 className="mt-2 text-base font-bold">الدفعات</h3>
       {s.payments.length === 0 ? (
-        <p className="text-[15px] text-muted">ما في دفعات مسجلة.</p>
+        <p className="text-[15px] text-muted">لا توجد دفعات مسجلة.</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[460px] border-collapse text-[15px]" aria-label="دفعات المريض">
@@ -137,7 +137,7 @@ export function AccountStatement({ statement, patientName }: { statement: Statem
   }, [patientName])
   return (
     <>
-      <Card title="كشف الحساب" hint="كل علاج حساب واحد، مهما كان عدد أسنانه وجلساته. الدفعات الملغاة بتظهر مشطوبة وما بتنحسب.">
+      <Card title="كشف الحساب" hint="كل علاج حساب واحد مهما كان عدد أسنانه وجلساته. تظهر الدفعات الملغاة مشطوبة ولا تُحتسب.">
         <Tables s={statement} />
         <Button variant="secondary" size="sm" className="self-start" onClick={() => window.print()}>
           طباعة الكشف

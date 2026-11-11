@@ -62,7 +62,7 @@ export class TreatmentsService {
   /** A doctor may change ONLY treatments registered under their own name: no edit, no session, no close, no cancel, no booking, no payment. */
   private async assertCanAct(user: AuthUser, treatmentDoctorId: string) {
     if (user.role !== 'DOCTOR') return;
-    if ((await this.ownDoctorId(user)) !== treatmentDoctorId) throw new ForbiddenException('هذا العلاج مش مسجل باسمك: بتقدر تشوفه بس ما بتقدر تعدّل عليه');
+    if ((await this.ownDoctorId(user)) !== treatmentDoctorId) throw new ForbiddenException('هذا العلاج غير مسجل باسمك: يمكنك الاطلاع عليه دون تعديله');
   }
 
   /** What this user may do on this treatment, so the screen shows only buttons that will work. */
@@ -165,7 +165,7 @@ export class TreatmentsService {
     const own = user.role === 'DOCTOR' ? await this.tenant.db.doctor.findFirst({ where: { userId: user.id }, select: { id: true } }) : null;
     if (user.role === 'DOCTOR') {
       if (!own) throw new ForbiddenException();
-      if (dto.doctorId && dto.doctorId !== own.id) throw new ForbiddenException('بتقدر تسجل علاجات على مرضاك أنت بس');
+      if (dto.doctorId && dto.doctorId !== own.id) throw new ForbiddenException('يمكنك تسجيل علاجات لمرضاك أنت فقط');
     }
     const ownerDoctor = user.role === 'OWNER' && !dto.doctorId ? await this.tenant.db.doctor.findFirst({ where: { userId: user.id }, select: { id: true } }) : null;
     const doctorId = own?.id ?? dto.doctorId ?? ownerDoctor?.id;
@@ -180,12 +180,12 @@ export class TreatmentsService {
     if (!doctor) throw new NotFoundException('الدكتور غير موجود');
     if (!doctor.isActive) throw new BadRequestException('هذا الدكتور موقوف');
     await this.usableTypes(dto.teeth.map((t) => t.treatmentTypeId));
-    if (dto.startedAt && dto.startedAt.getTime() > Date.now() + GRACE_MS) throw new BadRequestException('تاريخ بداية العلاج بالمستقبل');
+    if (dto.startedAt && dto.startedAt.getTime() > Date.now() + GRACE_MS) throw new BadRequestException('تاريخ بداية العلاج في المستقبل');
 
     if (dto.appointmentId) {
       const apt = await this.tenant.db.appointment.findUnique({ where: { id: dto.appointmentId }, select: { patientId: true, doctorId: true, status: true } });
       if (!apt) throw new NotFoundException('الموعد غير موجود');
-      if (apt.patientId !== dto.patientId || apt.doctorId !== doctorId) throw new BadRequestException('الموعد مش لنفس المريض والدكتور');
+      if (apt.patientId !== dto.patientId || apt.doctorId !== doctorId) throw new BadRequestException('الموعد ليس للمريض والدكتور نفسيهما');
       if (apt.status === 'CANCELLED') throw new BadRequestException('الموعد ملغي');
       if (await this.tenant.db.treatment.findFirst({ where: { appointmentId: dto.appointmentId }, select: { id: true } })) throw new ConflictException('هذا الموعد مربوط بعلاج');
     }
@@ -221,7 +221,7 @@ export class TreatmentsService {
     if (dto.teeth) await this.usableTypes(dto.teeth.map((t) => t.treatmentTypeId));
     await this.prisma.$transaction(async (tx) => {
       const t = await this.lock(tx, clinicId, id);
-      if (t.status !== 'OPEN') throw new ConflictException('العلاج مش مفتوح، ما بينعدل');
+      if (t.status !== 'OPEN') throw new ConflictException('العلاج غير مفتوح ولا يمكن تعديله');
       if (dto.totalCost !== undefined && dto.totalCost < paidTotal(t.payments)) throw new BadRequestException('التكلفة أقل من المبلغ المدفوع');
 
       if (dto.plannedSessions !== undefined && dto.plannedSessions !== t.plannedSessions) {
@@ -229,7 +229,7 @@ export class TreatmentsService {
           await tx.session.createMany({ data: Array.from({ length: dto.plannedSessions - t.plannedSessions }, (_, i) => ({ clinicId, treatmentId: id, number: t.plannedSessions + i + 1 })) });
         } else {
           const doomed = t.sessions.filter((s) => s.number > dto.plannedSessions!);
-          if (doomed.some((s) => s.status === 'COMPLETED' || s.appointmentId)) throw new BadRequestException('ما بتقدر تنقص جلسات منتهية أو محجوزة');
+          if (doomed.some((s) => s.status === 'COMPLETED' || s.appointmentId)) throw new BadRequestException('لا يمكن حذف جلسات منتهية أو محجوزة');
           await tx.session.deleteMany({ where: { treatmentId: id, number: { gt: dto.plannedSessions } } });
         }
       }
@@ -258,7 +258,7 @@ export class TreatmentsService {
     const clinicId = user.clinicId!;
     await this.prisma.$transaction(async (tx) => {
       const t = await this.lock(tx, clinicId, id);
-      if (t.status !== 'OPEN') throw new ConflictException('العلاج مش مفتوح');
+      if (t.status !== 'OPEN') throw new ConflictException('العلاج غير مفتوح');
       const session = t.sessions.find((s) => s.number === number);
       if (!session) throw new NotFoundException('الجلسة غير موجودة');
       const done = await tx.session.updateMany({
@@ -276,7 +276,7 @@ export class TreatmentsService {
   async bookSession(user: AuthUser, id: string, number: number, dto: BookSessionDto) {
     const t = await this.load(user, id);
     await this.assertCanAct(user, t.doctorId);
-    if (t.status !== 'OPEN') throw new ConflictException('العلاج مش مفتوح');
+    if (t.status !== 'OPEN') throw new ConflictException('العلاج غير مفتوح');
     const session = t.sessions.find((s) => s.number === number);
     if (!session) throw new NotFoundException('الجلسة غير موجودة');
     if (session.status !== 'PLANNED') throw new ConflictException('هذه الجلسة منتهية');
@@ -290,7 +290,7 @@ export class TreatmentsService {
     });
     if (linked.count !== 1) {
       await this.appointments.cancel(user, apt.id, 'تعذر ربطه بالجلسة');
-      throw new ConflictException('هذه الجلسة انحجزت للتو');
+      throw new ConflictException('حُجزت هذه الجلسة للتو');
     }
     await this.prisma.auditLog.create({ data: { clinicId, actorUserId: user.id, action: 'SESSION_BOOKED', entityType: 'Treatment', entityId: id, after: { number, appointmentId: apt.id } } });
     return this.get(user, id);
@@ -302,10 +302,10 @@ export class TreatmentsService {
     const clinicId = user.clinicId!;
     await this.prisma.$transaction(async (tx) => {
       const t = await this.lock(tx, clinicId, id);
-      if (t.status !== 'OPEN') throw new ConflictException('العلاج مش مفتوح');
+      if (t.status !== 'OPEN') throw new ConflictException('العلاج غير مفتوح');
       const done = t.sessions.filter((s) => s.status === 'COMPLETED');
-      if (done.length === 0) throw new ConflictException('لازم تتم جلسة وحدة على الأقل');
-      if (paidTotal(t.payments) < t.totalCost) throw new ConflictException('لسا في مبلغ متبقي ما انستلم');
+      if (done.length === 0) throw new ConflictException('يجب إتمام جلسة واحدة على الأقل');
+      if (paidTotal(t.payments) < t.totalCost) throw new ConflictException('ما زال هناك مبلغ متبقٍ لم يُستلم');
       // The doctor may finish early: sessions that never happened are dropped, and their appointments are released.
       const dropped = t.sessions.filter((s) => s.status !== 'COMPLETED');
       if (dropped.length > 0) {
@@ -324,8 +324,8 @@ export class TreatmentsService {
     const clinicId = user.clinicId!;
     await this.prisma.$transaction(async (tx) => {
       const t = await this.lock(tx, clinicId, id);
-      if (t.status !== 'OPEN') throw new ConflictException('العلاج مش مفتوح');
-      if (paidTotal(t.payments) > 0) throw new ConflictException('في دفعات على هذا العلاج: لازم المالك يلغيها أولاً');
+      if (t.status !== 'OPEN') throw new ConflictException('العلاج غير مفتوح');
+      if (paidTotal(t.payments) > 0) throw new ConflictException('توجد دفعات على هذا العلاج: يجب أن يلغيها المالك أولاً');
       await tx.treatment.update({ where: { id }, data: { status: 'CANCELLED', closedAt: new Date() } });
       await this.audit(tx, clinicId, user.id, 'TREATMENT_CANCELLED', id, { after: { reason: reason ?? null } });
     });
@@ -337,7 +337,7 @@ export class TreatmentsService {
     const row = await this.load(user, id);
     await this.assertCanAct(user, row.doctorId);
     const clinicId = user.clinicId!;
-    if (dto.paidAt.getTime() > Date.now() + GRACE_MS) throw new BadRequestException('تاريخ الدفعة بالمستقبل');
+    if (dto.paidAt.getTime() > Date.now() + GRACE_MS) throw new BadRequestException('تاريخ الدفعة في المستقبل');
     await this.prisma.$transaction(async (tx) => {
       const t = await this.lock(tx, clinicId, id);
       if (t.status !== 'OPEN') throw new ConflictException(t.status === 'CLOSED' ? 'العلاج مغلق' : 'العلاج ملغي');

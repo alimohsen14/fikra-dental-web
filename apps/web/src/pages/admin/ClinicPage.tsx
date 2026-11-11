@@ -13,7 +13,7 @@ import { ROLE_LABELS } from '../../auth/paths.ts'
 import { BillingSection } from './BillingSection.tsx'
 import { WhatsappCard } from './WhatsappCard.tsx'
 
-const messageOf = (e: unknown) => (e instanceof ApiError ? e.message : 'صار خطأ غير متوقع، جرب مرة ثانية')
+const messageOf = (e: unknown) => (e instanceof ApiError ? e.message : 'حدث خطأ غير متوقع، حاول مرة أخرى')
 
 /** Small helper: runs an action, shows its error, and calls `then` when it worked. */
 function useAction() {
@@ -40,7 +40,7 @@ function StatusCard({ clinic, onChanged }: { clinic: ClinicDetail; onChanged: ()
   const { error, busy, run } = useAction()
   const suspended = clinic.status === 'SUSPENDED'
   return (
-    <Card title={suspended ? 'العيادة موقوفة' : 'إيقاف العيادة'} hint={suspended ? 'ما حدا من موظفيها بيقدر يدخل لحد ما تفعّلها.' : 'الإيقاف بيمنع كل موظفي العيادة من الدخول فوراً، والبيانات بتضل محفوظة.'}>
+    <Card title={suspended ? 'العيادة موقوفة' : 'إيقاف العيادة'} hint={suspended ? 'لا يستطيع أحد من موظفيها الدخول حتى تفعّلها.' : 'يمنع الإيقاف جميع موظفي العيادة من الدخول فوراً، وتبقى البيانات محفوظة.'}>
       {error && <Alert tone="error">{error}</Alert>}
       {suspended ? (
         <Button size="sm" className="self-start" busy={busy} onClick={() => void run(() => setClinicActive(clinic.id, true), onChanged)}>
@@ -96,7 +96,7 @@ function RenewCard({ clinic, onChanged }: { clinic: ClinicDetail; onChanged: () 
     setOk(false)
     const agorot = price.trim() ? parseShekels(price) : undefined
     if (agorot === null) return setError('اكتب السعر كرقم، مثال: 3000')
-    if (mode === 'date' && (!date || new Date(endOfDayIso(date)).getTime() <= Date.now())) return setError('اختار تاريخ انتهاء بالمستقبل')
+    if (mode === 'date' && (!date || new Date(endOfDayIso(date)).getTime() <= Date.now())) return setError('اختر تاريخ انتهاء في المستقبل')
     const price_ = agorot === undefined ? {} : { price: agorot }
     const body = mode === 'months' ? { months, ...price_ } : { endsAt: endOfDayIso(date), ...price_ }
     void run(() => renewClinic(clinic.id, body), () => {
@@ -107,7 +107,7 @@ function RenewCard({ clinic, onChanged }: { clinic: ClinicDetail; onChanged: () 
   }
 
   return (
-    <Card id="renew" title="تجديد الاشتراك" hint="لما تستلم الدفعة جدد من هون. إذا تركت السعر فاضي بيكون تمديد مجاني بدون فاتورة. التمديد بالأشهر بيبدأ من تاريخ الانتهاء الحالي، أو من اليوم إذا كان انتهى.">
+    <Card id="renew" title="تجديد الاشتراك" hint="عند استلام الدفعة جدّد من هنا. إذا تركت السعر فارغاً يكون التمديد مجانياً بدون فاتورة. يبدأ التمديد بالأشهر من تاريخ الانتهاء الحالي، أو من اليوم إذا كان قد انتهى.">
       <form onSubmit={submit} noValidate className="flex flex-col gap-4">
         {error && <Alert tone="error">{error}</Alert>}
         {ok && <Alert tone="success">تم تجديد الاشتراك.</Alert>}
@@ -124,14 +124,14 @@ function RenewCard({ clinic, onChanged }: { clinic: ClinicDetail; onChanged: () 
             <SelectField label="المدة" value={months} onChange={(e) => setMonths(Number(e.target.value))}>
               {RENEW_MONTHS.map((m) => (
                 <option key={m} value={m}>
-                  {m === 1 ? 'شهر واحد' : `${m} ${m <= 10 ? 'أشهر' : 'شهر'}`}
+                  {m === 1 ? 'شهر واحد' : `${m} ${m <= 10 ? 'أشهر' : 'شهراً'}`}
                 </option>
               ))}
             </SelectField>
           ) : (
             <TextField label="ينتهي بتاريخ" type="date" dir="ltr" min={todayInput()} className="text-right" value={date} onChange={(e) => setDate(e.target.value)} />
           )}
-          <TextField label="سعر هالفترة (₪) - اختياري" inputMode="decimal" dir="ltr" className="text-right" value={price} onChange={(e) => setPrice(e.target.value)} />
+          <TextField label="سعر هذه الفترة (₪) - اختياري" inputMode="decimal" dir="ltr" className="text-right" value={price} onChange={(e) => setPrice(e.target.value)} />
         </div>
         <Button type="submit" size="sm" busy={busy} className="self-start">
           تجديد الاشتراك
@@ -160,7 +160,7 @@ function IdentityCard({ clinic, onChanged }: { clinic: ClinicDetail; onChanged: 
   }
 
   return (
-    <Card title="هوية العيادة" hint="اللون واللوغو من إعدادات العيادة نفسها، المالك بس بيغيّرهم.">
+    <Card title="هوية العيادة" hint="اللون والشعار من إعدادات العيادة نفسها، ولا يغيّرهما إلا المالك.">
       <form onSubmit={submit} noValidate className="flex flex-col gap-4">
         {error && <Alert tone="error">{error}</Alert>}
         <TextField label="اسم العيادة" value={name} onChange={(e) => setName(e.target.value)} />
@@ -204,7 +204,7 @@ function UsersCard({ clinic }: { clinic: ClinicDetail }) {
         <SecretBox title="كلمة مرور جديدة للمالك" username={creds.owner.username} password={creds.temporaryPassword} expiresAt={creds.temporaryPasswordExpiresAt} />
       ) : asking ? (
         <div className="flex flex-col gap-3 rounded-xl bg-[#fdf3f3] p-4">
-          <p className="text-sm leading-7">بتنعمل كلمة مؤقتة جديدة للمالك، وبيتسجّل خروجه من كل الأجهزة. تكمل؟</p>
+          <p className="text-sm leading-7">ستُنشأ كلمة مؤقتة جديدة للمالك، وسيُسجَّل خروجه من كل الأجهزة. هل تريد المتابعة؟</p>
           <div className="flex gap-2">
             <Button variant="danger" size="sm" busy={busy} onClick={() => void run(async () => setCreds(await resetOwnerPassword(clinic.id)), () => setAsking(false))}>
               نعم، أعد التعيين

@@ -54,7 +54,7 @@ export class SalariesService {
   async month(user: AuthUser, month: string) {
     const clinicId = user.clinicId!;
     const tz = await this.tz(clinicId);
-    if (month > localDate(new Date(), tz).slice(0, 7)) throw new BadRequestException('هذا الشهر لسا ما بدأ');
+    if (month > localDate(new Date(), tz).slice(0, 7)) throw new BadRequestException('لم يبدأ هذا الشهر بعد');
 
     const staff = await this.tenant.db.user.findMany({
       where: { role: { in: [...STAFF_ROLES] }, isActive: true },
@@ -100,7 +100,7 @@ export class SalariesService {
       const e = await this.lock(tx, clinicId, entryId);
       const net = e.baseAmount + dto.adjustment;
       if (net < 0) throw new BadRequestException('الخصم أكبر من الراتب');
-      if (net < figures(e).paid) throw new BadRequestException('الراتب بعد التعديل أقل من اللي انعطى');
+      if (net < figures(e).paid) throw new BadRequestException('الراتب بعد التعديل أقل من المبلغ المصروف');
       await tx.salaryEntry.update({ where: { id: entryId }, data: { adjustment: dto.adjustment, adjustNote: dto.adjustNote ?? null } });
       await this.audit(tx, clinicId, user.id, 'SALARY_ADJUSTED', entryId, { before: { adjustment: e.adjustment }, after: dto });
     });
@@ -110,12 +110,12 @@ export class SalariesService {
   async addPayment(user: AuthUser, entryId: string, dto: SalaryPaymentDto) {
     const clinicId = user.clinicId!;
     await this.exists(entryId);
-    if (dto.paidAt.getTime() > Date.now() + GRACE_MS) throw new BadRequestException('تاريخ الدفعة بالمستقبل');
+    if (dto.paidAt.getTime() > Date.now() + GRACE_MS) throw new BadRequestException('تاريخ الدفعة في المستقبل');
     const tz = await this.tz(clinicId);
     await this.prisma.$transaction(async (tx) => {
       const e = await this.lock(tx, clinicId, entryId);
       // An advance always comes off the coming salary: the current month's, never one that is over.
-      if (dto.kind === 'ADVANCE' && e.month !== localDate(new Date(), tz).slice(0, 7)) throw new BadRequestException('السلفة بتنخصم من راتب الشهر الحالي بس');
+      if (dto.kind === 'ADVANCE' && e.month !== localDate(new Date(), tz).slice(0, 7)) throw new BadRequestException('تُخصم السلفة من راتب الشهر الحالي فقط');
       if (dto.amount > figures(e).remaining) throw new BadRequestException(dto.kind === 'ADVANCE' ? 'السلفة أكبر من المتبقي من راتب الشهر' : 'المبلغ أكبر من المتبقي من الراتب');
       const p = await tx.salaryPayment.create({
         data: { clinicId, entryId, kind: dto.kind, amount: dto.amount, method: dto.method, paidAt: dto.paidAt, note: dto.note ?? null, createdByUserId: user.id },

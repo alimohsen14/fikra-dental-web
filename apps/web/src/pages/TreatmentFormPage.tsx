@@ -24,7 +24,7 @@ import { cancelTreatment, createTreatment, getTreatment, listTreatmentTypes, pic
 import type { Treatment, TreatmentType } from '../lib/treatments.ts'
 import { useLoad } from '../lib/useLoad.ts'
 
-const messageOf = (e: unknown) => (e instanceof ApiError ? e.message : 'صار خطأ غير متوقع، جرب مرة ثانية')
+const messageOf = (e: unknown) => (e instanceof ApiError ? e.message : 'حدث خطأ غير متوقع، حاول مرة أخرى')
 
 /** The chart + type + notes + cost + sessions. Shared by "new" and "edit". */
 function TreatmentFields({
@@ -66,16 +66,16 @@ function TreatmentFields({
   return (
     <>
       <form onSubmit={submit} noValidate className="flex flex-col gap-5">
-        <Card title="الأسنان" hint={age === null ? 'كبس على السن لاختياره. تقدر تختار أكثر من سن.' : `عمر المريض ${age} سنة. كبس على السن لاختياره، وتقدر تختار أكثر من سن.`}>
+        <Card title="الأسنان" hint={age === null ? 'اضغط على السن لاختياره. يمكنك اختيار أكثر من سن.' : `عمر المريض ${age} سنة. اضغط على السن لاختياره، ويمكنك اختيار أكثر من سن.`}>
           <ToothSetToggle value={set} onChange={setSet} />
           <ToothChart set={set} selected={codes} onPick={(c) => field('teeth', toggleEntry(v.teeth, c))} />
           <SelectedTeeth teeth={codes} onRemove={(c) => field('teeth', toggleEntry(v.teeth, c))} onClear={() => field('teeth', [])} />
         </Card>
-        <Card title="العلاج" hint="لكل سن نوع علاجه. التكلفة وعدد الجلسات واحدة للعلاج كله.">
+        <Card title="العلاج" hint="لكل سن نوع علاجه. التكلفة وعدد الجلسات واحدان للعلاج كله.">
           {tree.length === 0 ? (
-            <Alert tone="warning">ما في أنواع علاج لسا. اضغط "إضافة نوع علاج جديد" تحت.</Alert>
+            <Alert tone="warning">لا توجد أنواع علاج بعد. اضغط «إضافة نوع علاج جديد» أدناه.</Alert>
           ) : v.teeth.length === 0 ? (
-            <p className="text-[15px] text-muted">اختر الأسنان من المخطط فوق، وبعدين اختر نوع العلاج لكل سن.</p>
+            <p className="text-[15px] text-muted">اختر الأسنان من المخطط أعلاه، ثم اختر نوع العلاج لكل سن.</p>
           ) : (
             <ul className="flex flex-col gap-3" data-testid="tooth-rows">
               {v.teeth.map((t) => {
@@ -141,7 +141,7 @@ function TreatmentFields({
               className="text-right"
               value={v.sessions}
               onChange={(e) => field('sessions', e.target.value)}
-              hint="بتتسجل الجلسات تلقائياً، وبتسكّرها من صفحة العلاج"
+              hint="تُسجَّل الجلسات تلقائياً، وتُنهيها من صفحة العلاج"
             />
           </div>
         </Card>
@@ -173,8 +173,8 @@ function ModeChoice({ onPick }: { onPick: (m: Mode) => void }) {
     <div className="grid max-w-3xl gap-4 sm:grid-cols-2">
       {(
         [
-          ['with', 'بموعد', 'العلاج لمريض عنده موعد محجوز، بتختار الموعد من القائمة.'],
-          ['without', 'بدون موعد', 'مريض إجا بدون موعد أو العلاج مسجل بعد الزيارة، بتختار المريض والدكتور والتاريخ.'],
+          ['with', 'بموعد', 'علاج لمريض لديه موعد محجوز، تختار الموعد من القائمة.'],
+          ['without', 'بدون موعد', 'مريض حضر بدون موعد أو سُجّل العلاج بعد الزيارة، تختار المريض والدكتور والتاريخ.'],
         ] as const
       ).map(([m, title, hint]) => (
         <button
@@ -220,7 +220,7 @@ function AppointmentList({ onPick }: { onPick: (a: Appointment) => void }) {
       {!data ? (
         <Loading error={error} />
       ) : rows.length === 0 ? (
-        <p className="text-[15px] text-muted">ما في مواعيد مؤكدة بهذا اليوم. تنقّل بين الأيام (المريض ممكن يجي قبل موعده أو بعده)، أو جرب «بدون موعد».</p>
+        <p className="text-[15px] text-muted">لا توجد مواعيد مؤكدة في هذا اليوم. تنقّل بين الأيام (قد يحضر المريض قبل موعده أو بعده)، أو جرّب «بدون موعد».</p>
       ) : (
         <ul className="flex flex-col gap-2" aria-label="المواعيد المؤكدة">
           {rows.map((a) => (
@@ -322,7 +322,7 @@ export function NewTreatmentPage() {
       )}
 
       {mode === 'with' && !apt && (
-        <Card title="اختر الموعد" hint="المواعيد المؤكدة فقط. اليوم الحالي ظاهر، وتقدر تتنقل بين الأيام. بعد إنشاء العلاج بينتهي الموعد.">
+        <Card title="اختر الموعد" hint="المواعيد المؤكدة فقط. اليوم الحالي ظاهر، ويمكنك التنقل بين الأيام. بعد إنشاء العلاج يُعدّ الموعد منتهياً.">
           <AppointmentList onPick={setApt} />
         </Card>
       )}
@@ -461,9 +461,9 @@ function EditForm({
     <>
       <ClinicBanner title="تعديل العلاج" subtitle={`${t.patient.fullName} · ${t.doctor.fullName}`} back={{ to: `/treatments/${t.id}`, label: 'رجوع لصفحة العلاج' }} />
       {!t.access.edit ? (
-        <Alert tone="warning">هذا العلاج مش مسجل باسمك، ما بتقدر تعدّل عليه.</Alert>
+        <Alert tone="warning">هذا العلاج غير مسجل باسمك، ولا يمكنك تعديله.</Alert>
       ) : t.status !== 'OPEN' ? (
-        <Alert tone="warning">هذا العلاج {t.status === 'CLOSED' ? 'مغلق' : 'ملغي'}، ما بينعدل.</Alert>
+        <Alert tone="warning">هذا العلاج {t.status === 'CLOSED' ? 'مغلق' : 'ملغي'}، ولا يمكن تعديله.</Alert>
       ) : (
         <>
           <TreatmentFields
@@ -478,7 +478,7 @@ function EditForm({
             error={error}
             onSubmit={() => void save()}
           />
-          <Card title="إلغاء العلاج" hint="بيلغى العلاج إذا ما في دفعات فعّالة عليه. بيضل بالسجل كملغي.">
+          <Card title="إلغاء العلاج" hint="يمكن إلغاء العلاج إذا لم توجد دفعات فعّالة عليه. يبقى في السجل كملغى.">
             <p className="text-sm text-muted">
               بدأ بتاريخ <DateText value={t.startedAt} />
             </p>

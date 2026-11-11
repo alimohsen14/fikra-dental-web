@@ -12,8 +12,8 @@ const MONTHS = [
   [1, 'شهر واحد'],
   [3, '3 أشهر'],
   [6, '6 أشهر'],
-  [12, '12 شهر'],
-  [24, '24 شهر'],
+  [12, '12 شهراً'],
+  [24, '24 شهراً'],
 ] as const
 
 export default function CreateClinicPage() {
@@ -32,7 +32,7 @@ export default function CreateClinicPage() {
     try {
       setDone(await createClinic(r.input))
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'صار خطأ غير متوقع، جرب مرة ثانية')
+      setError(err instanceof ApiError ? err.message : 'حدث خطأ غير متوقع، حاول مرة أخرى')
     } finally {
       setBusy(false)
     }
@@ -40,7 +40,7 @@ export default function CreateClinicPage() {
 
   return (
     <>
-      <PageBanner title="عيادة جديدة" subtitle="بتنشئ العيادة وحساب المالك، والمالك بيصير دكتور بالنظام تلقائياً." back={{ to: '/admin', label: 'رجوع للعيادات' }} />
+      <PageBanner title="عيادة جديدة" subtitle="تنشئ العيادة وحساب المالك، ويصبح المالك دكتوراً في النظام تلقائياً." back={{ to: '/admin', label: 'رجوع للعيادات' }} />
       {done ? (
         <div className="flex max-w-xl flex-col gap-4">
           <Alert tone="success">تم إنشاء عيادة «{done.clinic.name}».</Alert>
@@ -59,7 +59,7 @@ export default function CreateClinicPage() {
           {error && <Alert tone="error">{error}</Alert>}
           <Card title="بيانات العيادة">
             <TextField label="اسم العيادة" required value={f.name} onChange={(e) => set('name', e.target.value)} />
-            <p className="text-[13px] text-muted">اللون واللوغو بيختارهم مالك العيادة من إعدادات العيادة.</p>
+            <p className="text-[13px] text-muted">يختار مالك العيادة اللون والشعار من إعدادات العيادة.</p>
           </Card>
           <Card title="حساب المالك">
             <div className="grid gap-4 sm:grid-cols-2">
@@ -69,7 +69,7 @@ export default function CreateClinicPage() {
               <TextField label="التخصص (اختياري)" value={f.specialty} onChange={(e) => set('specialty', e.target.value)} />
             </div>
           </Card>
-          <Card title="الاشتراك" hint="بيبدأ الاشتراك من اليوم وبينتهي بعد المدة. الدفعات بتسجلها لاحقاً من صفحة العيادة، والمبلغ المتبقي ما بيقفل العيادة، بس انتهاء المدة.">
+          <Card title="الاشتراك" hint="يبدأ الاشتراك من اليوم وينتهي بعد المدة. تسجّل الدفعات لاحقاً من صفحة العيادة، والمبلغ المتبقي لا يغلق العيادة، وإنما انتهاء المدة.">
             <div className="grid gap-4 sm:grid-cols-2">
               <SelectField label="المدة" value={f.months} onChange={(e) => set('months', Number(e.target.value))}>
                 {MONTHS.map(([m, label]) => (

@@ -16,7 +16,7 @@ const BILLING_STYLE: Record<BillingStatus, { label: string; bg: string; fg: stri
   PAID: { label: 'مدفوع بالكامل', bg: '#e3f5ea', fg: '#0b6b3a' },
 }
 
-const messageOf = (e: unknown) => (e instanceof ApiError ? e.message : 'صار خطأ غير متوقع، جرب مرة ثانية')
+const messageOf = (e: unknown) => (e instanceof ApiError ? e.message : 'حدث خطأ غير متوقع، حاول مرة أخرى')
 
 function AddPayment({ clinicId, periods, onDone }: { clinicId: string; periods: Period[]; onDone: () => void }) {
   const open = periods.filter((p) => p.remaining > 0)
@@ -28,7 +28,7 @@ function AddPayment({ clinicId, periods, onDone }: { clinicId: string; periods: 
   const [busy, setBusy] = useState(false)
   const current = open.find((p) => p.id === periodId) ?? open[0]
 
-  if (!current) return <p className="text-sm text-muted">ما في مبلغ متبقي على أي فترة، لا يوجد دفعات جديدة لتسجيلها.</p>
+  if (!current) return <p className="text-sm text-muted">لا يوجد مبلغ متبقٍ على أي فترة، فلا توجد دفعات جديدة لتسجيلها.</p>
 
   async function submit(e: FormEvent) {
     e.preventDefault()
@@ -137,9 +137,9 @@ export function BillingSection({ clinicId, version, onChanged }: { clinicId: str
   if (!data) return <Loading error={error} />
 
   return (
-    <Card title="الاشتراك والدفعات" hint="المبلغ المتبقي ما بيقفل العيادة، بس انتهاء المدة. الدفعات ما بتنحذف، بتنلغى بسبب وبتضل بالسجل.">
+    <Card title="الاشتراك والدفعات" hint="المبلغ المتبقي لا يغلق العيادة، وإنما انتهاء المدة. الدفعات لا تُحذف، بل تُلغى بسبب وتبقى في السجل.">
       {data.periods.length === 0 ? (
-        <p className="text-sm text-muted">ما في فترات اشتراك مسجّلة بسعر لهذه العيادة.</p>
+        <p className="text-sm text-muted">لا توجد فترات اشتراك مسجّلة بسعر لهذه العيادة.</p>
       ) : (
         <>
           <div className="flex flex-wrap gap-3">

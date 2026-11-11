@@ -129,7 +129,7 @@ async function main() {
     prisma.messageLog.create({
       data: {
         clinicId, appointmentId, kind: o.kind ?? 'CONFIRMATION', status: o.status, toPhone, scheduledFor: o.at, sentAt: o.status === 'SCHEDULED' || o.status === 'CANCELLED' ? null : o.at,
-        body: o.status === 'SCHEDULED' ? null : 'مرحبا، هذا تذكير بموعدك بالعيادة. رد بـ نعم للتأكيد أو لا للإلغاء.', errorMessage: o.status === 'FAILED' ? o.error ?? 'رقم غير صالح للواتساب' : null,
+        body: o.status === 'SCHEDULED' ? null : 'مرحباً، هذا تذكير بموعدك في العيادة. ردّ بكلمة نعم للتأكيد أو لا للإلغاء.', errorMessage: o.status === 'FAILED' ? o.error ?? 'رقم غير صالح للواتساب' : null,
         response: o.response ?? null, respondedAt: o.response ? new Date(o.at.getTime() + 20 * MIN) : null,
       },
     });
@@ -156,16 +156,16 @@ async function main() {
   const uRana = await makeUser(N, 'noor_rana', 'د. رنا الحاج', 'DOCTOR', { monthlySalary: ils(5500), phone: '+970599100003' });
   const uSec = await makeUser(N, 'noor_sec', 'هبة (سكرتيرة بدون صلاحية مالية)', 'SECRETARY', { monthlySalary: ils(3000) });
   const uKey = await makeUser(N, 'noor_key', 'دانا (سكرتيرة مع مفتاح المدفوعات)', 'SECRETARY', { canManagePayments: true, monthlySalary: ils(3200) });
-  await makeUser(N, 'noor_old', 'موظف موقوف (ما بيقدر يدخل)', 'SECRETARY', { isActive: false });
+  await makeUser(N, 'noor_old', 'موظف موقوف (لا يستطيع الدخول)', 'SECRETARY', { isActive: false });
   await makeUser(N, 'noor_temp', 'سكرتيرة جديدة (كلمة مرور مؤقتة)', 'SECRETARY', { mustChangePassword: true, temporaryPasswordExpiresAt: new Date(Date.now() + 5 * DAY) });
   await makeUser(N, 'noor_tempexp', 'سكرتيرة كلمتها المؤقتة انتهت', 'SECRETARY', { mustChangePassword: true, temporaryPasswordExpiresAt: new Date(Date.now() - 2 * DAY) });
-  await makeUser(N, 'noor_locked', 'مستخدم مقفول بعد محاولات غلط', 'SECRETARY', { failedLoginCount: 5, lockedUntil: new Date(Date.now() + 60 * MIN) });
+  await makeUser(N, 'noor_locked', 'مستخدم مقفول بعد محاولات خاطئة', 'SECRETARY', { failedLoginCount: 5, lockedUntil: new Date(Date.now() + 60 * MIN) });
 
   const weekdays = [6, 0, 1, 2, 3, 4]; // Saturday to Thursday
   const dOwner = await makeDoctor(N, 'د. أحمد النور', owner.id, [[weekdays, 540, 780], [weekdays, 960, 1200]], { appointmentMinutes: 30 });
   const dSami = await makeDoctor(N, 'د. سامي الخطيب', uSami.id, [[[0, 1, 2, 3, 4], 540, 900]], { appointmentMinutes: 30 });
   const dRana = await makeDoctor(N, 'د. رنا الحاج', uRana.id, [[[0, 1, 2, 3, 4, 6], 960, 1200]], { appointmentMinutes: 60 });
-  await makeDoctor(N, 'د. غير فعّال (ما بيظهر بالحجز)', null, [], { isActive: false });
+  await makeDoctor(N, 'د. غير فعّال (لا يظهر في الحجز)', null, [], { isActive: false });
 
   // ---- treatment types: two levels, one inactive
   const tFill = await makeType(N, 'حشوة');
@@ -188,10 +188,10 @@ async function main() {
   const birth = (y: number, m: number, d: number) => new Date(Date.UTC(y, m - 1, d));
   const yearsAgo = (years: number, m = 3, d = 10) => birth(Number(today.slice(0, 4)) - years, m, d);
   await addP('layla', 'ليلى حداد', '+970599200001', { gender: 'FEMALE', birthDate: yearsAgo(36), nationalId: '900000001', medicalAlerts: 'حساسية بنسلين', region: 'رام الله', address: 'الماصيون، شارع الإرسال' });
-  await addP('layla_kid', 'جنى (بنت ليلى)', '+970599200001', { gender: 'FEMALE', birthDate: yearsAgo(10, 8, 2), notes: 'نفس رقم أمها: عائلة وحدة' });
+  await addP('layla_kid', 'جنى (بنت ليلى)', '+970599200001', { gender: 'FEMALE', birthDate: yearsAgo(10, 8, 2), notes: 'نفس رقم والدتها: عائلة واحدة' });
   await addP('mohammad', 'محمد الخطيب', '+970599200002', { gender: 'MALE', birthDate: yearsAgo(41), nationalId: '900000002', region: 'البيرة' });
-  await addP('mohammad2', 'محمد الخطيب', '+970599200003', { gender: 'MALE', birthDate: yearsAgo(23), notes: 'نفس الاسم، شخص ثاني (رقم مختلف)' });
-  await addP('kareem', 'كريم المراهق', '+970599200004', { gender: 'MALE', birthDate: yearsAgo(15, 2, 2), notes: 'يلبس تقويم' });
+  await addP('mohammad2', 'محمد الخطيب', '+970599200003', { gender: 'MALE', birthDate: yearsAgo(23), notes: 'نفس الاسم، شخص آخر (رقم مختلف)' });
+  await addP('kareem', 'كريم المراهق', '+970599200004', { gender: 'MALE', birthDate: yearsAgo(15, 2, 2), notes: 'يضع تقويماً' });
   await addP('sara', 'سارة النتشة', '+970599200005', { gender: 'FEMALE', birthDate: yearsAgo(48), medicalAlerts: 'سكري نوع 2', nationalId: '900000005' });
   await addP('hajj', 'أبو أحمد الحاج', '+970599200006', { gender: 'MALE', birthDate: yearsAgo(74), medicalAlerts: 'ضغط + أدوية سيولة الدم: انتبه عند القلع', nationalId: '900000006' });
   await addP('rana_p', 'رنا عودة', '+970599200007', { gender: 'FEMALE', birthDate: yearsAgo(29), nationalId: '900000007' });
@@ -199,13 +199,13 @@ async function main() {
   await addP('yasmin', 'ياسمين (طفلة)', '+970599200009', { gender: 'FEMALE', birthDate: yearsAgo(4, 5, 5), notes: 'أسنان لبنية' });
   await addP('nodate', 'مريض بدون تاريخ ميلاد', '+970599200010', { gender: 'MALE' });
   await addP('omar', 'عمر الشريف', '+970599200011', { gender: 'MALE', birthDate: yearsAgo(33) });
-  await addP('huda', 'هدى بركات', '+970599200012', { gender: 'FEMALE', birthDate: yearsAgo(37), selfRegistered: true, notes: 'سجّلت حالها من صفحة الحجز: لسا ما انفتح لها علاج' });
+  await addP('huda', 'هدى بركات', '+970599200012', { gender: 'FEMALE', birthDate: yearsAgo(37), selfRegistered: true, notes: 'سجّلت نفسها من صفحة الحجز: لم يُفتح لها علاج بعد' });
   await addP('ziad', 'زياد منصور', '+970599200013', { gender: 'MALE', birthDate: yearsAgo(26) });
   await addP('dana', 'دانا حمدان', '+970599200014', { gender: 'FEMALE', birthDate: yearsAgo(23) });
-  await addP('khaled', 'خالد حنفي', '+970599200015', { gender: 'MALE', birthDate: yearsAgo(51), notes: 'يفضل المواعيد المسائية' });
+  await addP('khaled', 'خالد حنفي', '+970599200015', { gender: 'MALE', birthDate: yearsAgo(51), notes: 'يفضّل المواعيد المسائية' });
   await addP('mona', 'منى سلامة', '+970599200016', { gender: 'FEMALE', birthDate: yearsAgo(57) });
   await addP('long', 'عبد الرحمن محمد أحمد إبراهيم الخطيب الحسيني', '+970599200017', { gender: 'MALE', birthDate: yearsAgo(45) });
-  await addP('archived', 'مريض مؤرشف (ما بيظهر بالقائمة العادية)', '+970599200018', { gender: 'MALE', birthDate: yearsAgo(60), archivedAt: new Date(Date.now() - 30 * DAY) });
+  await addP('archived', 'مريض مؤرشف (لا يظهر في القائمة العادية)', '+970599200018', { gender: 'MALE', birthDate: yearsAgo(60), archivedAt: new Date(Date.now() - 30 * DAY) });
   await addP('notreat', 'مريض جديد بدون علاجات', '+970599200019', { gender: 'FEMALE', birthDate: yearsAgo(31) });
 
   // ---- treatments in every state (doctor = whoever did it)
@@ -225,7 +225,7 @@ async function main() {
   await doneSession(N, t2.id, 1, ago(20, 10));
   await doneSession(N, t2.id, 2, ago(12, 10), undefined, 'أخذ قياس التاج');
   await pay(N, t2, owner.id, 500, 'CASH', ago(20, 11));
-  await voidedPay(N, t2, owner.id, 3000, ago(12, 11), 'المبلغ انكتب غلط (3000 بدل 300)');
+  await voidedPay(N, t2, owner.id, 3000, ago(12, 11), 'كُتب المبلغ خطأً (3000 بدل 300)');
   await pay(N, t2, uKey.id, 300, 'CARD', ago(12, 11));
 
   // 3) orthodontics: long, part-paid monthly, teenager
@@ -247,20 +247,20 @@ async function main() {
   await pay(N, t5, owner.id, 150, 'CASH', ago(8, 12));
 
   // 6) closed EARLY (3 planned, only 2 happened): the third session is dropped, plannedSessions = 2
-  const t6 = await makeTreatment(N, { patientId: P.rana_p!.id, doctorId: dSami.id, teeth: [[46, tImplant.id]], cost: 3000, planned: 2, startedAt: ago(70), description: 'زراعة: خلصت بجلستين بدل 3', status: 'CLOSED', closedAt: ago(35, 14) });
+  const t6 = await makeTreatment(N, { patientId: P.rana_p!.id, doctorId: dSami.id, teeth: [[46, tImplant.id]], cost: 3000, planned: 2, startedAt: ago(70), description: 'زراعة: اكتملت بجلستين بدل 3', status: 'CLOSED', closedAt: ago(35, 14) });
   await doneSession(N, t6.id, 1, ago(70, 11));
   await doneSession(N, t6.id, 2, ago(35, 11));
   await pay(N, t6, owner.id, 2000, 'TRANSFER', ago(70, 12));
   await pay(N, t6, owner.id, 1000, 'CASH', ago(35, 12));
 
   // 7) cancelled treatment (no payments: a treatment with payments cannot be cancelled)
-  await makeTreatment(N, { patientId: P.omar!.id, doctorId: dOwner.id, teeth: [[11, tWhite.id], [21, tWhite.id]], cost: 800, planned: 1, startedAt: ago(5), description: 'تبييض: المريض ألغى', status: 'CANCELLED', closedAt: ago(4) });
+  await makeTreatment(N, { patientId: P.omar!.id, doctorId: dOwner.id, teeth: [[11, tWhite.id], [21, tWhite.id]], cost: 800, planned: 1, startedAt: ago(5), description: 'تبييض: ألغاه المريض', status: 'CANCELLED', closedAt: ago(4) });
 
   // 8) child, primary tooth (an appointment for it comes below)
   const t8 = await makeTreatment(N, { patientId: P.yasmin!.id, doctorId: dRana.id, teeth: [[54, tFillLight.id]], cost: 200, planned: 1, startedAt: ago(2), description: 'حشوة سن لبني' });
 
   // 9) the BIGGEST debt: nothing paid
-  const t9 = await makeTreatment(N, { patientId: P.yousef!.id, doctorId: dSami.id, teeth: [[13, tOrtho.id], [23, tOrtho.id]], cost: 5000, planned: 10, startedAt: ago(40), description: 'تقويم: لسا ما دفع شي' });
+  const t9 = await makeTreatment(N, { patientId: P.yousef!.id, doctorId: dSami.id, teeth: [[13, tOrtho.id], [23, tOrtho.id]], cost: 5000, planned: 10, startedAt: ago(40), description: 'تقويم: لم يدفع شيئاً بعد' });
   await doneSession(N, t9.id, 1, ago(40, 15));
 
   // 10) open, paid in full, one of two sessions done TODAY
@@ -302,10 +302,10 @@ async function main() {
   // ---- appointments in every state (per doctor, never overlapping)
   // Sami
   await appt(N, { patientId: P.mohammad!.id, doctorId: dSami.id, start: ago(14, 10), status: 'COMPLETED' });
-  await appt(N, { patientId: P.ziad!.id, doctorId: dSami.id, start: at(-1, 10), status: 'PENDING', notes: 'فات موعده ولا انأكد: لازم الاستقبال يتصرف' });
-  await appt(N, { patientId: P.huda!.id, doctorId: dSami.id, start: at(-1, 12), status: 'CONFIRMED', notes: 'مؤكد وفات وقته ولا انفتح له علاج' });
+  await appt(N, { patientId: P.ziad!.id, doctorId: dSami.id, start: at(-1, 10), status: 'PENDING', notes: 'فات موعده ولم يُؤكَّد: على الاستقبال التصرف' });
+  await appt(N, { patientId: P.huda!.id, doctorId: dSami.id, start: at(-1, 12), status: 'CONFIRMED', notes: 'مؤكد وفات وقته ولم يُفتح له علاج' });
   await appt(N, { patientId: P.sara!.id, doctorId: dSami.id, start: at(0, 11), status: 'CONFIRMED' });
-  const aBooked = await appt(N, { patientId: P.nodate!.id, doctorId: dSami.id, start: at(1, 11, 30), status: 'CONFIRMED', bookedByPatient: true, notes: 'حجز بنفسه من رابط الواتساب (خلال 24 ساعة: مؤكد تلقائياً)' });
+  const aBooked = await appt(N, { patientId: P.nodate!.id, doctorId: dSami.id, start: at(1, 11, 30), status: 'CONFIRMED', bookedByPatient: true, notes: 'حجز بنفسه عبر رابط واتساب (خلال 24 ساعة: مؤكد تلقائياً)' });
   await message(N, aBooked.id, P.nodate!.phone, { kind: 'BOOKING', status: 'DELIVERED', at: at(0, 8) });
   const aFar = await appt(N, { patientId: P.long!.id, doctorId: dSami.id, start: at(3, 10), status: 'PENDING' });
   await message(N, aFar.id, P.long!.phone, { status: 'SCHEDULED', at: at(2, 10) });
@@ -317,15 +317,15 @@ async function main() {
   await message(N, aKid.id, P.yasmin!.phone, { status: 'SENT', at: at(0, 8) });
   await appt(N, { patientId: P.dana!.id, doctorId: dRana.id, start: at(2, 16, 30), status: 'PENDING', minutes: 60 });
   const aFail = await appt(N, { patientId: P.khaled!.id, doctorId: dRana.id, start: at(2, 18), status: 'PENDING', minutes: 60 });
-  await message(N, aFail.id, P.khaled!.phone, { status: 'FAILED', at: at(1, 18), error: 'رقم غير مسجل بالواتساب' });
+  await message(N, aFail.id, P.khaled!.phone, { status: 'FAILED', at: at(1, 18), error: 'الرقم غير مسجل في واتساب' });
   await appt(N, { patientId: P.hajj!.id, doctorId: dRana.id, start: at(4, 18), status: 'CONFIRMED', minutes: 60 });
   // The owner (as a doctor): times relative to NOW, so there is always one that already started and one coming
   const started = roundDown5(new Date(Date.now() - 45 * MIN));
-  await appt(N, { patientId: P.omar!.id, doctorId: dOwner.id, start: started, status: 'CONFIRMED', notes: 'بدأ ولسا ما انفتح له علاج: جرّب "إنهاء وفتح علاج"' });
+  await appt(N, { patientId: P.omar!.id, doctorId: dOwner.id, start: started, status: 'CONFIRMED', notes: 'بدأ ولم يُفتح له علاج بعد: جرّب «إنهاء وفتح علاج»' });
   await appt(N, { patientId: P.ziad!.id, doctorId: dOwner.id, start: roundDown5(new Date(Date.now() + 60 * MIN)), status: 'CONFIRMED' });
   const aLater = await appt(N, { patientId: P.huda!.id, doctorId: dOwner.id, start: roundDown5(new Date(Date.now() + 180 * MIN)), status: 'PENDING' });
   await message(N, aLater.id, P.huda!.phone, { status: 'SENT', at: new Date(Date.now() - 30 * MIN) });
-  const aNo = await appt(N, { patientId: P.mona!.id, doctorId: dOwner.id, start: at(2, 10), status: 'PENDING', notes: 'المريضة ردت "لا" بالواتساب: لسا مش ملغي' });
+  const aNo = await appt(N, { patientId: P.mona!.id, doctorId: dOwner.id, start: at(2, 10), status: 'PENDING', notes: 'ردّت المريضة بـ «لا» عبر واتساب: لم يُلغَ الموعد بعد' });
   await message(N, aNo.id, P.mona!.phone, { status: 'DELIVERED', at: at(1, 10), response: 'NO' });
   const a2next = await appt(N, { patientId: P.mohammad!.id, doctorId: dOwner.id, start: at(1, 9), status: 'CONFIRMED' });
   await bookSession(N, t2.id, 3, a2next.id);
@@ -357,16 +357,16 @@ async function main() {
   }
   const rentNow = await expense(cRent.id, sLand.id, 2500, ago(Math.min(9, Number(today.slice(8, 10)) - 1) || 1), 'إيجار هذا الشهر');
   await expPay(rentNow, 2500, 'TRANSFER', ago(Math.min(8, Number(today.slice(8, 10)) - 1) || 1));
-  const matPartial = await expense(cMat.id, sMed.id, 1800, ago(5), 'مواد حشو وتخدير: مدفوع جزء بس');
+  const matPartial = await expense(cMat.id, sMed.id, 1800, ago(5), 'مواد حشو وتخدير: مدفوع جزئياً');
   await expPay(matPartial, 1000, 'CASH', ago(5));
   const matOld = await expense(cMat.id, sMed.id, 2200, inMonth(1, 10), 'مواد الشهر الماضي');
   await expPay(matOld, 2200, 'CARD', inMonth(1, 11));
-  await expense(cLab.id, sLab.id, 950, ago(12), 'فاتورة مختبر: ما اندفعت أبداً');
+  await expense(cLab.id, sLab.id, 950, ago(12), 'فاتورة مختبر: لم تُدفع أبداً');
   const labPaid = await expense(cLab.id, sLab.id, 600, ago(20), 'تاج زيركون من المختبر');
   await expPay(labPaid, 600, 'TRANSFER', ago(19));
   await expense(cAds.id, null, 400, ago(30), 'إعلان فيسبوك', { status: 'VOIDED', voidedAt: ago(29), voidReason: 'فاتورة مكررة', voidedByUserId: owner.id });
-  const fix = await expense(cFix.id, null, 350, ago(14), 'صيانة الكرسي: دفعة انلغت وانعادت');
-  await expPay(fix, 350, 'CASH', ago(14), { status: 'VOIDED', voidedAt: ago(13), voidReason: 'انسجلت كاش بالغلط، اندفعت بحوالة', voidedByUserId: owner.id });
+  const fix = await expense(cFix.id, null, 350, ago(14), 'صيانة الكرسي: دفعة أُلغيت وأُعيدت');
+  await expPay(fix, 350, 'CASH', ago(14), { status: 'VOIDED', voidedAt: ago(13), voidReason: 'سُجّلت نقداً بالخطأ، ودُفعت بحوالة', voidedByUserId: owner.id });
   await expPay(fix, 350, 'TRANSFER', ago(13));
   const small = await expense(cAds.id, null, 35, at(0, 8), 'ضيافة');
   await expPay(small, 35, 'CASH', at(0, 8, 5));
@@ -391,7 +391,7 @@ async function main() {
   // Rana, Hiba: this month's entry is not created yet: the salaries page opens it on demand
 
   // ---- what Noor owes Fikra
-  await subscription(N, { months: 12, startDays: -100, price: 3600, payments: [[1800, 90, 'دفعة أولى'], [1000, 30]], voided: [500, 60, 'دفعة انكتبت غلط'] });
+  await subscription(N, { months: 12, startDays: -100, price: 3600, payments: [[1800, 90, 'دفعة أولى'], [1000, 30]], voided: [500, 60, 'دفعة كُتبت خطأً'] });
 
   // ================================================================== 2..5) other clinics: isolation and subscription states
   const small2 = async (clinic: { id: string }, key: string, name: string, patientName: string, phone: string) => {
@@ -406,7 +406,7 @@ async function main() {
   await makeUser(amal.id, 'amal_sec', 'سكرتيرة الأمل', 'SECRETARY');
   const ay = await makePatient(amal.id, 'ياسر العلي', '+970599400002', { gender: 'MALE', birthDate: yearsAgo(40) });
   const aType = await makeType(amal.id, 'حشوة');
-  const at1 = await makeTreatment(amal.id, { patientId: A.p.id, doctorId: A.d.id, teeth: [[16, aType.id]], cost: 300, planned: 1, startedAt: ago(4), description: 'علاج بعيادة الأمل (ما لازم يظهر بالنور)' });
+  const at1 = await makeTreatment(amal.id, { patientId: A.p.id, doctorId: A.d.id, teeth: [[16, aType.id]], cost: 300, planned: 1, startedAt: ago(4), description: 'علاج في عيادة الأمل (يجب ألا يظهر في عيادة النور)' });
   await pay(amal.id, at1, A.o.id, 300, 'CASH', ago(4));
   await appt(amal.id, { patientId: ay.id, doctorId: A.d.id, start: at(0, 10), status: 'CONFIRMED' });
   await appt(amal.id, { patientId: A.p.id, doctorId: A.d.id, start: at(1, 11), status: 'PENDING' });
@@ -429,14 +429,14 @@ async function main() {
   console.log(`\n${line}\nDEMO DATA READY.  Password for every user below: ${PASSWORD}\n${line}`);
   console.log(`
 عيادة النور (الرئيسية)
-  noor_owner      المالك + دكتور، صلاحية كل شي
+  noor_owner      المالك + دكتور، صلاحيات كاملة
   noor_sami       دكتور (راتب 6000)            noor_rana  دكتورة (60 دقيقة، مسائي)
   noor_sec        سكرتيرة بدون صلاحية مالية      noor_key   سكرتيرة مع مفتاح المدفوعات
-  noor_temp       كلمة مرور مؤقتة (لازم تغيّرها عند أول دخول)
-  noor_tempexp    كلمتها المؤقتة انتهت            noor_locked مقفول (حتى ساعة)
-  noor_old        موقوف (ما بيدخل)
-عيادة الأمل      amal_owner / amal_sec        (عيادة ثانية: لفحص العزل)
-عيادة السلام     salam_owner                  (انتهى اشتراكها أمس: تشتغل مع تحذير مهلة)
+  noor_temp       كلمة مرور مؤقتة (يجب تغييرها عند أول دخول)
+  noor_tempexp    انتهت كلمة مرورها المؤقتة           noor_locked مقفول (حتى ساعة)
+  noor_old        موقوف (لا يدخل)
+عيادة الأمل      amal_owner / amal_sec        (عيادة أخرى: لفحص العزل)
+عيادة السلام     salam_owner                  (انتهى اشتراكها أمس: تعمل مع تحذير المهلة)
 عيادة الرحمة     rahma_owner                  (انتهى من 10 أيام: الدخول ممنوع)
 عيادة الوفاء     wafa_owner                   (موقوفة: الدخول ممنوع)
 
@@ -445,7 +445,7 @@ async function main() {
   رقم جديد (يسجّل بياناته): ${links.unknown}
   رابط منتهي:              ${links.expired}
 
-لوحة أدمن Fikra: ما بتنعمل من هون (بدها QR للمصادقة الثنائية). اعملها بـ:
+لوحة أدمن Fikra: لا تُنشأ من هنا (تحتاج رمز QR للمصادقة الثنائية). أنشئها بالأمر:
   pnpm --filter api admin:create ali "Ali"
 `);
 }

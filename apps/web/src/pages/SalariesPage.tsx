@@ -30,7 +30,7 @@ import { METHOD_LABELS } from '../lib/treatments.ts'
 import type { PaymentMethod } from '../lib/treatments.ts'
 import { useLoad } from '../lib/useLoad.ts'
 
-const messageOf = (e: unknown) => (e instanceof ApiError ? e.message : 'صار خطأ غير متوقع، جرب مرة ثانية')
+const messageOf = (e: unknown) => (e instanceof ApiError ? e.message : 'حدث خطأ غير متوقع، حاول مرة أخرى')
 const METHODS = Object.keys(METHOD_LABELS) as PaymentMethod[]
 
 /** Paying the month's salary. */
@@ -62,7 +62,7 @@ function PayForm({ title, kind, entry, onClose, onDone, top }: { title: string; 
       {entry && (
         <p className="text-sm text-muted">
           المتبقي من راتب شهر {monthNumber(entry.month)}: <Money agorot={entry.remaining} />
-          {kind === 'ADVANCE' && ' · السلفة بتنخصم من راتبه'}
+          {kind === 'ADVANCE' && ' · تُخصم السلفة من راتبه'}
         </p>
       )}
       <TextField label="المبلغ (₪)" inputMode="decimal" dir="ltr" className="text-right" value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value })} />
@@ -97,7 +97,7 @@ function AdvanceModal({ thisMonth, userId: startUser, onClose, onDone }: { thisM
   if (res.data && !entry) {
     return (
       <Modal title="سلفة جديدة" onClose={onClose}>
-        <Alert tone="error">ما في رواتب لهالشهر. حدد راتب الموظفين أول.</Alert>
+        <Alert tone="error">لا توجد رواتب لهذا الشهر. حدّد رواتب الموظفين أولاً.</Alert>
         <Button variant="secondary" onClick={onClose}>
           رجوع
         </Button>
@@ -119,7 +119,7 @@ function AdvanceModal({ thisMonth, userId: startUser, onClose, onDone }: { thisM
         {picker}
         <div data-testid="advance-closed">
           <Alert tone="error">
-            راتب شهر {monthNumber(entry.month)} لـ{entry.user.fullName} انصرف كامل، ما بتنفع سلفة عليه. السلفة بتنخصم من الراتب القادم.
+            راتب شهر {monthNumber(entry.month)} لـ{entry.user.fullName} صُرف كاملاً، فلا يمكن تسجيل سلفة عليه. تُخصم السلفة من الراتب القادم.
           </Alert>
         </div>
         <Button variant="secondary" onClick={onClose}>
@@ -141,7 +141,7 @@ function AdvanceModal({ thisMonth, userId: startUser, onClose, onDone }: { thisM
           {picker}
           {entry && (
             <p className="rounded-xl bg-page p-3 text-sm font-semibold" data-testid="advance-target">
-              بتنخصم من راتب شهر {monthNumber(entry.month)} (بيستحق بتاريخ {salaryDueDate(entry.month)})
+              تُخصم من راتب شهر {monthNumber(entry.month)} (يستحق بتاريخ {salaryDueDate(entry.month)})
             </p>
           )}
         </>
@@ -168,16 +168,16 @@ function AdjustModal({ entry, onClose, onDone }: { entry: SalaryEntry; onClose: 
     }
   }
   return (
-    <Modal title={`تعديل راتب ${entry.user.fullName} لهالشهر`} onClose={onClose}>
+    <Modal title={`تعديل راتب ${entry.user.fullName} لهذا الشهر`} onClose={onClose}>
       <p className="text-sm text-muted">
-        الراتب الأساسي: <Money agorot={entry.baseAmount} />. التعديل لهالشهر بس، وما بغيّر راتبه الأساسي.
+        الراتب الأساسي: <Money agorot={entry.baseAmount} />. التعديل لهذا الشهر فقط ولا يغيّر راتبه الأساسي.
       </p>
       <SelectField label="نوع التعديل" value={f.type} onChange={(e) => setF({ ...f, type: e.target.value as 'bonus' | 'deduction' })}>
         <option value="bonus">مكافأة (زيادة)</option>
         <option value="deduction">خصم</option>
       </SelectField>
       <TextField
-        label="المبلغ (₪) — فاضي لإلغاء التعديل"
+        label="المبلغ (₪) — اتركه فارغاً لإلغاء التعديل"
         inputMode="decimal"
         dir="ltr"
         className="text-right"
@@ -217,7 +217,7 @@ function VoidModal({ p, onClose, onDone }: { p: SalaryPaymentRow; onClose: () =>
   return (
     <Modal title={p.kind === 'ADVANCE' ? 'إلغاء السلفة' : 'إلغاء دفعة الراتب'} onClose={onClose}>
       <p className="text-[15px]">
-        إلغاء <Money agorot={p.amount} />؟ بتضل ظاهرة بالسجل كملغية، والمبلغ بيرجع للمتبقي من الراتب.
+        إلغاء <Money agorot={p.amount} />؟ تبقى ظاهرة في السجل كملغاة، ويعود المبلغ إلى المتبقي من الراتب.
       </p>
       <TextAreaField label="سبب الإلغاء" value={reason} maxLength={300} onChange={(e) => setReason(e.target.value)} />
       {error && <Alert tone="error">{error}</Alert>}
@@ -279,7 +279,7 @@ function StaffSalaryRow({ s, onSaved }: { s: StaffSalary; onSaved: () => void })
           </span>
         ) : (
           <span className="flex items-center gap-3">
-            {s.monthlySalary ? <Money agorot={s.monthlySalary} /> : <Badge label="ما انحدد راتب" bg="#fef0c7" fg="#93370d" />}
+            {s.monthlySalary ? <Money agorot={s.monthlySalary} /> : <Badge label="لم يُحدَّد الراتب" bg="#fef0c7" fg="#93370d" />}
             <Button size="sm" variant="secondary" onClick={() => setEditing(true)}>
               {s.monthlySalary ? 'تعديل الراتب' : 'تحديد الراتب'}
             </Button>
@@ -305,7 +305,7 @@ export default function SalariesPage() {
 
   return (
     <>
-      <ClinicBanner title="الرواتب" subtitle="راتب كل موظف كل شهر، والسلف، وكلها بتنحسب مع المصاريف والربح." />
+      <ClinicBanner title="الرواتب" subtitle="راتب كل موظف في كل شهر، والسلف، وكلها تُحتسب مع المصاريف والربح." />
       <div className="flex max-w-4xl flex-col gap-5">
         <Card>
           <div className="flex items-center justify-center gap-2">
@@ -335,7 +335,7 @@ export default function SalariesPage() {
             <div className="flex flex-wrap gap-3">
               {[
                 ['رواتب الشهر', data.totals.net],
-                ['اللي انعطى (رواتب + سلف)', data.totals.paid],
+                ['المصروف (رواتب + سلف)', data.totals.paid],
                 ['المتبقي', data.totals.remaining],
               ].map(([label, v]) => (
                 <div key={label as string} className="flex flex-1 basis-40 flex-col gap-1 rounded-2xl border border-line bg-white p-5">
@@ -349,7 +349,7 @@ export default function SalariesPage() {
 
             {data.entries.length === 0 ? (
               <Card>
-                <p className="text-muted">ما في رواتب لهالشهر. حدد راتب الموظفين من القائمة تحت وبتطلع هون تلقائي.</p>
+                <p className="text-muted">لا توجد رواتب لهذا الشهر. حدّد رواتب الموظفين من القائمة أدناه وستظهر هنا تلقائياً.</p>
               </Card>
             ) : (
               data.entries.map((e) => (
@@ -434,7 +434,7 @@ export default function SalariesPage() {
                                 <DateText value={p.paidAt} />
                               </strong>{' '}
                               · {METHOD_LABELS[p.method]}
-                              {p.kind === 'ADVANCE' && p.status === 'ACTIVE' ? ' · انخصمت من الراتب' : ''}
+                              {p.kind === 'ADVANCE' && p.status === 'ACTIVE' ? ' · خُصمت من الراتب' : ''}
                               {p.note ? ` · ${p.note}` : ''}
                             </span>
                             {p.status === 'VOIDED' ? (
@@ -455,10 +455,10 @@ export default function SalariesPage() {
 
             <Card
               title="الرواتب الشهرية للموظفين"
-              hint="الراتب الأساسي لكل موظف فعّال. تغييره بيأثر على الشهور الجاي بس، والشهور اللي انفتحت بتضل زي ما هي. الموظف الموقوف بيختفي من الشهور الجاي."
+              hint="الراتب الأساسي لكل موظف فعّال. يؤثر تغييره على الأشهر القادمة فقط، وتبقى الأشهر المفتوحة كما هي. يختفي الموظف الموقوف من الأشهر القادمة."
             >
               {data.staff.length === 0 ? (
-                <p className="text-muted">ما في موظفين (دكاترة أو سكرتارية). ضيفهم من صفحة الفريق.</p>
+                <p className="text-muted">لا يوجد موظفون (أطباء أو سكرتارية). أضفهم من صفحة الفريق.</p>
               ) : (
                 <ul className="flex flex-col divide-y divide-line">
                   {data.staff.map((s) => (

@@ -26,7 +26,7 @@ export function NewTypeModal({ types, onClose, onCreated }: { types: TreatmentTy
       for (const s of plan.subs) await createTreatmentType(s, main.id)
       onCreated()
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'صار خطأ غير متوقع، جرب مرة ثانية')
+      setError(e instanceof ApiError ? e.message : 'حدث خطأ غير متوقع، حاول مرة أخرى')
       setBusy(false)
       if (created) onCreated() // the main type is already saved: it shows in the list
     }
@@ -69,7 +69,7 @@ export function NewTypeModal({ types, onClose, onCreated }: { types: TreatmentTy
               </div>
             ))}
             <button type="button" onClick={() => setSubs([...subs, ''])} className="cursor-pointer self-start text-sm font-semibold text-brand-dark underline">
-              + نوع فرعي ثاني
+              + نوع فرعي آخر
             </button>
           </div>
         )}

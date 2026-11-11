@@ -24,7 +24,7 @@ export class TreatmentTypesService {
     if (parentId) {
       const parent = await this.tenant.db.treatmentType.findUnique({ where: { id: parentId }, select: { parentId: true } });
       if (!parent) throw new NotFoundException('النوع الأساسي غير موجود');
-      if (parent.parentId) throw new BadRequestException('الأنواع الفرعية مستوى واحد بس');
+      if (parent.parentId) throw new BadRequestException('الأنواع الفرعية مستوى واحد فقط');
     }
     if (await this.nameTaken(name, parentId ?? null)) throw new ConflictException(TAKEN);
     try {

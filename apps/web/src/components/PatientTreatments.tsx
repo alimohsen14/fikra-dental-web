@@ -50,14 +50,14 @@ export function PatientTreatments({ patientId, birthDate }: { patientId: string;
           ))}
         </div>
       )}
-      <Card title="مخطط الأسنان" hint="الأسنان الملونة عليها علاج: برتقالي علاج مفتوح، أخضر علاج منتهي. كبس على سن لتشوف تاريخه.">
+      <Card title="مخطط الأسنان" hint="الأسنان الملوّنة عليها علاج: البرتقالي علاج مفتوح، والأخضر علاج منتهٍ. اضغط على سن لعرض تاريخه.">
         <ToothSetToggle value={set} onChange={setOverride} />
         <ToothChart set={set} marks={marks} selected={tooth === null ? [] : [tooth]} onPick={(c) => setTooth(tooth === c ? null : c)} />
         {tooth !== null && (
           <div className="flex flex-col gap-2 rounded-xl bg-page p-4" data-testid="tooth-history">
             <strong>السن {toothLabel(tooth)}</strong>
             {history.length === 0 ? (
-              <p className="text-sm text-muted">ما في علاجات على هذا السن.</p>
+              <p className="text-sm text-muted">لا توجد علاجات على هذا السن.</p>
             ) : (
               <ul className="flex flex-col gap-1.5">
                 {history.map((t) => (
@@ -83,7 +83,7 @@ export function PatientTreatments({ patientId, birthDate }: { patientId: string;
           </Link>
         )}
         {all.length === 0 ? (
-          <p className="text-[15px] text-muted">ما في علاجات لهذا المريض بعد.</p>
+          <p className="text-[15px] text-muted">لا توجد علاجات لهذا المريض بعد.</p>
         ) : (
           <ul className="flex flex-col gap-2" aria-label="علاجات المريض">
             {all.map((t) => (

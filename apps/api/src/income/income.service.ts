@@ -20,7 +20,7 @@ export class IncomeService {
 
   private async ownDoctorId(user: AuthUser): Promise<string> {
     const doctor = await this.tenant.db.doctor.findFirst({ where: { userId: user.id }, select: { id: true } });
-    if (!doctor) throw new NotFoundException('ما عندك ملف دكتور');
+    if (!doctor) throw new NotFoundException('ليس لديك ملف دكتور');
     return doctor.id;
   }
 

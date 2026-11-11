@@ -22,7 +22,7 @@ export function PatientFields({ v, set, showPhone = true }: { v: PatientFormValu
         </div>
         <TextField label="العنوان" value={v.address} onChange={(e) => set('address', e.target.value)} />
       </Card>
-      <Card title="طبي" hint="التنبيه الطبي بيظهر بقائمة المرضى بشارة حمراء عشان ما ينتسى.">
+      <Card title="طبي" hint="يظهر التنبيه الطبي في قائمة المرضى بشارة حمراء حتى لا يُنسى.">
         <TextAreaField label="تنبيهات طبية" placeholder="مثال: حساسية من البنسلين، سكري" value={v.medicalAlerts} onChange={(e) => set('medicalAlerts', e.target.value)} />
         <TextAreaField label="ملاحظات" value={v.notes} onChange={(e) => set('notes', e.target.value)} />
       </Card>
