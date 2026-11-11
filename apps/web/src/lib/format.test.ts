@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { endOfDayIso, formatDate, formatMoney, paidAtIso, parseShekels } from './format.ts'
+import { endOfDayIso, formatDate, formatMoney, paidAtIso, parseShekels, toLatinDigits } from './format.ts'
 
 describe('money', () => {
   it('formats agorot as shekels', () => {
@@ -10,6 +10,8 @@ describe('money', () => {
   })
 
   it('parses what people type, without float errors', () => {
+    expect(parseShekels('٣٠٠٠')).toBe(300000)
+    expect(parseShekels('۱۵۰٫۵')).toBe(15050)
     expect(parseShekels('3000')).toBe(300000)
     expect(parseShekels(' 150.5 ')).toBe(15050)
     expect(parseShekels('0.1')).toBe(10)
@@ -38,5 +40,14 @@ describe('dates', () => {
   it('an end date is the end of that day', () => {
     const d = new Date(endOfDayIso('2030-01-15'))
     expect([d.getHours(), d.getMinutes()]).toEqual([23, 59])
+  })
+})
+
+describe('toLatinDigits', () => {
+  it('turns Arabic-Indic and Persian digits into 0-9 and leaves everything else alone', () => {
+    expect(toLatinDigits('٠٥٩٩١٢٣٤٥٦')).toBe('0599123456')
+    expect(toLatinDigits('۰۵۹۹ abc ١٢')).toBe('0599 abc 12')
+    expect(toLatinDigits('محمد 0599')).toBe('محمد 0599')
+    expect(toLatinDigits('١٬٥٠٠٫٥')).toBe('1,500.5')
   })
 })

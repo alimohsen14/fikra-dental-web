@@ -1,3 +1,5 @@
+import { toLatinDigits } from '../common/digits.js';
+
 // The text a patient receives. Fixed wording; only the clinic name, patient, doctor and time change.
 
 export interface ConfirmationInput {
@@ -33,7 +35,7 @@ export function confirmationText(i: ConfirmationInput): string {
 
 /** What a patient may answer. Anything else is ignored (a human reads it later). */
 export function parseAnswer(text: string): 'YES' | 'NO' | null {
-  const t = text.trim().replace(/[ً-ْـ]/gu, '').replace(/[!.،؟?\s]+$/u, '');
+  const t = toLatinDigits(text).trim().replace(/[ً-ْـ]/gu, '').replace(/[!.،؟?\s]+$/u, '');
   if (['نعم', 'ايوه', 'أيوه', 'اه', 'آه', 'اي', 'أكيد', 'تمام', 'yes', 'y', 'ok', '1'].includes(t.toLowerCase())) return 'YES';
   if (['لا', 'لأ', 'no', 'n', '2'].includes(t.toLowerCase())) return 'NO';
   return null;

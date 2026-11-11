@@ -5,7 +5,7 @@ import { BannerLink, ClinicBanner } from '../components/clinic-ui.tsx'
 import { Flash } from '../components/Flash.tsx'
 import { Icon } from '../components/icons.tsx'
 import { Button } from '../components/ui.tsx'
-import { ageLabel, dateOnly, todayInput } from '../lib/format.ts'
+import { ageLabel, dateOnly, toLatinDigits, todayInput } from '../lib/format.ts'
 import { GENDER_LABELS, listPatients, PAGE_SIZE } from '../lib/patients.ts'
 import { useLoad } from '../lib/useLoad.ts'
 
@@ -41,7 +41,7 @@ export default function PatientsPage() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <label className="flex max-w-md flex-1 basis-72 flex-col gap-1.5 text-sm font-semibold">
           بحث بالاسم أو الهاتف أو الهوية
-          <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="مثال: محمد أو 0599" className="h-12 rounded-[10px] border-[1.5px] border-brand bg-white px-3.5 text-base font-normal outline-none focus:ring-2 focus:ring-brand/25" />
+          <input type="search" value={q} onChange={(e) => setQ(toLatinDigits(e.target.value))} placeholder="مثال: محمد أو 0599" className="h-12 rounded-[10px] border-[1.5px] border-brand bg-white px-3.5 text-base font-normal outline-none focus:ring-2 focus:ring-brand/25" />
         </label>
         <div role="tablist" aria-label="نوع القائمة" className="flex gap-2">
           {[

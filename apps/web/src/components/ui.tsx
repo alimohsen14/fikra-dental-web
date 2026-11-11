@@ -1,4 +1,6 @@
 import { useId } from 'react'
+import type { ChangeEvent } from 'react'
+import { toLatinDigits } from '../lib/format.ts'
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react'
 
 export function Button({
@@ -25,14 +27,18 @@ export function Button({
   )
 }
 
-export function TextField({
-  label,
-  hint,
-  icon,
-  className = '',
-  ...rest
-}: InputHTMLAttributes<HTMLInputElement> & { label: string; hint?: string; icon?: ReactNode }) {
+export function TextField({ label, hint, icon, className = '', ...rest }: InputHTMLAttributes<HTMLInputElement> & { label: string; hint?: string; icon?: ReactNode }) {
   const id = useId()
+  // Numbers, phones and searches accept Arabic digits too: they are turned into 0-9 as they are typed or pasted.
+  const numeric = rest.inputMode === 'numeric' || rest.inputMode === 'decimal' || rest.inputMode === 'tel' || rest.type === 'search'
+  const onChange =
+    numeric && rest.onChange
+      ? (e: ChangeEvent<HTMLInputElement>) => {
+          const latin = toLatinDigits(e.target.value)
+          if (latin !== e.target.value) e.target.value = latin
+          rest.onChange!(e)
+        }
+      : rest.onChange
   return (
     <div className="flex flex-col gap-2">
       <label htmlFor={id} className="text-sm font-semibold">
@@ -44,6 +50,7 @@ export function TextField({
           id={id}
           className={`h-13 w-full rounded-xl border-[1.5px] border-[#b4c4d8] bg-white pe-3.5 text-base text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/25 ${icon ? 'ps-11' : 'ps-3.5'} ${className}`}
           {...rest}
+          onChange={onChange}
         />
       </div>
       {hint && <p className="text-[13px] text-muted">{hint}</p>}
@@ -72,7 +79,11 @@ export function SelectField({ label, children, ...rest }: SelectHTMLAttributes<H
       <label htmlFor={id} className="text-sm font-semibold">
         {label}
       </label>
-      <select id={id} className="h-13 w-full rounded-xl border-[1.5px] border-[#b4c4d8] bg-white px-3 text-base text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/25" {...rest}>
+      <select
+        id={id}
+        className="h-13 w-full rounded-xl border-[1.5px] border-[#b4c4d8] bg-white px-3 text-base text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/25"
+        {...rest}
+      >
         {children}
       </select>
     </div>
@@ -86,7 +97,12 @@ export function TextAreaField({ label, hint, className = '', ...rest }: Textarea
       <label htmlFor={id} className="text-sm font-semibold">
         {label}
       </label>
-      <textarea id={id} rows={3} className={`w-full rounded-xl border-[1.5px] border-[#b4c4d8] bg-white px-3.5 py-3 text-base text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/25 ${className}`} {...rest} />
+      <textarea
+        id={id}
+        rows={3}
+        className={`w-full rounded-xl border-[1.5px] border-[#b4c4d8] bg-white px-3.5 py-3 text-base text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/25 ${className}`}
+        {...rest}
+      />
       {hint && <p className="text-[13px] text-muted">{hint}</p>}
     </div>
   )

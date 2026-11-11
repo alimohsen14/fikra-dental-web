@@ -1,6 +1,16 @@
 // Display helpers. Western digits everywhere (decided for the whole app). Money is kept in agorot (integers).
 
 const ARABIC_DIGITS = '٠١٢٣٤٥٦٧٨٩'
+const PERSIAN_DIGITS = '۰۱۲۳۴۵۶۷۸۹'
+
+/** Arabic-Indic (٠-٩) and Persian (۰-۹) digits -> 0-9, and the Arabic decimal/thousands marks -> "." and ",". The app stores and shows Western digits only. */
+export function toLatinDigits(input: string): string {
+  return input
+    .replace(/[٠-٩]/g, (c) => String(ARABIC_DIGITS.indexOf(c)))
+    .replace(/[۰-۹]/g, (c) => String(PERSIAN_DIGITS.indexOf(c)))
+    .replace(/٫/g, '.')
+    .replace(/[٬،]/g, ',')
+}
 const MAX_AGOROT = 100_000_000 // same limit as the API
 
 /** "2026-10-31" or "-" when empty/invalid. */
@@ -18,10 +28,7 @@ export function formatMoney(agorot: number): string {
 
 /** What the person typed ("150", "150.5", "١٥٠") -> agorot, or null when it is not a valid amount. */
 export function parseShekels(input: string): number | null {
-  const t = input
-    .trim()
-    .replace(/,/g, '')
-    .replace(/[٠-٩]/g, (c) => String(ARABIC_DIGITS.indexOf(c)))
+  const t = toLatinDigits(input).trim().replace(/,/g, '')
   if (!/^\d{1,9}(\.\d{1,2})?$/.test(t)) return null
   const [whole = '0', frac = ''] = t.split('.')
   const agorot = Number(whole) * 100 + Number(frac.padEnd(2, '0'))

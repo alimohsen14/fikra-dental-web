@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthContext.tsx'
 import { Card, DateText, Loading, Money } from '../components/admin-ui.tsx'
 import { ClinicBanner } from '../components/clinic-ui.tsx'
 import { canSeeMoney } from '../lib/access.ts'
+import { toLatinDigits } from '../lib/format.ts'
 import { filterBalances, getBalances } from '../lib/balances.ts'
 import { useLoad } from '../lib/useLoad.ts'
 
@@ -67,7 +68,7 @@ export default function BalancesPage() {
                 aria-label="بحث"
                 placeholder="ابحث بالاسم أو الرقم"
                 value={q}
-                onChange={(e) => setQ(e.target.value)}
+                onChange={(e) => setQ(toLatinDigits(e.target.value))}
                 className="h-11 rounded-xl border border-line bg-white px-3"
               />
               {data.items.length === 0 ? (

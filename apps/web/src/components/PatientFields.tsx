@@ -17,7 +17,7 @@ export function PatientFields({ v, set, showPhone = true }: { v: PatientFormValu
             <option value="FEMALE">أنثى</option>
           </SelectField>
           <TextField label="تاريخ الميلاد" type="date" dir="ltr" max={todayInput()} className="text-right" value={v.birthDate} onChange={(e) => set('birthDate', e.target.value)} />
-          <TextField label="رقم الهوية" dir="ltr" className="text-right" value={v.nationalId} onChange={(e) => set('nationalId', e.target.value)} />
+          <TextField label="رقم الهوية" dir="ltr" inputMode="numeric" className="text-right" value={v.nationalId} onChange={(e) => set('nationalId', e.target.value)} />
           <TextField label="المنطقة" value={v.region} onChange={(e) => set('region', e.target.value)} />
         </div>
         <TextField label="العنوان" value={v.address} onChange={(e) => set('address', e.target.value)} />

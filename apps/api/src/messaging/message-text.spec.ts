@@ -22,6 +22,8 @@ describe('confirmation text', () => {
 describe('what the patient answers', () => {
   it('yes and no in the common ways', () => {
     for (const y of ['نعم', ' نعم ', 'نعم!', 'ايوه', 'أيوه', 'اه', 'Yes', 'ok', '1']) expect(parseAnswer(y)).toBe('YES');
+    expect(parseAnswer('١')).toBe('YES');
+    expect(parseAnswer('٢')).toBe('NO');
     for (const n of ['لا', 'لا.', 'لأ', 'No', '2']) expect(parseAnswer(n)).toBe('NO');
   });
   it('anything else is not an answer', () => {

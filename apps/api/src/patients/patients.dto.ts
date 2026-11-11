@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { toLatinDigits } from '../common/digits.js';
 
 const text = (max: number) => z.string().trim().max(max);
 // Empty strings from forms become "not provided".
@@ -25,7 +26,7 @@ export const createPatientSchema = z
   .object({
     fullName: base.fullName,
     phone: base.phone,
-    nationalId: z.preprocess((v) => (v === '' ? undefined : v), z.string().trim().min(5).max(20).optional()),
+    nationalId: z.preprocess((v) => (v === '' ? undefined : typeof v === 'string' ? toLatinDigits(v) : v), z.string().trim().min(5).max(20).optional()),
     birthDate: z.preprocess((v) => (v === '' ? undefined : v), birthDate.optional()),
     gender: z.preprocess((v) => (v === '' ? undefined : v), base.gender.optional()),
     region: optionalText(80),
@@ -41,7 +42,7 @@ export const updatePatientSchema = z
     fullName: base.fullName.optional(),
     phone: base.phone.optional(),
     nationalId: z.preprocess(
-      (v) => (v === '' ? null : v),
+      (v) => (v === '' ? null : typeof v === 'string' ? toLatinDigits(v) : v),
       z.string().trim().min(5).max(20).nullable().optional(),
     ),
     birthDate: z.preprocess((v) => (v === '' ? null : v), birthDate.nullable().optional()),

@@ -1,6 +1,12 @@
 import { normalizePhone } from './phone.js';
 
 describe('normalizePhone', () => {
+  it('accepts Arabic-Indic and Persian digits', () => {
+    expect(normalizePhone('٠٥٩٩١٢٣٤٥٦')).toBe('+970599123456');
+    expect(normalizePhone('+٩٧٠٥٩٩١٢٣٤٥٦')).toBe('+970599123456');
+    expect(normalizePhone('۰۵۹۹۱۲۳۴۵۶')).toBe('+970599123456');
+  });
+
   it('normalizes the usual ways Palestinians write a mobile number', () => {
     for (const input of ['0599123456', '599123456', '+970599123456', '00970599123456', '970599123456',
       '059-912-3456', '+970 59 912 3456', '+970 (0)59 912 3456']) {

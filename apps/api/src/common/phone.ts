@@ -1,7 +1,9 @@
+import { toLatinDigits } from './digits.js';
+
 // Normalizes phone numbers to international format (+9705...). Default country is Palestine (+970);
 // Israel (+972) is supported. Returns null when the number cannot be valid.
 export function normalizePhone(input: string): string | null {
-  const raw = input.trim().replace(/[\s\-().]/g, '');
+  const raw = toLatinDigits(input).trim().replace(/[\s\-().]/g, '');
   if (!/^\+?\d+$/.test(raw)) return null;
 
   let digits: string;
