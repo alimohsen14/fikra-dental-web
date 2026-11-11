@@ -10,14 +10,39 @@ import { useLoad } from '../lib/useLoad.ts'
 export default function BalancesPage() {
   const { session } = useAuth()
   const [q, setQ] = useState('')
-  const { data, error } = useLoad(getBalances, [])
+  const [mine, setMine] = useState(false)
+  const { data, error } = useLoad(() => getBalances(mine), [mine])
   if (session && !canSeeMoney(session.user)) return <Navigate to="/home" replace />
   const shown = data ? filterBalances(data.items, q) : []
 
   return (
     <>
-      <ClinicBanner title="المتبقي عند المرضى" subtitle="مين لسا عليه مبلغ للعيادة، من الأكبر للأصغر." />
+      <ClinicBanner
+        title="المتبقي عند المرضى"
+        subtitle={session?.user.role === 'DOCTOR' ? 'مين لسا عليه مبلغ على علاجاتك أنت، من الأكبر للأصغر.' : 'مين لسا عليه مبلغ للعيادة، من الأكبر للأصغر.'}
+      />
       <div className="flex max-w-4xl flex-col gap-5">
+        {session?.user.role === 'OWNER' && (
+          <div role="tablist" aria-label="نطاق المتبقي" className="flex gap-2">
+            {(
+              [
+                [false, 'متبقي العيادة'],
+                [true, 'متبقي علاجاتك'],
+              ] as const
+            ).map(([v, label]) => (
+              <button
+                key={label}
+                type="button"
+                role="tab"
+                aria-selected={mine === v}
+                onClick={() => setMine(v)}
+                className={`h-10 cursor-pointer rounded-full border px-4 text-sm font-semibold ${mine === v ? 'border-brand bg-brand text-on-brand' : 'border-line bg-white'}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
         {!data ? (
           <Loading error={error} />
         ) : (
@@ -37,7 +62,14 @@ export default function BalancesPage() {
               </div>
             </div>
             <Card title="المرضى">
-              <input type="search" aria-label="بحث" placeholder="ابحث بالاسم أو الرقم" value={q} onChange={(e) => setQ(e.target.value)} className="h-11 rounded-xl border border-line bg-white px-3" />
+              <input
+                type="search"
+                aria-label="بحث"
+                placeholder="ابحث بالاسم أو الرقم"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                className="h-11 rounded-xl border border-line bg-white px-3"
+              />
               {data.items.length === 0 ? (
                 <p className="text-muted">ما في مرضى عليهم مبالغ. كل شي مدفوع.</p>
               ) : shown.length === 0 ? (

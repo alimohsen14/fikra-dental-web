@@ -89,15 +89,31 @@ export class TreatmentsService {
     return this.present(await this.load(user, id), user, await this.ownDoctorId(user));
   }
 
+  /**
+   * Which doctor's treatments a clinic-wide screen (the treatments page, the balances page) covers: a doctor only sees treatments registered under their own name,
+   * the owner and the payments-key secretary see the whole clinic (the owner may narrow it to their own with `mine`). `null` = nothing to show (the owner has no doctor profile).
+   */
+  private async doctorScope(user: AuthUser, mine?: boolean): Promise<{ doctorId?: string } | null> {
+    if (user.role === 'DOCTOR') return { doctorId: (await this.ownDoctorId(user)) ?? undefined };
+    if (mine && user.role === 'OWNER') {
+      const own = await this.tenant.db.doctor.findFirst({ where: { userId: user.id }, select: { id: true } });
+      return own ? { doctorId: own.id } : null;
+    }
+    return {};
+  }
+
+  /** The treatments page. Inside a patient's record (`patientId`) every doctor still sees all of that patient's treatments. */
   async list(user: AuthUser, q: ListTreatmentsQuery) {
     const scope = await this.scopeFor(user);
+    const ownId = await this.ownDoctorId(user);
+    const doctorScope = q.patientId ? {} : await this.doctorScope(user, q.mine === 'true');
+    if (!doctorScope) return [];
     const rows = await this.tenant.db.treatment.findMany({
-      where: { ...scope, ...(q.patientId ? { patientId: q.patientId } : {}), ...(q.status ? { status: q.status } : {}) },
+      where: { ...scope, ...doctorScope, ...(q.patientId ? { patientId: q.patientId } : {}), ...(q.status ? { status: q.status } : {}) },
       orderBy: [{ startedAt: 'desc' }, { id: 'asc' }],
       take: 500,
       select: DETAIL,
     });
-    const ownId = await this.ownDoctorId(user);
     return rows.map((r) => this.present(r, user, ownId));
   }
 
@@ -372,11 +388,13 @@ export class TreatmentsService {
     }
     return { treatments: rows.length, openTreatments: rows.filter((r) => r.status === 'OPEN').length, total, paid, remaining: Math.max(0, total - paid) };
   }
-  /** Who still owes the clinic: per patient, what the (non-cancelled) treatments cost minus what was actually paid. Same maths as patientFinance. */
-  async patientBalances(user: AuthUser) {
+  /** Who still owes the clinic (a doctor: on their own treatments only): per patient, what the (non-cancelled) treatments cost minus what was actually paid. Same maths as patientFinance. */
+  async patientBalances(user: AuthUser, mine?: boolean) {
     const scope = await this.scopeFor(user);
+    const doctorScope = await this.doctorScope(user, mine);
+    if (!doctorScope) return { items: [], totalRemaining: 0 };
     const rows = await this.tenant.db.treatment.findMany({
-      where: { status: { not: 'CANCELLED' }, ...scope },
+      where: { status: { not: 'CANCELLED' }, ...scope, ...doctorScope },
       select: { patientId: true, totalCost: true, status: true, patient: { select: { fullName: true, phone: true } }, payments: { select: { amount: true, status: true, paidAt: true } } },
     });
     const byPatient = new Map<string, { patientId: string; fullName: string; phone: string; total: number; paid: number; openTreatments: number; lastPaidAt: Date | null }>();

@@ -22,17 +22,20 @@ export default function TreatmentsPage() {
   const { session } = useAuth()
   const [tab, setTab] = useState<TreatmentStatus | 'ALL'>('OPEN')
   const [q, setQ] = useState('')
-  const { data, error } = useLoad(() => listTreatments(), [])
+  const [mine, setMine] = useState(false)
+  const { data, error } = useLoad(() => listTreatments({ mine }), [mine])
   if (!session) return null
   if (!canSeeTreatments(session.user)) return <Loading error="ما عندك صلاحية لهذه الصفحة." />
   const rows = (data ?? []).filter((t) => (tab === 'ALL' || t.status === tab) && (!q.trim() || t.patient.fullName.includes(q.trim())))
+  const isOwner = session.user.role === 'OWNER'
+  const isDoctor = session.user.role === 'DOCTOR'
   const withMoney = rows.some((t) => t.paid !== undefined)
 
   return (
     <>
       <ClinicBanner
         title="العلاجات"
-        subtitle="كل علاجات العيادة ودفعاتها وجلساتها."
+        subtitle={isDoctor ? 'علاجاتك أنت: دفعاتها وجلساتها. علاجات باقي الدكاترة بتلاقيها في ملف المريض.' : 'كل علاجات العيادة ودفعاتها وجلساتها.'}
         action={
           canEditTreatments(session.user) ? (
             <BannerLink to="/treatments/new">
@@ -45,11 +48,44 @@ export default function TreatmentsPage() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <label className="flex max-w-md flex-1 basis-72 flex-col gap-1.5 text-sm font-semibold">
           بحث باسم المريض
-          <input type="search" value={q} onChange={(e) => setQ(e.target.value)} className="h-12 rounded-[10px] border-[1.5px] border-brand bg-white px-3.5 text-base font-normal outline-none focus:ring-2 focus:ring-brand/25" />
+          <input
+            type="search"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            className="h-12 rounded-[10px] border-[1.5px] border-brand bg-white px-3.5 text-base font-normal outline-none focus:ring-2 focus:ring-brand/25"
+          />
         </label>
+        {isOwner && (
+          <div role="tablist" aria-label="نطاق العلاجات" className="flex gap-2">
+            {(
+              [
+                [false, 'علاجات العيادة'],
+                [true, 'علاجاتك'],
+              ] as const
+            ).map(([v, label]) => (
+              <button
+                key={label}
+                type="button"
+                role="tab"
+                aria-selected={mine === v}
+                onClick={() => setMine(v)}
+                className={`h-10 cursor-pointer rounded-full border px-4 text-sm font-semibold ${mine === v ? 'border-brand bg-brand text-on-brand' : 'border-line bg-white'}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
         <div role="tablist" aria-label="حالة العلاج" className="flex flex-wrap gap-2">
           {TABS.map(([v, label]) => (
-            <button key={v} type="button" role="tab" aria-selected={tab === v} onClick={() => setTab(v)} className={`h-10 cursor-pointer rounded-full border px-4 text-sm font-semibold ${tab === v ? 'border-brand bg-brand text-on-brand' : 'border-line bg-white'}`}>
+            <button
+              key={v}
+              type="button"
+              role="tab"
+              aria-selected={tab === v}
+              onClick={() => setTab(v)}
+              className={`h-10 cursor-pointer rounded-full border px-4 text-sm font-semibold ${tab === v ? 'border-brand bg-brand text-on-brand' : 'border-line bg-white'}`}
+            >
               {label}
             </button>
           ))}

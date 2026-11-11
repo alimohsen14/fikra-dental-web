@@ -15,7 +15,7 @@ export interface Balances {
   totalRemaining: number
 }
 
-export const getBalances = () => request<Balances>('/patient-balances')
+export const getBalances = (mine = false) => request<Balances>(`/patient-balances${mine ? '?mine=true' : ''}`)
 
 /** Search by name or phone; the order from the server (biggest debt first) is kept. */
 export function filterBalances(items: PatientBalance[], q: string): PatientBalance[] {

@@ -41,8 +41,10 @@ export const updateTreatmentSchema = z
   .refine((v) => Object.keys(v).length > 0, { message: 'nothing to change' });
 
 export const listTreatmentsSchema = z
-  .object({ patientId: idSchema.optional(), status: z.enum(['OPEN', 'CLOSED', 'CANCELLED']).optional() })
+  .object({ patientId: idSchema.optional(), status: z.enum(['OPEN', 'CLOSED', 'CANCELLED']).optional(), mine: z.literal('true').optional() })
   .strict();
+
+export const balancesQuerySchema = z.object({ mine: z.literal('true').optional() }).strict();
 
 export const completeSessionSchema = z.object({ notes: z.preprocess(emptyToUndefined, z.string().trim().max(1000).optional()) }).strict();
 export const cancelTreatmentSchema = z.object({ reason: z.preprocess(emptyToUndefined, z.string().trim().min(2).max(300).optional()) }).strict();

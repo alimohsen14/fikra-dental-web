@@ -141,8 +141,9 @@ export function toothMarks(treatments: Pick<Treatment, 'status' | 'toothCodes'>[
   const marks: Record<number, 'OPEN' | 'CLOSED'> = {}
   for (const t of treatments) {
     if (t.status === 'CANCELLED') continue
-    for (const c of t.toothCodes) if (t.status === 'OPEN') marks[c] = 'OPEN'
-    else marks[c] ??= 'CLOSED'
+    for (const c of t.toothCodes)
+      if (t.status === 'OPEN') marks[c] = 'OPEN'
+      else marks[c] ??= 'CLOSED'
   }
   return marks
 }
@@ -158,24 +159,28 @@ export const DEFAULT_TYPES: { name: string; children: string[] }[] = [
 
 // ---------------------------------------------------------------- API
 export const listTreatmentTypes = () => request<TreatmentType[]>('/treatment-types')
-export const createTreatmentType = (name: string, parentId?: string) => request<TreatmentType>('/treatment-types', { method: 'POST', body: { name, ...(parentId ? { parentId } : {}) } })
+export const createTreatmentType = (name: string, parentId?: string) =>
+  request<TreatmentType>('/treatment-types', { method: 'POST', body: { name, ...(parentId ? { parentId } : {}) } })
 export const updateTreatmentType = (id: string, body: { name?: string; isActive?: boolean }) => request<TreatmentType>(`/treatment-types/${id}`, { method: 'PATCH', body })
 
-export const listTreatments = (p: { patientId?: string; status?: TreatmentStatus } = {}) => {
+export const listTreatments = (p: { patientId?: string; status?: TreatmentStatus; mine?: boolean } = {}) => {
   const qs = new URLSearchParams()
   if (p.patientId) qs.set('patientId', p.patientId)
   if (p.status) qs.set('status', p.status)
+  if (p.mine) qs.set('mine', 'true')
   return request<Treatment[]>(`/treatments${qs.size ? `?${qs}` : ''}`)
 }
 export const getTreatment = (id: string) => request<Treatment>(`/treatments/${id}`)
 export const createTreatment = (body: Record<string, unknown>) => request<Treatment>('/treatments', { method: 'POST', body })
 export const updateTreatment = (id: string, body: Record<string, unknown>) => request<Treatment>(`/treatments/${id}`, { method: 'PATCH', body })
-export const completeSession = (id: string, number: number, notes?: string) => request<Treatment>(`/treatments/${id}/sessions/${number}/complete`, { method: 'POST', body: notes ? { notes } : {} })
+export const completeSession = (id: string, number: number, notes?: string) =>
+  request<Treatment>(`/treatments/${id}/sessions/${number}/complete`, { method: 'POST', body: notes ? { notes } : {} })
 export const bookSession = (id: string, number: number, body: { doctorId: string; startsAt: string; durationMinutes: 30 | 60; notes?: string }) =>
   request<Treatment>(`/treatments/${id}/sessions/${number}/appointment`, { method: 'POST', body })
 export const closeTreatment = (id: string) => request<Treatment>(`/treatments/${id}/close`, { method: 'POST', body: {} })
 export const cancelTreatment = (id: string, reason?: string) => request<Treatment>(`/treatments/${id}/cancel`, { method: 'POST', body: reason ? { reason } : {} })
-export const addPayment = (id: string, body: { amount: number; method: PaymentMethod; paidAt: string; note?: string }) => request<Treatment>(`/treatments/${id}/payments`, { method: 'POST', body })
+export const addPayment = (id: string, body: { amount: number; method: PaymentMethod; paidAt: string; note?: string }) =>
+  request<Treatment>(`/treatments/${id}/payments`, { method: 'POST', body })
 export const voidPayment = (paymentId: string, reason: string) => request<Treatment>(`/payments/${paymentId}/void`, { method: 'POST', body: { reason } })
 export const getPatientFinance = (patientId: string) => request<PatientFinance>(`/patients/${patientId}/finance`)
 

@@ -197,12 +197,18 @@ describe('Treatments, sessions and payments (e2e)', () => {
     await create(d, c, { doctorId: c.doc2 }).expect(403);
     const theirs = (await create(c.users.OWNER.token, c, { doctorId: c.doc2, plannedSessions: 2, totalCost: 0 }).expect(201)).body;
 
-    // reading: all of them, with a flag telling the screen what is allowed
-    const list = await http().get('/treatments').set(bearer(d)).expect(200);
+    // the treatments page: a doctor sees only his own; inside the patient's record he sees all of that patient's treatments, with a flag telling the screen what is allowed
+    const own = await http().get('/treatments').set(bearer(d)).expect(200);
+    expect(own.body.map((x: { id: string }) => x.id)).toEqual([mine.id]);
+    const list = await http().get(`/treatments?patientId=${c.patient}`).set(bearer(d)).expect(200);
     expect(list.body.map((x: { id: string }) => x.id).sort()).toEqual([mine.id, theirs.id].sort());
     const flags = Object.fromEntries(list.body.map((x: { id: string; access: unknown }) => [x.id, x.access]));
     expect(flags[mine.id]).toEqual({ edit: true, pay: true });
     expect(flags[theirs.id]).toEqual({ edit: false, pay: false });
+    // the owner sees the whole clinic on the page, and may narrow it to their own with `mine`
+    const all = await http().get('/treatments').set(bearer(c.users.OWNER.token)).expect(200);
+    expect(all.body.map((x: { id: string }) => x.id).sort()).toEqual([mine.id, theirs.id].sort());
+    expect((await http().get('/treatments?mine=true').set(bearer(c.users.OWNER.token)).expect(200)).body).toEqual([]); // the owner has no treatment of their own here
     expect((await http().get(`/treatments/${theirs.id}`).set(bearer(d)).expect(200)).body).toMatchObject({ id: theirs.id, doctor: { id: c.doc2 } });
     expect((await http().get(`/patients/${c.patient}/finance`).set(bearer(d)).expect(200)).body.treatments).toBe(2);
 
@@ -583,6 +589,17 @@ describe('Treatments, sessions and payments (e2e)', () => {
     await http().get('/patient-balances').set(bearer(c.users.KEYHOLDER.token)).expect(200);
     await http().get('/patient-balances').set(bearer(c.users.SECRETARY.token)).expect(403);
     await http().get('/patient-balances').set(bearer(c.users.DOCTOR.token)).expect(403);
+
+    // a doctor holding the payments key sees the balances of his own treatments only; the owner sees all, or only their own with `mine`
+    await prisma.user.update({ where: { id: c.users.DOCTOR.id }, data: { canManagePayments: true } });
+    const theirsPatient = await prisma.patient.create({ data: { clinicId: c.id, fullName: 'Patient of doctor two', phone: '+970599000444' } });
+    await create(o, c, { patientId: theirsPatient.id, doctorId: c.doc2, totalCost: 7_000 }).expect(201);
+    const names = (token: string, qs = '') => http().get(`/patient-balances${qs}`).set(bearer(token)).expect(200).then((r) => r.body.items.map((i: { fullName: string }) => i.fullName));
+    expect(await names(o)).toContain('Patient of doctor two');
+    expect(await names(c.users.DOCTOR.token)).not.toContain('Patient of doctor two');
+    expect(await names(c.users.DOCTOR.token, '?mine=true')).not.toContain('Patient of doctor two');
+    expect(await names(o, '?mine=true')).not.toContain('Patient of doctor two'); // the owner's own doctor profile is not doctor two
+    await prisma.user.update({ where: { id: c.users.DOCTOR.id }, data: { canManagePayments: false } });
     const b = await makeClinic('balancesb');
     expect((await http().get('/patient-balances').set(bearer(b.users.OWNER.token)).expect(200)).body).toEqual({ items: [], totalRemaining: 0 });
   });

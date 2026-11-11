@@ -13,6 +13,7 @@ import {
   createTreatmentSchema,
   createTypeSchema,
   idSchema,
+  balancesQuerySchema,
   listTreatmentsSchema,
   updateTreatmentSchema,
   updateTypeSchema,
@@ -114,8 +115,8 @@ export class TreatmentsController {
   // Who still owes the clinic, biggest debt first. Money screen: owner or the payments key only.
   @RequiresPayments()
   @Get('patient-balances')
-  balances(@CurrentUser() user: AuthUser) {
-    return this.treatments.patientBalances(user);
+  balances(@CurrentUser() user: AuthUser, @Query() query: unknown) {
+    return this.treatments.patientBalances(user, parseBody(balancesQuerySchema, query).mine === 'true');
   }
 
   @RequiresPayments()
