@@ -63,6 +63,11 @@ export function isMessageSchedulerOn(): boolean {
   return (process.env.MESSAGE_SCHEDULER ?? 'on') !== 'off';
 }
 
+// The owner must accept the terms before using the system. Tests switch this off (and test it directly).
+export function isTermsEnforced(): boolean {
+  return (process.env.TERMS_ENFORCED ?? 'true') !== 'false';
+}
+
 /** Where the booking page lives; the WhatsApp reply links to it. */
 export function getPublicWebUrl(): string {
   return (process.env.PUBLIC_WEB_URL ?? 'http://localhost:5173').replace(/\/+$/, '');

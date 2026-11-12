@@ -17,6 +17,8 @@ import { NewPatientPage, PatientPage } from './pages/PatientFormPage.tsx'
 import AnalysisPage from './pages/AnalysisPage.tsx'
 import ExpensesPage from './pages/ExpensesPage.tsx'
 import BalancesPage from './pages/BalancesPage.tsx'
+import AcceptTermsPage from './pages/AcceptTermsPage.tsx'
+import TermsPage from './pages/TermsPage.tsx'
 import MyIncomePage from './pages/MyIncomePage.tsx'
 import PatientsPage from './pages/PatientsPage.tsx'
 import TeamPage from './pages/TeamPage.tsx'
@@ -32,6 +34,7 @@ function HomeRedirect() {
   if (!ready) return <p className="p-8 text-muted">جاري التحميل...</p>
   if (!session) return <Navigate to="/login" replace />
   if (session.mustChangePassword) return <Navigate to="/change-password" replace />
+  if (session.termsRequired) return <Navigate to="/accept-terms" replace />
   return <Navigate to={homePathFor(session.user.role)} replace />
 }
 
@@ -43,6 +46,8 @@ export default function App() {
           <Route path="/book/:token" element={<BookingPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/change-password" element={<ChangePasswordPage />} />
+          <Route path="/accept-terms" element={<AcceptTermsPage />} />
+          <Route path="/terms" element={<TermsPage />} />
           <Route element={<RequireAuth roles={['PLATFORM_ADMIN']} />}>
             <Route element={<AdminLayout />}>
               <Route path="/admin" element={<ClinicsPage />} />

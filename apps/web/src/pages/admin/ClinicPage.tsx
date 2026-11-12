@@ -40,7 +40,10 @@ function StatusCard({ clinic, onChanged }: { clinic: ClinicDetail; onChanged: ()
   const { error, busy, run } = useAction()
   const suspended = clinic.status === 'SUSPENDED'
   return (
-    <Card title={suspended ? 'العيادة موقوفة' : 'إيقاف العيادة'} hint={suspended ? 'لا يستطيع أحد من موظفيها الدخول حتى تفعّلها.' : 'يمنع الإيقاف جميع موظفي العيادة من الدخول فوراً، وتبقى البيانات محفوظة.'}>
+    <Card
+      title={suspended ? 'العيادة موقوفة' : 'إيقاف العيادة'}
+      hint={suspended ? 'لا يستطيع أحد من موظفيها الدخول حتى تفعّلها.' : 'يمنع الإيقاف جميع موظفي العيادة من الدخول فوراً، وتبقى البيانات محفوظة.'}
+    >
       {error && <Alert tone="error">{error}</Alert>}
       {suspended ? (
         <Button size="sm" className="self-start" busy={busy} onClick={() => void run(() => setClinicActive(clinic.id, true), onChanged)}>
@@ -99,15 +102,22 @@ function RenewCard({ clinic, onChanged }: { clinic: ClinicDetail; onChanged: () 
     if (mode === 'date' && (!date || new Date(endOfDayIso(date)).getTime() <= Date.now())) return setError('اختر تاريخ انتهاء في المستقبل')
     const price_ = agorot === undefined ? {} : { price: agorot }
     const body = mode === 'months' ? { months, ...price_ } : { endsAt: endOfDayIso(date), ...price_ }
-    void run(() => renewClinic(clinic.id, body), () => {
-      setOk(true)
-      setPrice('')
-      onChanged()
-    })
+    void run(
+      () => renewClinic(clinic.id, body),
+      () => {
+        setOk(true)
+        setPrice('')
+        onChanged()
+      },
+    )
   }
 
   return (
-    <Card id="renew" title="تجديد الاشتراك" hint="عند استلام الدفعة جدّد من هنا. إذا تركت السعر فارغاً يكون التمديد مجانياً بدون فاتورة. يبدأ التمديد بالأشهر من تاريخ الانتهاء الحالي، أو من اليوم إذا كان قد انتهى.">
+    <Card
+      id="renew"
+      title="تجديد الاشتراك"
+      hint="عند استلام الدفعة جدّد من هنا. إذا تركت السعر فارغاً يكون التمديد مجانياً بدون فاتورة. يبدأ التمديد بالأشهر من تاريخ الانتهاء الحالي، أو من اليوم إذا كان قد انتهى."
+    >
       <form onSubmit={submit} noValidate className="flex flex-col gap-4">
         {error && <Alert tone="error">{error}</Alert>}
         {ok && <Alert tone="success">تم تجديد الاشتراك.</Alert>}
@@ -194,6 +204,12 @@ function UsersCard({ clinic }: { clinic: ClinicDetail }) {
             <span className="flex flex-wrap gap-1.5 empty:hidden">
               {!u.isActive && <Badge label="معطّل" bg="#e8ecf1" fg="#3d4b60" />}
               {u.mustChangePassword && <Badge label="كلمة مؤقتة" bg="#fff1d6" fg="#7a4a00" />}
+              {u.role === 'OWNER' &&
+                (u.termsAcceptedAt ? (
+                  <Badge label={`وافق على الشروط ${u.termsAcceptedAt.slice(0, 10)}`} bg="#e3f5ea" fg="#0b4f2c" />
+                ) : (
+                  <Badge label="لم يوافق على الشروط" bg="#fff1d6" fg="#7a4a00" />
+                ))}
               {u.lockedUntil && new Date(u.lockedUntil).getTime() > now && <Badge label="مقفول مؤقتاً" bg="#fde8e8" fg="#9b1c1c" />}
             </span>
           </li>
@@ -206,7 +222,17 @@ function UsersCard({ clinic }: { clinic: ClinicDetail }) {
         <div className="flex flex-col gap-3 rounded-xl bg-[#fdf3f3] p-4">
           <p className="text-sm leading-7">ستُنشأ كلمة مؤقتة جديدة للمالك، وسيُسجَّل خروجه من كل الأجهزة. هل تريد المتابعة؟</p>
           <div className="flex gap-2">
-            <Button variant="danger" size="sm" busy={busy} onClick={() => void run(async () => setCreds(await resetOwnerPassword(clinic.id)), () => setAsking(false))}>
+            <Button
+              variant="danger"
+              size="sm"
+              busy={busy}
+              onClick={() =>
+                void run(
+                  async () => setCreds(await resetOwnerPassword(clinic.id)),
+                  () => setAsking(false),
+                )
+              }
+            >
               نعم، أعد التعيين
             </Button>
             <Button variant="secondary" size="sm" onClick={() => setAsking(false)}>

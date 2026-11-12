@@ -39,6 +39,8 @@ export interface ClinicUser {
   role: Role
   isActive: boolean
   mustChangePassword: boolean
+  termsAcceptedVersion: string | null
+  termsAcceptedAt: string | null
   lockedUntil: string | null
   createdAt: string
 }

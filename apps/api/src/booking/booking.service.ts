@@ -36,7 +36,7 @@ interface Ctx {
 
 /** Who the booking page acts as inside the existing services: a secretary-level user without payment rights. */
 function bookerUser(clinicId: string): AuthUser {
-  return { id: '00000000-0000-0000-0000-000000000000', role: 'SECRETARY', clinicId, fullName: 'حجز ذاتي', canManagePayments: false, mustChangePassword: false, clinic: null, subscriptionWarning: null };
+  return { id: '00000000-0000-0000-0000-000000000000', role: 'SECRETARY', clinicId, fullName: 'حجز ذاتي', canManagePayments: false, mustChangePassword: false, termsRequired: false, clinic: null, subscriptionWarning: null };
 }
 
 @Injectable()

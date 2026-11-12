@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
+import { isTermsRequired } from '../legal/terms.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { ALLOW_MUST_CHANGE, IS_PUBLIC } from './auth.decorators.js';
 import { ACCESS_DENIED_MESSAGES, checkClinicAccess } from './clinic-access.js';
@@ -45,6 +46,7 @@ export class JwtAuthGuard implements CanActivate {
         canManagePayments: true,
         isActive: true,
         mustChangePassword: true,
+        termsAcceptedVersion: true,
         clinic: {
           select: { name: true, themeColor: true, logoUrl: true, status: true, subscriptionEndsAt: true },
         },
@@ -68,6 +70,11 @@ export class JwtAuthGuard implements CanActivate {
       });
     }
 
+    const termsRequired = isTermsRequired(user);
+    if (termsRequired && !this.reflector.getAllAndOverride<boolean>(ALLOW_MUST_CHANGE, targets)) {
+      throw new ForbiddenException({ code: 'TERMS_REQUIRED', message: 'يجب الموافقة على شروط الاستخدام أولاً' });
+    }
+
     // Role and clinicId come from the database, never from request input.
     req.user = {
       id: user.id,
@@ -76,6 +83,7 @@ export class JwtAuthGuard implements CanActivate {
       fullName: user.fullName,
       canManagePayments: user.canManagePayments,
       mustChangePassword: user.mustChangePassword,
+      termsRequired,
       clinic: user.clinic
         ? { id: user.clinicId!, name: user.clinic.name, themeColor: user.clinic.themeColor, logoUrl: user.clinic.logoUrl }
         : null,

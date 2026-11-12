@@ -12,6 +12,7 @@ export function RequireAuth({ roles }: { roles?: Role[] }) {
   if (!ready) return <p className="p-8 text-muted">جاري التحميل...</p>
   if (!session) return <Navigate to="/login" replace />
   if (session.mustChangePassword) return <Navigate to="/change-password" replace />
+  if (session.termsRequired) return <Navigate to="/accept-terms" replace />
   if (roles && !roles.includes(session.user.role)) return <Navigate to={homePathFor(session.user.role)} replace />
   return <Outlet />
 }

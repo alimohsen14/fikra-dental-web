@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import { Navigate } from 'react-router'
+import { Link, Navigate } from 'react-router'
 import { useAuth } from '../auth/AuthContext.tsx'
 import { Alert, Button, TextField } from '../components/ui.tsx'
 import { AuthShell } from '../components/AuthShell.tsx'
@@ -102,11 +102,20 @@ export default function LoginPage() {
             <Button type="submit" busy={busy} className="h-14">
               دخول <Icon name="arrow" />
             </Button>
-            <p className="border-t border-line pt-5 text-sm leading-7 text-muted">نسيت كلمة المرور؟ تواصل مع الدعم الفني ليعيّن لك كلمة مؤقتة جديدة.</p>
+            <p className="border-t border-line pt-5 text-sm leading-7 text-muted">
+              نسيت كلمة المرور؟ تواصل مع الدعم الفني ليعيّن لك كلمة مؤقتة جديدة.
+              <br />
+              <Link to="/terms" className="text-brand-dark underline">
+                شروط الاستخدام وسياسة الخصوصية
+              </Link>
+            </p>
           </form>
         </AuthShell>
       ) : (
-        <AuthShell panelTitle="حماية إضافية لحساب مدير المنصة" panelText="حسابك يتحكم بجميع العيادات، لذلك نطلب منك رمزاً ثانياً من جوالك حتى لا يتمكن أحد من الدخول بكلمة المرور وحدها.">
+        <AuthShell
+          panelTitle="حماية إضافية لحساب مدير المنصة"
+          panelText="حسابك يتحكم بجميع العيادات، لذلك نطلب منك رمزاً ثانياً من جوالك حتى لا يتمكن أحد من الدخول بكلمة المرور وحدها."
+        >
           <form onSubmit={submitCode} className="flex flex-col gap-7">
             <div className="flex flex-col gap-3">
               <div className="flex size-14 items-center justify-center rounded-2xl bg-brand-tint text-brand">

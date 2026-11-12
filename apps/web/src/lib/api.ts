@@ -80,6 +80,7 @@ export async function request<T>(path: string, opts: Options = {}): Promise<T> {
 interface SessionBody {
   accessToken: string
   mustChangePassword: boolean
+  termsRequired?: boolean
   subscriptionWarning: Session['subscriptionWarning']
   user: Session['user']
   clinic: Session['clinic']
@@ -88,6 +89,7 @@ interface SessionBody {
 const toSession = (b: SessionBody): Session => ({
   accessToken: b.accessToken,
   mustChangePassword: b.mustChangePassword,
+  termsRequired: b.termsRequired ?? false,
   subscriptionWarning: b.subscriptionWarning ?? null,
   user: b.user,
   clinic: b.clinic ?? null,

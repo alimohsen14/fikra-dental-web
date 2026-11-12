@@ -5,6 +5,7 @@ import { getSession, setSession } from './session.ts'
 const sessionBody = (token: string) => ({
   accessToken: token,
   mustChangePassword: false,
+  termsRequired: false,
   subscriptionWarning: null,
   user: { id: 'u1', fullName: 'Test', role: 'OWNER', clinicId: 'c1' },
   clinic: { id: 'c1', name: 'عيادة', themeColor: '#0b5d57', logoUrl: null },

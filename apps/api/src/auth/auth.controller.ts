@@ -4,9 +4,9 @@ import type { CookieOptions, Request, Response } from 'express';
 import { isProduction } from '../config/env.js';
 import { REFRESH_COOKIE, REFRESH_TOKEN_TTL_DAYS } from './auth.constants.js';
 import { AllowMustChange, CurrentUser, Public } from './auth.decorators.js';
-import { changePasswordSchema, loginSchema, parseBody, twoFactorSchema } from './auth.dto.js';
+import { acceptTermsSchema, changePasswordSchema, loginSchema, parseBody, twoFactorSchema } from './auth.dto.js';
 import { AuthService } from './auth.service.js';
-import { AnyRole } from './roles.decorator.js';
+import { AnyRole, Roles } from './roles.decorator.js';
 import type { IssuedSession } from './auth.service.js';
 import type { AuthUser } from './auth.types.js';
 
@@ -83,6 +83,7 @@ export class AuthController {
       },
       clinic: user.clinic,
       mustChangePassword: user.mustChangePassword,
+      termsRequired: user.termsRequired,
       subscriptionWarning: user.subscriptionWarning,
     };
   }
@@ -102,6 +103,17 @@ export class AuthController {
     return this.respond(res, session);
   }
 
+  /** The clinic owner accepts the current terms. Allowed while the terms are still pending (that is the point). */
+  @AllowMustChange()
+  @Roles('OWNER')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Post('accept-terms')
+  @HttpCode(204)
+  async acceptTerms(@CurrentUser() user: AuthUser, @Body() body: unknown, @Req() req: Request) {
+    const dto = parseBody(acceptTermsSchema, body);
+    await this.auth.acceptTerms(user, dto.version, req.ip ?? null, req.headers['user-agent'] ?? null);
+  }
+
   private respond(res: Response, s: IssuedSession) {
     res.cookie(REFRESH_COOKIE, s.refreshToken, {
       ...cookieOptions(),
@@ -110,6 +122,7 @@ export class AuthController {
     return {
       accessToken: s.accessToken,
       mustChangePassword: s.mustChangePassword,
+      termsRequired: s.termsRequired,
       subscriptionWarning: s.subscriptionWarning,
       user: s.user,
       clinic: s.clinic,

@@ -10,6 +10,7 @@ import { join, resolve } from 'node:path';
 import { crc32, deflateSync } from 'node:zlib';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PasswordService } from '../src/auth/password.service.js';
+import { TERMS_VERSION } from '../src/legal/terms.js';
 import { getPublicWebUrl, getUploadDir } from '../src/config/env.js';
 import { PrismaClient } from '../src/generated/prisma/client.js';
 import { addDaysTo, instantAt, localDate } from '../src/scheduling/clinic-time.js';
@@ -82,7 +83,8 @@ async function main() {
     prisma.clinic.create({ data: { name: nm(name), themeColor: color, status, subscriptionEndsAt: endsInDays === null ? null : new Date(Date.now() + endsInDays * DAY) } });
 
   const makeUser = (clinicId: string, username: string, fullName: string, role: Role, extra: Record<string, unknown> = {}) =>
-    prisma.user.create({ data: { clinicId, username: nm(username), passwordHash: hash, fullName, role, ...extra } as never });
+    // owners have already accepted the terms, except noor_owner (so the acceptance screen can be tried)
+    prisma.user.create({ data: { clinicId, username: nm(username), passwordHash: hash, fullName, role, ...(role === 'OWNER' ? { termsAcceptedVersion: TERMS_VERSION, termsAcceptedAt: new Date() } : {}), ...extra } as never });
 
   const makeDoctor = async (clinicId: string, fullName: string, userId: string | null, periods: [number[], number, number][], extra: Record<string, unknown> = {}) => {
     const d = await prisma.doctor.create({ data: { clinicId, userId, fullName, specialty: 'طب أسنان', ...extra } as never });
@@ -151,7 +153,7 @@ async function main() {
   // ================================================================== 1) عيادة النور: the main one, with everything
   const noor = await makeClinic('عيادة النور', '#0b5d57', 60);
   const N = noor.id;
-  const owner = await makeUser(N, 'noor_owner', 'د. أحمد النور', 'OWNER', { canManagePayments: true, phone: '+970599100001' });
+  const owner = await makeUser(N, 'noor_owner', 'د. أحمد النور', 'OWNER', { canManagePayments: true, phone: '+970599100001', termsAcceptedVersion: null, termsAcceptedAt: null });
   const uSami = await makeUser(N, 'noor_sami', 'د. سامي الخطيب', 'DOCTOR', { monthlySalary: ils(6000), phone: '+970599100002' });
   const uRana = await makeUser(N, 'noor_rana', 'د. رنا الحاج', 'DOCTOR', { monthlySalary: ils(5500), phone: '+970599100003' });
   const uSec = await makeUser(N, 'noor_sec', 'هبة (سكرتيرة بدون صلاحية مالية)', 'SECRETARY', { monthlySalary: ils(3000) });
@@ -429,7 +431,7 @@ async function main() {
   console.log(`\n${line}\nDEMO DATA READY.  Password for every user below: ${PASSWORD}\n${line}`);
   console.log(`
 عيادة النور (الرئيسية)
-  noor_owner      المالك + دكتور، صلاحيات كاملة
+  noor_owner      المالك + دكتور، صلاحيات كاملة (لم يوافق على الشروط بعد: جرّب شاشة الموافقة)
   noor_sami       دكتور (راتب 6000)            noor_rana  دكتورة (60 دقيقة، مسائي)
   noor_sec        سكرتيرة بدون صلاحية مالية      noor_key   سكرتيرة مع مفتاح المدفوعات
   noor_temp       كلمة مرور مؤقتة (يجب تغييرها عند أول دخول)

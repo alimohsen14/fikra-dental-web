@@ -4,6 +4,7 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
+import { TERMS_VERSION, isTermsRequired } from '../legal/terms.js';
 import type { Role } from '../generated/prisma/client.js';
 import { PrismaService } from '../database/prisma.service.js';
 import {
@@ -11,7 +12,7 @@ import {
   MAX_FAILED_LOGINS,
   REFRESH_TOKEN_TTL_DAYS,
 } from './auth.constants.js';
-import type { ClinicBrand } from './auth.types.js';
+import type { AuthUser, ClinicBrand } from './auth.types.js';
 import { ACCESS_DENIED_MESSAGES, checkClinicAccess } from './clinic-access.js';
 import type { SubscriptionWarning } from './clinic-access.js';
 import { PasswordService } from './password.service.js';
@@ -41,6 +42,7 @@ export interface IssuedSession {
   accessToken: string;
   refreshToken: string; // raw value, goes into the httpOnly cookie
   mustChangePassword: boolean;
+  termsRequired: boolean; // the owner has not accepted the current terms
   subscriptionWarning: SubscriptionWarning | null; // owner only
   user: { id: string; fullName: string; role: string; clinicId: string | null; canManagePayments: boolean };
   clinic: ClinicBrand | null;
@@ -299,6 +301,25 @@ export class AuthService {
     }
   }
 
+  /** The owner accepts the current terms: kept on the user, and in the audit log with when, from where, and which text. */
+  async acceptTerms(user: AuthUser, version: string, ip: string | null, userAgent: string | null): Promise<void> {
+    if (version !== TERMS_VERSION) throw new BadRequestException('نسخة الشروط قديمة، حدّث الصفحة ثم حاول مرة أخرى');
+    const now = new Date();
+    await this.prisma.$transaction([
+      this.prisma.user.update({ where: { id: user.id }, data: { termsAcceptedVersion: version, termsAcceptedAt: now } }),
+      this.prisma.auditLog.create({
+        data: {
+          clinicId: user.clinicId,
+          actorUserId: user.id,
+          action: 'TERMS_ACCEPTED',
+          entityType: 'User',
+          entityId: user.id,
+          after: { version, acceptedAt: now.toISOString(), ip, userAgent: userAgent?.slice(0, 300) ?? null },
+        },
+      }),
+    ]);
+  }
+
   private async revokeFamily(familyId: string): Promise<void> {
     await this.prisma.refreshToken.updateMany({
       where: { familyId, revokedAt: null },
@@ -314,6 +335,7 @@ export class AuthService {
       clinicId: string | null;
       canManagePayments: boolean;
       mustChangePassword: boolean;
+      termsAcceptedVersion: string | null;
       clinic: { name: string; themeColor: string | null; logoUrl: string | null } | null;
     },
     familyId: string,
@@ -338,6 +360,7 @@ export class AuthService {
       accessToken,
       refreshToken: refresh.raw,
       mustChangePassword: user.mustChangePassword,
+      termsRequired: isTermsRequired(user),
       subscriptionWarning: user.role === 'OWNER' ? warning : null,
       user: { id: user.id, fullName: user.fullName, role: user.role, clinicId: user.clinicId, canManagePayments: user.canManagePayments },
       clinic:

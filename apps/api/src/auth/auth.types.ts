@@ -26,6 +26,8 @@ export interface AuthUser {
   fullName: string;
   canManagePayments: boolean;
   mustChangePassword: boolean;
+  // The owner has not accepted the current terms yet.
+  termsRequired: boolean;
   clinic: ClinicBrand | null; // null for PLATFORM_ADMIN
   // Only filled for the clinic OWNER, while the subscription is in its grace days.
   subscriptionWarning: SubscriptionWarning | null;

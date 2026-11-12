@@ -27,6 +27,7 @@ export interface SubscriptionWarning {
 export interface Session {
   accessToken: string
   mustChangePassword: boolean
+  termsRequired: boolean // the owner has not accepted the current terms yet
   subscriptionWarning: SubscriptionWarning | null // owner only
   user: SessionUser
   clinic: ClinicBrand | null // null for the platform admin

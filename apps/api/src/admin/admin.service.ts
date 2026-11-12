@@ -236,6 +236,8 @@ export class AdminService {
             isActive: true,
             mustChangePassword: true,
             lockedUntil: true,
+            termsAcceptedVersion: true,
+            termsAcceptedAt: true,
             createdAt: true,
           },
         },

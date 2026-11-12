@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import type { ChangeEvent, FormEvent } from 'react'
-import { useNavigate } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 import { Card, ColorPicker } from '../components/admin-ui.tsx'
 import { ClinicBanner } from '../components/clinic-ui.tsx'
 import { Alert, Button, TextField } from '../components/ui.tsx'
@@ -108,6 +108,11 @@ export default function SettingsPage() {
               )}
             </div>
           </form>
+        </Card>
+        <Card title="الشروط والأحكام" hint="الشروط التي وافقت عليها عند بدء استخدام النظام.">
+          <Link to="/terms" className="text-brand-dark underline">
+            عرض شروط الاستخدام وسياسة الخصوصية
+          </Link>
         </Card>
       </div>
     </>

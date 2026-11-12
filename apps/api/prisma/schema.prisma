@@ -142,6 +142,10 @@ model User {
   failedLoginCount           Int       @default(0)
   lockedUntil                DateTime? @db.Timestamptz(3)
 
+  // The clinic owner must accept the terms of use (see src/legal). Version = the text they saw.
+  termsAcceptedVersion String?
+  termsAcceptedAt      DateTime? @db.Timestamptz(3)
+
   // Two-factor login (PLATFORM_ADMIN). The secret is stored encrypted, never in plain text.
   totpSecret    String?
   totpEnabledAt DateTime? @db.Timestamptz(3)
