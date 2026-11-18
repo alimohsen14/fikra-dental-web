@@ -9,6 +9,8 @@ import { Flash } from '../components/Flash.tsx'
 import { Icon } from '../components/icons.tsx'
 import { awaitingReply, doctorDays, filterDay, listAppointments, listDoctors } from '../lib/appointments.ts'
 import type { Appointment, DayFilter } from '../lib/appointments.ts'
+import { canSeeMoney } from '../lib/access.ts'
+import { getChequeSummary } from '../lib/cheques.ts'
 import { getSalaryMonth, isSalaryDue, monthNumber } from '../lib/salaries.ts'
 import { addDays, dayRange, dayTitle, todayDate } from '../lib/schedule.ts'
 import { useLoad } from '../lib/useLoad.ts'
@@ -25,6 +27,10 @@ export default function HomePage() {
   const salariesDue = session?.user.role === 'OWNER' && isSalaryDue(month, today)
   const salaries = useLoad(() => (salariesDue ? getSalaryMonth(month) : Promise.resolve(null)), [salariesDue, month])
   const owed = salaries.data?.entries.filter((e) => e.remaining > 0) ?? []
+  // Cheques that need attention: incomplete ones, and ones whose day has come. Only for those who handle payments.
+  const seesMoney = session ? canSeeMoney(session.user) : false
+  const cheques = useLoad(() => (seesMoney ? getChequeSummary() : Promise.resolve(null)), [seesMoney])
+  const chq = cheques.data
   const [filter, setFilter] = useState<DayFilter>('ALL')
   const [doctorId, setDoctorId] = useState<string | null>(null)
   const [dialog, setDialog] = useState<{ edit?: Appointment } | null>(null)
@@ -57,6 +63,30 @@ export default function HomePage() {
         <>
           {showDoctors && <DoctorCards days={doctorDays(doctors.data, all, Date.now())} value={doctorId} onChange={setDoctorId} />}
           <StatusCards list={mine} value={filter} onChange={setFilter} />
+          {chq && (chq.incomplete > 0 || chq.dueToday.count > 0 || chq.overdue.count > 0) && (
+            <Card title="تنبيه: شكات تحتاج متابعة">
+              <div className="flex flex-col gap-3" data-testid="cheque-alerts">
+                {chq.overdue.count > 0 && (
+                  <p className="font-bold text-[#9b1c1c]" data-testid="alert-overdue">
+                    فات موعد صرف {chq.overdue.count} شك ولم تُصرف بعد (<Money agorot={chq.overdue.amount} />).
+                  </p>
+                )}
+                {chq.dueToday.count > 0 && (
+                  <p className="font-bold text-[#7a5200]" data-testid="alert-today">
+                    اليوم موعد صرف {chq.dueToday.count} شك ولم تصرفها بعد (<Money agorot={chq.dueToday.amount} />).
+                  </p>
+                )}
+                {chq.incomplete > 0 && (
+                  <p className="font-bold text-[#9b1c1c]" data-testid="alert-incomplete">
+                    عندك {chq.incomplete} شك معلوماتها غير مكتملة (المبلغ أو تاريخ الصرف).
+                  </p>
+                )}
+                <Link to="/cheques" className="text-sm font-bold text-brand-dark underline">
+                  فتح الشكات
+                </Link>
+              </div>
+            </Card>
+          )}
           {owed.length > 0 && salaries.data && (
             <Card title={`رواتب شهر ${monthNumber(month)} جاهزة للصرف`} hint={`${owed.length} موظف لم يُصرف لهم الراتب كاملاً.`}>
               <div className="flex flex-wrap items-center justify-between gap-3" data-testid="salary-reminder">

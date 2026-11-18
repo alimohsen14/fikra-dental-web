@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import type { AuthUser } from '../auth/auth.types.js';
+import { cashAt, cashIncomeWhere } from '../cheques/cash-income.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { periodRange } from '../expenses/period.js';
 import type { Period } from '../expenses/period.js';
@@ -34,9 +35,9 @@ export class IncomeService {
     const tz = await this.tz(user.clinicId!);
     const r = periodRange(period, date);
     const rows = await this.tenant.db.payment.findMany({
-      where: { status: 'ACTIVE', paidAt: { gte: instantAt(r.from, 0, tz), lt: instantAt(r.to, 0, tz) }, treatment: { doctorId } },
+      where: { ...cashIncomeWhere({ gte: instantAt(r.from, 0, tz), lt: instantAt(r.to, 0, tz) }), treatment: { doctorId } },
       orderBy: [{ paidAt: 'desc' }, { id: 'asc' }],
-      select: { id: true, amount: true, method: true, paidAt: true, treatmentId: true, patient: { select: { id: true, fullName: true } } },
+      select: { id: true, amount: true, method: true, paidAt: true, treatmentId: true, cheque: { select: { cashedAt: true } }, patient: { select: { id: true, fullName: true } } },
     });
     return {
       period,
@@ -44,7 +45,8 @@ export class IncomeService {
       to: addDaysTo(r.to, -1), // the last day, included
       income: rows.reduce((t, p) => t + p.amount, 0),
       count: rows.length,
-      payments: rows.slice(0, 500),
+      // a cheque counts from the day it was cashed (paidAt then shows that day); `fromCheque` lets the screen say where the money came from
+      payments: rows.slice(0, 500).map(({ cheque, ...p }) => ({ ...p, paidAt: cashAt({ ...p, cheque }) ?? p.paidAt, fromCheque: p.method === 'CHEQUE' })),
     };
   }
 
@@ -53,12 +55,13 @@ export class IncomeService {
     const doctorId = await this.ownDoctorId(user);
     const tz = await this.tz(user.clinicId!);
     const rows = await this.tenant.db.payment.findMany({
-      where: { status: 'ACTIVE', paidAt: { gte: instantAt(`${year}-01-01`, 0, tz), lt: instantAt(`${year + 1}-01-01`, 0, tz) }, treatment: { doctorId } },
-      select: { amount: true, paidAt: true },
+      where: { ...cashIncomeWhere({ gte: instantAt(`${year}-01-01`, 0, tz), lt: instantAt(`${year + 1}-01-01`, 0, tz) }), treatment: { doctorId } },
+      select: { amount: true, paidAt: true, method: true, cheque: { select: { cashedAt: true } } },
     });
     const out = Array.from({ length: 12 }, (_, i) => ({ month: `${year}-${String(i + 1).padStart(2, '0')}`, income: 0 }));
     for (const p of rows) {
-      const row = out[Number(localDate(p.paidAt, tz).slice(5, 7)) - 1];
+      const at = cashAt(p);
+      const row = at ? out[Number(localDate(at, tz).slice(5, 7)) - 1] : undefined;
       if (row) row.income += p.amount;
     }
     return out;

@@ -9,6 +9,8 @@ export interface MyPayment {
   method: PaymentMethod
   paidAt: string
   treatmentId: string
+  /** A cheque: the day shown is the day it was cashed. */
+  fromCheque?: boolean
   patient: { id: string; fullName: string }
 }
 export interface MyIncome {

@@ -30,7 +30,7 @@ const DETAIL = {
   sessions: { orderBy: { number: 'asc' }, select: { id: true, number: true, status: true, completedAt: true, notes: true, appointmentId: true, appointment: { select: { id: true, startsAt: true, endsAt: true, status: true } } } },
   payments: {
     orderBy: [{ paidAt: 'desc' }, { createdAt: 'desc' }],
-    select: { id: true, amount: true, method: true, paidAt: true, note: true, status: true, voidedAt: true, voidReason: true, createdAt: true },
+    select: { id: true, amount: true, method: true, paidAt: true, note: true, status: true, voidedAt: true, voidReason: true, createdAt: true, cheque: { select: { id: true, status: true, dueDate: true, chequeNumber: true } } },
   },
 } satisfies Prisma.TreatmentSelect;
 

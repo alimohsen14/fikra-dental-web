@@ -96,7 +96,7 @@ export default function MyIncomePage() {
                           {p.patient.fullName}
                         </Link>
                         <span className="text-sm text-muted">
-                          <DateText value={p.paidAt} /> · {METHOD_LABELS[p.method]}
+                          <DateText value={p.paidAt} /> · {p.fromCheque ? 'من شك (يوم الصرف)' : METHOD_LABELS[p.method]}
                         </span>
                       </span>
                       <strong>

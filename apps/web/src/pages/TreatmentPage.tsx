@@ -14,6 +14,10 @@ import { listDoctors } from '../lib/appointments.ts'
 import { todayInput } from '../lib/format.ts'
 import { localParts, timeLabel } from '../lib/schedule.ts'
 import { buildTreatmentPayment } from '../lib/treatmentForm.ts'
+import { buildChequeCreate, createCheque, emptyChequeForm, listTreatmentCheques, missingOf, STATUS_LABELS, uploadChequeImage } from '../lib/cheques.ts'
+import type { ChequeForm } from '../lib/cheques.ts'
+import { ChequeFields, ChequeModal, PhotoPicker } from '../components/cheque-ui.tsx'
+import { XRAY_MAX_BYTES, prepareXray } from '../lib/xrays.ts'
 import { addPayment, canBookSession, canClose, closeTreatment, completeSession, getTreatment, METHOD_LABELS, nextBookable, sessionCaption, sessionsDone, STATUS_TEXT, TREATMENT_STYLE, typeLabel, typeLabels, voidPayment } from '../lib/treatments.ts'
 import type { PaymentMethod, PaymentRow, SessionRow, Treatment } from '../lib/treatments.ts'
 import { useLoad } from '../lib/useLoad.ts'
@@ -163,9 +167,14 @@ function SessionsCard({ t, canEdit, onChanged }: { t: Treatment; canEdit: boolea
 
 function PaymentModal({ t, remaining, onClose, onDone }: { t: Treatment; remaining: number; onClose: () => void; onDone: () => void }) {
   const [f, setF] = useState({ amount: '', method: 'CASH' as PaymentMethod, day: todayInput(), note: '' })
+  const [cf, setCf] = useState<ChequeForm>(emptyChequeForm())
+  const [photo, setPhoto] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
+  const [saved, setSaved] = useState(false) // the cheque is saved but its photo failed: only closing is left
   const [error, setError] = useState<string | null>(null)
+  const isCheque = f.method === 'CHEQUE'
   async function submit() {
+    if (isCheque) return submitCheque()
     const r = buildTreatmentPayment(f, remaining)
     if ('error' in r) return setError(r.error)
     setBusy(true)
@@ -178,12 +187,34 @@ function PaymentModal({ t, remaining, onClose, onDone }: { t: Treatment; remaini
       setBusy(false)
     }
   }
+  async function submitCheque() {
+    const r = buildChequeCreate(cf, remaining)
+    if ('error' in r) return setError(r.error)
+    if (!photo && Object.keys(r.body).length === 0) return setError('صوّر الشك أو اكتب بعض بياناته')
+    setBusy(true)
+    setError(null)
+    let created: { id: string } | null = null
+    try {
+      created = await createCheque(t.id, r.body)
+      if (photo) {
+        const image = await prepareXray(photo)
+        if (image.size > XRAY_MAX_BYTES) throw new ApiError(413, 'الصورة كبيرة، الحد الأقصى 10 ميجابايت')
+        await uploadChequeImage(created.id, image)
+      }
+      onDone()
+    } catch (e) {
+      if (created) {
+        setSaved(true)
+        setError(`حُفظ الشك لكن تعذّر رفع الصورة: ${messageOf(e)}. يمكنك إضافتها بفتح الشك.`)
+      } else setError(messageOf(e))
+      setBusy(false)
+    }
+  }
   return (
-    <Modal title="دفعة جديدة" onClose={onClose}>
+    <Modal title={isCheque ? 'دفعة بشك' : 'دفعة جديدة'} onClose={saved ? onDone : onClose}>
       <p className="text-sm text-muted">
         المتبقي على العلاج: <Money agorot={remaining} />
       </p>
-      <TextField label="المبلغ (₪)" inputMode="decimal" dir="ltr" className="text-right" value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value })} />
       <SelectField label="طريقة الدفع" value={f.method} onChange={(e) => setF({ ...f, method: e.target.value as PaymentMethod })}>
         {(Object.keys(METHOD_LABELS) as PaymentMethod[]).map((m) => (
           <option key={m} value={m}>
@@ -191,16 +222,32 @@ function PaymentModal({ t, remaining, onClose, onDone }: { t: Treatment; remaini
           </option>
         ))}
       </SelectField>
-      <TextField label="تاريخ الدفعة" type="date" max={todayInput()} value={f.day} onChange={(e) => setF({ ...f, day: e.target.value })} />
-      <TextAreaField label="ملاحظة (اختياري)" value={f.note} maxLength={300} onChange={(e) => setF({ ...f, note: e.target.value })} />
+      {isCheque ? (
+        <>
+          <ChequeFields f={cf} setF={setCf} />
+          <PhotoPicker file={photo} onChange={setPhoto} onError={setError} />
+        </>
+      ) : (
+        <>
+          <TextField label="المبلغ (₪)" inputMode="decimal" dir="ltr" className="text-right" value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value })} />
+          <TextField label="تاريخ الدفعة" type="date" max={todayInput()} value={f.day} onChange={(e) => setF({ ...f, day: e.target.value })} />
+          <TextAreaField label="ملاحظة (اختياري)" value={f.note} maxLength={300} onChange={(e) => setF({ ...f, note: e.target.value })} />
+        </>
+      )}
       {error && <Alert tone="error">{error}</Alert>}
       <div className="flex flex-wrap gap-3">
-        <Button busy={busy} onClick={() => void submit()}>
-          تسجيل الدفعة
-        </Button>
-        <Button variant="secondary" onClick={onClose}>
-          رجوع
-        </Button>
+        {saved ? (
+          <Button onClick={onDone}>إغلاق</Button>
+        ) : (
+          <>
+            <Button busy={busy} onClick={() => void submit()}>
+              {isCheque ? 'تسجيل الشك' : 'تسجيل الدفعة'}
+            </Button>
+            <Button variant="secondary" onClick={onClose}>
+              رجوع
+            </Button>
+          </>
+        )}
       </div>
     </Modal>
   )
@@ -244,6 +291,9 @@ function VoidModal({ p, onClose, onDone }: { p: PaymentRow; onClose: () => void;
 function MoneyCard({ t, isOwner, onChanged }: { t: Treatment; isOwner: boolean; onChanged: () => void }) {
   const [paying, setPaying] = useState(false)
   const [voiding, setVoiding] = useState<PaymentRow | null>(null)
+  const [openCheque, setOpenCheque] = useState<string | null>(null)
+  const cheques = useLoad(() => (t.payments ? listTreatmentCheques(t.id) : Promise.resolve(null)), [t.id, t.payments?.length])
+  const incomplete = cheques.data?.items.filter((c) => c.incomplete) ?? []
 
   if (t.paid === undefined || t.remaining === undefined || !t.payments) {
     return (
@@ -294,17 +344,50 @@ function MoneyCard({ t, isOwner, onChanged }: { t: Treatment; isOwner: boolean; 
                 <span className="text-sm">
                   {METHOD_LABELS[p.method]} · <DateText value={p.paidAt} />
                   {p.note ? ` · ${p.note}` : ''}
+                  {p.cheque ? ` · ${p.cheque.dueDate ? `يُصرف ${p.cheque.dueDate}` : ''} (${STATUS_LABELS[p.cheque.status]})` : ''}
                 </span>
                 {p.status === 'VOIDED' && <span className="text-sm text-[#9b1c1c]">ملغية: {p.voidReason}</span>}
               </span>
-              {p.status === 'ACTIVE' && isOwner && (
-                <Button size="sm" variant="secondary" onClick={() => setVoiding(p)}>
-                  إلغاء الدفعة
-                </Button>
-              )}
+              <span className="flex flex-wrap gap-2">
+                {p.cheque && (
+                  <Button size="sm" variant="secondary" onClick={() => setOpenCheque(p.cheque!.id)}>
+                    فتح الشك
+                  </Button>
+                )}
+                {p.status === 'ACTIVE' && isOwner && !p.cheque && (
+                  <Button size="sm" variant="secondary" onClick={() => setVoiding(p)}>
+                    إلغاء الدفعة
+                  </Button>
+                )}
+              </span>
             </li>
           ))}
         </ul>
+      )}
+      {incomplete.length > 0 && (
+        <div className="flex flex-col gap-2" data-testid="incomplete-cheques">
+          <h3 className="text-[15px] font-bold text-[#9b1c1c]">شكات ناقصة على هذا العلاج</h3>
+          {incomplete.map((c) => (
+            <div key={c.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#f1c0c0] bg-[#fff6f6] p-3">
+              <span className="text-sm">
+                {c.hasImage ? 'شك مصوّر' : 'شك'} · {missingOf(c)}
+              </span>
+              <Button size="sm" onClick={() => setOpenCheque(c.id)}>
+                إكمال البيانات
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+      {openCheque && (
+        <ChequeModal
+          id={openCheque}
+          onClose={() => setOpenCheque(null)}
+          onChanged={() => {
+            cheques.reload()
+            onChanged()
+          }}
+        />
       )}
       {paying && (
         <PaymentModal
@@ -313,6 +396,7 @@ function MoneyCard({ t, isOwner, onChanged }: { t: Treatment; isOwner: boolean; 
           onClose={() => setPaying(false)}
           onDone={() => {
             setPaying(false)
+            cheques.reload() // a cheque saved without amount/date adds no payment, so the list would not notice
             onChanged()
           }}
         />

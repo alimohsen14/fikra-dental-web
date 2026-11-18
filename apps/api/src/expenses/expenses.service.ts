@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import type { AuthUser } from '../auth/auth.types.js';
+import { cashAt, cashIncomeWhere } from '../cheques/cash-income.js';
 import { PrismaService } from '../database/prisma.service.js';
 import type { Prisma } from '../generated/prisma/client.js';
 import { addDaysTo, instantAt, localDate } from '../scheduling/clinic-time.js';
@@ -252,7 +253,7 @@ export class ExpensesService {
     const r = periodRange(period, date);
     const range = { gte: instantAt(r.from, 0, tz), lt: instantAt(r.to, 0, tz) };
     const [income, paidOut, incurred, categories, owed, salaryPaid] = await Promise.all([
-      this.tenant.db.payment.aggregate({ where: { status: 'ACTIVE', paidAt: range }, _sum: { amount: true }, _count: true }),
+      this.tenant.db.payment.findMany({ where: cashIncomeWhere(range), select: { amount: true } }),
       this.tenant.db.expensePayment.findMany({ where: { status: 'ACTIVE', paidAt: range }, select: { amount: true, expense: { select: { categoryId: true } } } }),
       this.tenant.db.expense.findMany({ where: { status: 'ACTIVE', incurredAt: range }, select: { amount: true, categoryId: true } }),
       this.tenant.db.expenseCategory.findMany({ select: { id: true, name: true } }),
@@ -266,13 +267,13 @@ export class ExpensesService {
     for (const p of paidOut) slot(p.expense.categoryId).paid += p.amount;
     const names = new Map(categories.map((c) => [c.id, c.name]));
     const expensesPaid = paidOut.reduce((t, p) => t + p.amount, 0) + salaries;
-    const incomeTotal = income._sum.amount ?? 0;
+    const incomeTotal = income.reduce((t, p) => t + p.amount, 0);
     return {
       period,
       from: r.from,
       to: addDaysTo(r.to, -1), // the last day, included
       income: incomeTotal,
-      incomeCount: income._count,
+      incomeCount: income.length,
       expensesPaid,
       expensesIncurred: incurred.reduce((t, e) => t + e.amount, 0) + salaries,
       profit: incomeTotal - expensesPaid,
@@ -298,7 +299,7 @@ export class ExpensesService {
     const last = list[list.length - 1]!;
     const range = { gte: instantAt(`${list[0]}-01`, 0, tz), lt: instantAt(shiftMonth(last, 1) + '-01', 0, tz) };
     const [income, expenses, salaries] = await Promise.all([
-      this.tenant.db.payment.findMany({ where: { status: 'ACTIVE', paidAt: range }, select: { amount: true, paidAt: true } }),
+      this.tenant.db.payment.findMany({ where: cashIncomeWhere(range), select: { amount: true, paidAt: true, method: true, cheque: { select: { cashedAt: true } } } }),
       this.tenant.db.expensePayment.findMany({ where: { status: 'ACTIVE', paidAt: range }, select: { amount: true, paidAt: true } }),
       this.tenant.db.salaryPayment.findMany({ where: { status: 'ACTIVE', paidAt: range }, select: { amount: true, paidAt: true } }),
     ]);
@@ -309,7 +310,7 @@ export class ExpensesService {
         if (row) row[key] += r.amount;
       }
     };
-    add(income, 'income');
+    add(income.flatMap((p) => { const at = cashAt(p); return at ? [{ amount: p.amount, paidAt: at }] : []; }), 'income');
     add(expenses, 'expensesPaid');
     add(salaries, 'salariesPaid');
     return [...rows.values()].map((r) => ({ ...r, profit: r.income - r.expensesPaid - r.salariesPaid }));

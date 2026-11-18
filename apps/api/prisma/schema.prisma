@@ -66,6 +66,20 @@ enum PaymentMethod {
   CARD
   TRANSFER
   OTHER
+  CHEQUE
+}
+
+enum ChequeDirection {
+  INCOMING // a patient paid with it
+  OUTGOING // the clinic wrote it (phase 2)
+}
+
+enum ChequeStatus {
+  PENDING // in hand, not cashed yet
+  CASHED
+  RETURNED
+  ENDORSED // handed on to pay a supplier (phase 2)
+  CANCELLED
 }
 
 enum PaymentStatus {
@@ -94,6 +108,7 @@ model Clinic {
   salaryEntries   SalaryEntry[]
   salaryPayments  SalaryPayment[]
   xrays          XRay[]
+  cheques        Cheque[]
   users          User[]
   doctors        Doctor[]
   workingPeriods DoctorWorkingPeriod[]
@@ -218,6 +233,7 @@ model Patient {
   treatments   Treatment[]
   payments     Payment[]
   xrays        XRay[]
+  cheques      Cheque[]
 
   @@unique([clinicId, nationalId])
   @@index([clinicId, phone])
@@ -335,6 +351,7 @@ model Treatment {
   sessions      Session[]
   payments      Payment[]
   xrays         XRay[]
+  cheques       Cheque[]
 
   @@index([clinicId, patientId])
   @@index([clinicId, status])
@@ -394,10 +411,50 @@ model Payment {
   clinic    Clinic    @relation(fields: [clinicId], references: [id])
   patient   Patient   @relation(fields: [patientId], references: [id])
   treatment Treatment @relation(fields: [treatmentId], references: [id])
+  cheque    Cheque? // set when method is CHEQUE
 
   @@index([clinicId, patientId])
   @@index([treatmentId])
   @@index([clinicId, paidAt])
+}
+
+// A cheque. An incoming one belongs to a patient's treatment; once complete (amount + due date) it owns a Payment of method CHEQUE,
+// so the patient's balance drops at once, but the clinic's cash income only counts it from the day it is cashed.
+// A cheque photographed without amount/due date is "incomplete": it has no payment yet and the clinic keeps being reminded.
+model Cheque {
+  id              String          @id @default(uuid()) @db.Uuid
+  clinicId        String          @db.Uuid
+  direction       ChequeDirection @default(INCOMING)
+  status          ChequeStatus    @default(PENDING)
+  amount          Int? // smallest currency unit; null while incomplete
+  dueDate         DateTime?       @db.Date // the day it can be cashed; null while incomplete
+  chequeNumber    String?
+  bankName        String?
+  accountNumber   String?
+  drawerName      String? // whose name is on the cheque
+  drawerPhone     String?
+  notes           String?
+  image           String? // stored file name
+  imageMime       String?
+  imageSize       Int?
+  patientId       String?         @db.Uuid
+  treatmentId     String?         @db.Uuid
+  paymentId       String?         @unique @db.Uuid
+  cashedAt        DateTime?       @db.Timestamptz(3)
+  returnedAt      DateTime?       @db.Timestamptz(3)
+  returnReason    String?
+  createdByUserId String          @db.Uuid
+  createdAt       DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime        @updatedAt @db.Timestamptz(3)
+
+  clinic    Clinic     @relation(fields: [clinicId], references: [id])
+  patient   Patient?   @relation(fields: [patientId], references: [id])
+  treatment Treatment? @relation(fields: [treatmentId], references: [id])
+  payment   Payment?   @relation(fields: [paymentId], references: [id])
+
+  @@index([clinicId, status, dueDate])
+  @@index([clinicId, patientId])
+  @@index([treatmentId])
 }
 
 model AuditLog {

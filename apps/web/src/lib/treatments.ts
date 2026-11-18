@@ -3,7 +3,7 @@ import type { AppointmentStatus } from './appointments.ts'
 import { toothOrder } from './teeth.ts'
 
 export type TreatmentStatus = 'OPEN' | 'CLOSED' | 'CANCELLED'
-export type PaymentMethod = 'CASH' | 'CARD' | 'TRANSFER' | 'OTHER'
+export type PaymentMethod = 'CASH' | 'CARD' | 'TRANSFER' | 'OTHER' | 'CHEQUE'
 
 export interface TreatmentType {
   id: string
@@ -32,6 +32,8 @@ export interface PaymentRow {
   voidedAt: string | null
   voidReason: string | null
   createdAt: string
+  /** Set when the payment is a cheque. */
+  cheque?: { id: string; status: 'PENDING' | 'CASHED' | 'RETURNED' | 'ENDORSED' | 'CANCELLED'; dueDate: string | null; chequeNumber: string | null } | null
 }
 
 export interface TypeRef {
@@ -84,7 +86,7 @@ export const TREATMENT_STYLE: Record<TreatmentStatus, { bg: string; fg: string }
   CLOSED: { bg: '#e3f5ea', fg: '#0b4f2c' },
   CANCELLED: { bg: '#eceff3', fg: '#4a5a70' },
 }
-export const METHOD_LABELS: Record<PaymentMethod, string> = { CASH: 'نقداً', CARD: 'بطاقة', TRANSFER: 'تحويل', OTHER: 'أخرى' }
+export const METHOD_LABELS: Record<PaymentMethod, string> = { CASH: 'نقداً', CARD: 'بطاقة', TRANSFER: 'تحويل', OTHER: 'أخرى', CHEQUE: 'شك' }
 
 // ---------------------------------------------------------------- helpers
 /** "تلبيسة › زركون" for a sub-type, just the name for a top-level type. */
