@@ -402,6 +402,7 @@ export default function ExpensesPage() {
   const [supplierId, setSupplierId] = useState<string | null>(null)
   const [modal, setModal] = useState<'new' | { pay: Expense } | { void: VoidTarget } | null>(null)
   const [openCheque, setOpenCheque] = useState<string | null>(null)
+  const [view, setView] = useState<'ALL' | 'CASH' | 'CHEQUE'>('ALL') // the figures: everything, cash only, or cheques only
   const chequeBox = useLoad(getChequeSummary, [])
 
   const summary = useLoad(() => getSummary(period, date), [period, date])
@@ -494,19 +495,45 @@ export default function ExpensesPage() {
           <Loading error={summary.error} />
         ) : (
           <>
-            <div className="flex flex-wrap gap-3">
-              <Stat label={`الدخل (${s.incomeCount} دفعة من المرضى)`}>
-                <Money agorot={s.income} />
-              </Stat>
-              <Stat label="المصاريف المدفوعة">
-                <Money agorot={s.expensesPaid} />
-              </Stat>
-              <Stat label="الربح" tone={s.profit >= 0 ? 'good' : 'bad'}>
-                <span data-testid="profit">
-                  <Money agorot={s.profit} />
-                </span>
-              </Stat>
+            <div role="tablist" aria-label="عرض الأرقام" className="flex flex-wrap gap-2">
+              {(
+                [
+                  ['ALL', 'الكل'],
+                  ['CASH', 'كاش وتحويل وغيره'],
+                  ['CHEQUE', 'شكات فقط'],
+                ] as const
+              ).map(([v, label]) => (
+                <button
+                  key={v}
+                  type="button"
+                  role="tab"
+                  aria-selected={view === v}
+                  onClick={() => setView(v)}
+                  className={`h-10 cursor-pointer rounded-lg border px-4 text-sm font-bold ${view === v ? 'border-brand-dark bg-brand-dark text-on-brand' : 'border-line bg-white'}`}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
+            {(() => {
+              const inc = view === 'ALL' ? s.income : view === 'CHEQUE' ? s.incomeByCheque : s.income - s.incomeByCheque
+              const exp = view === 'ALL' ? s.expensesPaid : view === 'CHEQUE' ? s.expensesByCheque : s.expensesPaid - s.expensesByCheque
+              return (
+                <div className="flex flex-wrap gap-3">
+                  <Stat label={view === 'ALL' ? `الدخل (${s.incomeCount} دفعة من المرضى)` : 'الدخل'}>
+                    <Money agorot={inc} />
+                  </Stat>
+                  <Stat label="المصاريف المدفوعة">
+                    <Money agorot={exp} />
+                  </Stat>
+                  <Stat label="الربح" tone={inc - exp >= 0 ? 'good' : 'bad'}>
+                    <span data-testid="profit">
+                      <Money agorot={inc - exp} />
+                    </span>
+                  </Stat>
+                </div>
+              )
+            })()}
             <p className="text-sm text-muted">الربح = ما قبضناه من المرضى − ما دفعناه فعلاً. ما لم يُدفع بعد يظهر تحت «علينا» ولا يُخصم إلا عند صرفه.</p>
             {(s.incomeByCheque > 0 || s.expensesByCheque > 0) && (
               <p className="text-sm font-semibold text-[#2a4a9b]" data-testid="by-cheque">

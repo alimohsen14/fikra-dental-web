@@ -62,6 +62,13 @@ export default function ChequesPage() {
                   <Box label="موعد صرفها اليوم" amount={data.outgoing.dueToday.amount} count={data.outgoing.dueToday.count} tone={data.outgoing.dueToday.count > 0 ? 'warn' : undefined} testId="out-today" />
                   <Box label="فات موعدها ولم تُصرف" amount={data.outgoing.overdue.amount} count={data.outgoing.overdue.count} tone={data.outgoing.overdue.count > 0 ? 'bad' : undefined} testId="out-overdue" />
                   <Box label="صادرة مصروفة" amount={data.outgoing.cashed.amount} count={data.outgoing.cashed.count} testId="out-cashed" />
+                  <Box label="واردة محوّلة لصادر" amount={t.endorsed.amount} count={t.endorsed.count} testId="out-endorsed" />
+                  <Box
+                    label="إجمالي الصادر (مكتوبة + محوّلة)"
+                    amount={data.outgoing.pending.amount + data.outgoing.cashed.amount + t.endorsed.amount}
+                    count={data.outgoing.pending.count + data.outgoing.cashed.count + t.endorsed.count}
+                    testId="out-total"
+                  />
                 </div>
               </>
             )}
