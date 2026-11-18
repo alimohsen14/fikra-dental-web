@@ -263,5 +263,10 @@ describe('Cheques (e2e)', () => {
     await http().get('/cheques?status=NOPE').set(bearer(c.users.OWNER.token)).expect(400);
     const months = (await http().get(`/expenses/months?year=${today().slice(0, 4)}`).set(bearer(c.users.OWNER.token)).expect(200)).body as { month: string; income: number }[];
     expect(months.find((m) => m.month === today().slice(0, 7))?.income).toBe(10_000); // only the cashed one
+    // the owner is also a doctor here: the cashed cheque on his own treatment counts in his own income (and a pending one does not)
+    expect((await http().get(`/my-income?period=day&date=${today()}`).set(bearer(c.users.OWNER.token)).expect(200)).body).toMatchObject({ income: 10_000, count: 1 });
+    expect((await http().get(`/my-income/months?year=${today().slice(0, 4)}`).set(bearer(c.users.OWNER.token)).expect(200)).body.find((m: { month: string }) => m.month === today().slice(0, 7)).income).toBe(10_000);
+    // ... and NOT in a colleague's income
+    expect((await http().get(`/my-income?period=day&date=${today()}`).set(bearer(c.users.DOC2.token)).expect(200)).body).toMatchObject({ income: 0, count: 0 });
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildChequeCreate, buildChequeUpdate, emptyChequeForm, filterQuery, formOfCheque, missingOf } from './cheques.ts'
+import { buildChequeCreate, buildChequeUpdate, chequeQuery, emptyChequeForm, filterQuery, formOfCheque, missingOf, statusLabelOf } from './cheques.ts'
 import type { ChequeRow } from './cheques.ts'
 
 const form = (over: Partial<ReturnType<typeof emptyChequeForm>> = {}) => ({ ...emptyChequeForm(), ...over })
@@ -36,7 +36,7 @@ describe('buildChequeUpdate', () => {
 
 const row = (over: Partial<ChequeRow> = {}): ChequeRow => ({
   id: '1', direction: 'INCOMING', status: 'PENDING', amount: 12_345, dueDate: '2026-12-01', chequeNumber: '9', bankName: null, accountNumber: null, drawerName: null, drawerPhone: null, notes: null,
-  hasImage: false, patientId: 'p', treatmentId: 't', paymentId: 'x', cashedAt: null, returnedAt: null, returnReason: null, createdAt: '2026-11-18T00:00:00Z', patient: null, treatment: null, incomplete: false, due: 'later', ...over,
+  hasImage: false, patientId: 'p', treatmentId: 't', paymentId: 'x', forBill: false, bill: null, endorsedAt: null, cashedAt: null, returnedAt: null, returnReason: null, createdAt: '2026-11-18T00:00:00Z', patient: null, treatment: null, incomplete: false, due: 'later', ...over,
 })
 
 describe('helpers', () => {
@@ -53,5 +53,20 @@ describe('helpers', () => {
     expect(filterQuery('ALL')).toBe('')
     expect(filterQuery('PENDING')).toBe('status=PENDING')
     expect(filterQuery('INCOMPLETE')).toBe('incomplete=true')
+  })
+})
+
+describe('chequeQuery', () => {
+  it('joins the direction tab, the status tab and the search word', () => {
+    expect(chequeQuery('ALL', 'ALL', '')).toBe('')
+    expect(chequeQuery('OUTGOING', 'PENDING', '')).toBe('direction=OUTGOING&status=PENDING')
+    expect(chequeQuery('INCOMING', 'ALL', ' سامي ')).toBe(`direction=INCOMING&q=${encodeURIComponent('سامي')}`)
+  })
+})
+
+describe('statusLabelOf', () => {
+  it('marks outgoing cheques as outgoing, and shows a handed-over incoming cheque as converted', () => {
+    expect(statusLabelOf({ direction: 'OUTGOING', status: 'PENDING' })).toBe('صادر · لم يُصرف بعد')
+    expect(statusLabelOf({ direction: 'INCOMING', status: 'ENDORSED' })).toBe('وارد · محوّل لصادر')
   })
 })

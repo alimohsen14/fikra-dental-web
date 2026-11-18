@@ -1,20 +1,25 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Dispatch, ReactNode, SetStateAction } from 'react'
 import { Link } from 'react-router'
+import { useAuth } from '../auth/AuthContext.tsx'
 import { DateText, Loading, Money } from './admin-ui.tsx'
 import { Modal } from './Modal.tsx'
 import { Alert, Button, TextAreaField, TextField } from './ui.tsx'
 import { ApiError } from '../lib/api.ts'
-import { buildChequeUpdate, cancelCheque, cashCheque, fetchChequeImage, formOfCheque, getCheque, missingOf, returnCheque, STATUS_LABELS, STATUS_STYLE, updateCheque, uploadChequeImage } from '../lib/cheques.ts'
+import { buildChequeUpdate, cancelCheque, cashCheque, fetchChequeImage, formOfCheque, getCheque, handOverCheques, missingOf, returnCheque, statusLabelOf, STATUS_STYLE, updateCheque, uploadChequeImage } from '../lib/cheques.ts'
 import type { ChequeForm, ChequeRow } from '../lib/cheques.ts'
 import { XRAY_MAX_BYTES, prepareXray, xrayFileError } from '../lib/xrays.ts'
 import { useLoad } from '../lib/useLoad.ts'
+import { listExpenses } from '../lib/expenses.ts'
+import { FUTURE_DAY_ERROR, isFutureDay, paidAtIso, todayInput } from '../lib/format.ts'
 
 const messageOf = (e: unknown) => (e instanceof ApiError ? e.message : 'حدث خطأ غير متوقع، حاول مرة أخرى')
 
-export function StatusBadge({ c }: { c: Pick<ChequeRow, 'status' | 'incomplete'> }) {
+export function StatusBadge({ c }: { c: Pick<ChequeRow, 'status' | 'incomplete' | 'direction'> }) {
   if (c.incomplete) return <span className="rounded-full bg-[#fde8e8] px-3 py-1 text-xs font-bold text-[#9b1c1c]">ناقص</span>
-  return <span className={`rounded-full px-3 py-1 text-xs font-bold ${STATUS_STYLE[c.status]}`}>{STATUS_LABELS[c.status]}</span>
+  // the ones we wrote ourselves are blue while they wait, so they are never mistaken for a patient's
+  const style = c.direction === 'OUTGOING' && c.status === 'PENDING' ? 'bg-[#e8eefc] text-[#2a4a9b]' : STATUS_STYLE[c.status]
+  return <span className={`rounded-full px-3 py-1 text-xs font-bold ${style}`}>{statusLabelOf(c)}</span>
 }
 
 /** One line telling whether the day of a cheque still in hand has come. */
@@ -87,15 +92,17 @@ export function PhotoPicker({ file, onChange, onError }: { file: File | null; on
 }
 
 /** The boxes of a cheque. Everything is optional here: a cheque can be photographed first and completed later. */
-export function ChequeFields({ f, setF }: { f: ChequeForm; setF: Dispatch<SetStateAction<ChequeForm>> }) {
+export function ChequeFields({ f, setF, required = false, lockAmount = false }: { f: ChequeForm; setF: Dispatch<SetStateAction<ChequeForm>>; required?: boolean; lockAmount?: boolean }) {
   const set = (k: keyof ChequeForm) => (e: { target: { value: string } }) => setF((x) => ({ ...x, [k]: e.target.value }))
   return (
     <>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <TextField label="مبلغ الشك (₪) *" inputMode="decimal" dir="ltr" className="text-right" value={f.amount} onChange={set('amount')} />
+        <TextField label="مبلغ الشك (₪) *" inputMode="decimal" dir="ltr" className="text-right" value={f.amount} readOnly={lockAmount} hint={lockAmount ? 'لا يمكن تغيير مبلغ شك صادر: ألغِه واكتب شكاً جديداً.' : undefined} onChange={set('amount')} />
         <TextField label="تاريخ الصرف *" type="date" value={f.dueDate} onChange={set('dueDate')} />
       </div>
-      <p className="-mt-2 text-sm text-muted">المبلغ وتاريخ الصرف مطلوبان. إن تركتهما فارغين يُحفظ الشك «ناقصاً» ويبقى تنبيه في الصفحة الرئيسية حتى تكملهما، ولا يُحسب من الدفعات قبل ذلك.</p>
+      <p className="-mt-2 text-sm text-muted">
+        {required ? 'المبلغ وتاريخ الصرف مطلوبان. تاريخ الصرف للمعرفة فقط: يُحسب المصروف يوم كتابة الشك.' : 'المبلغ وتاريخ الصرف مطلوبان. إن تركتهما فارغين يُحفظ الشك «ناقصاً» ويبقى تنبيه في الصفحة الرئيسية حتى تكملهما، ولا يُحسب من الدفعات قبل ذلك.'}
+      </p>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <TextField label="رقم الشك" dir="ltr" className="text-right" value={f.chequeNumber} maxLength={40} onChange={set('chequeNumber')} />
         <TextField label="اسم البنك" value={f.bankName} maxLength={80} onChange={set('bankName')} />
@@ -118,9 +125,71 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
 }
 
 /** One cheque: all its details and photo, and what can still be done with it. */
+/** Pays one unpaid bill with an incoming cheque that is still in hand ("convert to outgoing"). Owner only. */
+function HandOverPanel({ c, onDone, onCancel }: { c: ChequeRow; onDone: () => void; onCancel: () => void }) {
+  const bills = useLoad(() => listExpenses({ unpaid: true }), [])
+  const [pick, setPick] = useState<string | null>(null)
+  const [day, setDay] = useState(todayInput())
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const usable = (bills.data ?? []).filter((e) => e.status === 'ACTIVE' && e.remaining >= (c.amount ?? 0))
+  async function go() {
+    if (!pick) return setErr('اختر المصروف الذي تريد دفعه بهذا الشك')
+    if (!day) return setErr('اختر التاريخ')
+    if (isFutureDay(day)) return setErr(FUTURE_DAY_ERROR)
+    setBusy(true)
+    setErr(null)
+    try {
+      await handOverCheques(pick, [c.id], paidAtIso(day))
+      onDone()
+    } catch (e) {
+      setErr(messageOf(e))
+      setBusy(false)
+    }
+  }
+  return (
+    <div className="flex flex-col gap-3 rounded-xl border border-line p-3" data-testid="handover-panel">
+      <p className="text-sm">اختر المصروف الذي ستدفعه بهذا الشك. يُحسب دخلاً ومصروفاً في نفس اليوم (الربح لا يتغيّر)، ولا يتأثر رصيد المريض.</p>
+      {bills.loading ? (
+        <p className="text-sm text-muted">جاري التحميل...</p>
+      ) : usable.length === 0 ? (
+        <p className="text-sm text-muted">لا يوجد مصروف غير مدفوع يتّسع لمبلغ هذا الشك.</p>
+      ) : (
+        <ul className="flex max-h-64 flex-col gap-2 overflow-y-auto" aria-label="المصاريف غير المدفوعة">
+          {usable.map((e) => (
+            <li key={e.id}>
+              <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-line p-2">
+                <input type="radio" name="handover-bill" checked={pick === e.id} onChange={() => setPick(e.id)} className="size-5" aria-label={`مصروف ${e.supplier?.name ?? e.category.name}`} />
+                <span className="flex-1 text-sm">
+                  <strong>{e.supplier?.name ?? e.category.name}</strong>
+                  {e.description ? ` · ${e.description}` : ''}
+                </span>
+                <span className="text-sm">
+                  علينا <Money agorot={e.remaining} />
+                </span>
+              </label>
+            </li>
+          ))}
+        </ul>
+      )}
+      <TextField label="تاريخ التحويل" type="date" max={todayInput()} value={day} onChange={(e) => setDay(e.target.value)} />
+      {err && <Alert tone="error">{err}</Alert>}
+      <div className="flex gap-3">
+        <Button busy={busy} onClick={() => void go()}>
+          تحويل لصادر
+        </Button>
+        <Button variant="secondary" onClick={onCancel}>
+          رجوع
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 export function ChequeModal({ id, onClose, onChanged }: { id: string; onClose: () => void; onChanged: () => void }) {
   const { data: c, error, reload } = useLoad(() => getCheque(id), [id])
-  const [mode, setMode] = useState<'view' | 'edit' | 'return'>('view')
+  const [mode, setMode] = useState<'view' | 'edit' | 'return' | 'handover'>('view')
+  const { session } = useAuth()
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [form, setForm] = useState<ChequeForm | null>(null)
@@ -160,12 +229,13 @@ export function ChequeModal({ id, onClose, onChanged }: { id: string; onClose: (
     )
   }
   const pending = c.status === 'PENDING'
+  const outgoing = c.direction === 'OUTGOING'
   const missing = missingOf(c)
 
   if (mode === 'edit' && form) {
     return (
       <Modal title={c.incomplete ? 'إكمال بيانات الشك' : 'تعديل الشك'} onClose={onClose}>
-        <ChequeFields f={form} setF={setForm as Dispatch<SetStateAction<ChequeForm>>} />
+        <ChequeFields f={form} setF={setForm as Dispatch<SetStateAction<ChequeForm>>} required={outgoing} lockAmount={outgoing} />
         <PhotoPicker file={photo} onChange={setPhoto} onError={setErr} />
         {err && <Alert tone="error">{err}</Alert>}
         <div className="flex flex-wrap gap-3">
@@ -192,7 +262,7 @@ export function ChequeModal({ id, onClose, onChanged }: { id: string; onClose: (
   }
 
   return (
-    <Modal title="الشك" onClose={onClose}>
+    <Modal title={outgoing ? 'شك صادر' : 'الشك'} onClose={onClose}>
       <div className="flex flex-wrap items-center gap-3">
         <StatusBadge c={c} />
         <DueNote c={c} />
@@ -201,24 +271,54 @@ export function ChequeModal({ id, onClose, onChanged }: { id: string; onClose: (
       <div className="grid grid-cols-2 gap-4" data-testid="cheque-details">
         <Row label="المبلغ">{c.amount === null ? '—' : <Money agorot={c.amount} />}</Row>
         <Row label="تاريخ الصرف">{c.dueDate ? <DateText value={c.dueDate} /> : '—'}</Row>
-        <Row label="المريض">
-          {c.patient ? (
-            <Link to={`/patients/${c.patient.id}`} className="underline">
-              {c.patient.fullName}
-            </Link>
-          ) : (
-            '—'
-          )}
-        </Row>
-        <Row label="العلاج">
-          {c.treatment ? (
-            <Link to={`/treatments/${c.treatment.id}`} className="underline">
-              {c.treatment.description || 'فتح العلاج'}
-            </Link>
-          ) : (
-            '—'
-          )}
-        </Row>
+        {outgoing ? (
+          <>
+            <Row label="المصروف">{c.bill ? c.bill.category + (c.bill.description ? ` · ${c.bill.description}` : '') : '—'}</Row>
+            <Row label="الجهة (المورّد)">{c.bill?.supplier?.name ?? '—'}</Row>
+          </>
+        ) : (
+          <>
+            <Row label="المريض">
+              {c.patient ? (
+                <Link to={`/patients/${c.patient.id}`} className="underline">
+                  {c.patient.fullName}
+                </Link>
+              ) : (
+                '—'
+              )}
+            </Row>
+            <Row label="العلاج">
+              {c.treatment ? (
+                <Link to={`/treatments/${c.treatment.id}`} className="underline">
+                  {c.treatment.description || 'فتح العلاج'}
+                </Link>
+              ) : (
+                '—'
+              )}
+            </Row>
+          </>
+        )}
+        {mode === 'handover' && (
+        <HandOverPanel
+          c={c}
+          onCancel={() => setMode('view')}
+          onDone={() => {
+            setMode('view')
+            changed()
+          }}
+        />
+      )}
+      {c.status === 'ENDORSED' && (
+          <Row label="حُوِّل لدفع مصروف">
+            {c.bill ? `${c.bill.category}${c.bill.supplier ? ` · ${c.bill.supplier.name}` : ''}` : 'مصروف'}
+            {c.endorsedAt && (
+              <>
+                {' · '}
+                <DateText value={c.endorsedAt} />
+              </>
+            )}
+          </Row>
+        )}
         <Row label="رقم الشك">{c.chequeNumber ?? '—'}</Row>
         <Row label="البنك">{c.bankName ?? '—'}</Row>
         <Row label="رقم الحساب">{c.accountNumber ?? '—'}</Row>
@@ -249,6 +349,7 @@ export function ChequeModal({ id, onClose, onChanged }: { id: string; onClose: (
           </div>
         </div>
       )}
+      {c.status === 'ENDORSED' && <p className="text-sm text-muted">لإرجاع هذا الشك لما بالإيد، ألغِ دفعة المصروف الذي حُوِّل له من صفحة المصاريف.</p>}
       {err && <Alert tone="error">{err}</Alert>}
       {pending && mode === 'view' && (
         <div className="flex flex-wrap gap-3">
@@ -268,9 +369,14 @@ export function ChequeModal({ id, onClose, onChanged }: { id: string; onClose: (
           >
             {c.incomplete ? 'إكمال البيانات' : 'تعديل'}
           </Button>
+          {!c.incomplete && !outgoing && session?.user.role === 'OWNER' && (
+            <Button variant="secondary" data-testid="handover-btn" onClick={() => setMode('handover')}>
+              تحويل لصادر
+            </Button>
+          )}
           {!c.paymentId ? (
             <Button variant="danger" busy={busy} onClick={() => void run(() => cancelCheque(id))}>
-              إلغاء هذا الشك
+              {outgoing ? 'إلغاء الشك (يعود المبلغ علينا)' : 'إلغاء هذا الشك'}
             </Button>
           ) : (
             <Button variant="danger" onClick={() => setMode('return')}>

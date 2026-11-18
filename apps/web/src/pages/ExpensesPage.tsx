@@ -1,6 +1,10 @@
 import { useState } from 'react'
+import { Link } from 'react-router'
 import { Badge, Card, DateText, Loading, Money } from '../components/admin-ui.tsx'
 import { ClinicBanner } from '../components/clinic-ui.tsx'
+import { ChequeModal } from '../components/cheque-ui.tsx'
+import { ChequePayPanel, emptyChequePay, payBillWithCheque } from '../components/ChequePayPanel.tsx'
+import type { ChequePay } from '../components/ChequePayPanel.tsx'
 import { Modal } from '../components/Modal.tsx'
 import { Alert, Button, SelectField, TextAreaField, TextField } from '../components/ui.tsx'
 import { ApiError } from '../lib/api.ts'
@@ -24,13 +28,16 @@ import {
   voidExpensePayment,
 } from '../lib/expenses.ts'
 import type { Category, Expense, ExpensePaymentRow, Period, Supplier } from '../lib/expenses.ts'
-import { todayInput } from '../lib/format.ts'
+import { getChequeSummary, STATUS_LABELS } from '../lib/cheques.ts'
+import { formatDate, FUTURE_DAY_ERROR, isFutureDay, paidAtIso, parseShekels, todayInput } from '../lib/format.ts'
 import { METHOD_LABELS } from '../lib/treatments.ts'
 import type { PaymentMethod } from '../lib/treatments.ts'
 import { useLoad } from '../lib/useLoad.ts'
 
+/** The amount typed so far, or a very large number while it is empty or not a number (the server checks the real bill). */
+const parseShekelsSafe = (s: string): number => parseShekels(s) ?? Number.MAX_SAFE_INTEGER
 const messageOf = (e: unknown) => (e instanceof ApiError ? e.message : 'حدث خطأ غير متوقع، حاول مرة أخرى')
-const METHODS = (Object.keys(METHOD_LABELS) as PaymentMethod[]).filter((m) => m !== 'CHEQUE') // cheques for bills come later
+const METHODS = Object.keys(METHOD_LABELS) as PaymentMethod[]
 
 function MethodSelect({ value, onChange }: { value: PaymentMethod; onChange: (m: PaymentMethod) => void }) {
   return (
@@ -104,15 +111,28 @@ function ExpenseModal({
     paidAmount: '',
     method: 'CASH' as PaymentMethod,
   })
+  const [cq, setCq] = useState<ChequePay>(emptyChequePay())
   const [busy, setBusy] = useState(false)
+  const [saved, setSaved] = useState(false) // the bill is saved but its cheque was not: only closing is left
   const [error, setError] = useState<string | null>(null)
+  const byCheque = f.paid !== 'none' && f.method === 'CHEQUE'
   async function submit() {
-    const r = buildExpenseBody(f)
+    // paid by cheque: the bill is saved first (nothing paid), then the cheque pays it, so the cheque rules are checked against the real bill
+    const r = buildExpenseBody(byCheque ? { ...f, paid: 'none' } : f)
     if ('error' in r) return setError(r.error)
     setBusy(true)
     setError(null)
     try {
-      await createExpense(r.body)
+      const e = await createExpense(r.body)
+      if (byCheque) {
+        const problem = await payBillWithCheque(e.id, cq, e.amount, paidAtIso(f.day))
+        if (problem) {
+          setSaved(true)
+          setError(`حُفظ المصروف (علينا كاملاً) لكن الدفع بالشك لم يتم: ${problem} يمكنك الدفع بعد ذلك من زر «دفع».`)
+          setBusy(false)
+          return
+        }
+      }
       onDone()
     } catch (e) {
       setError(messageOf(e))
@@ -120,7 +140,7 @@ function ExpenseModal({
     }
   }
   return (
-    <Modal title="مصروف جديد" onClose={onClose}>
+    <Modal title="مصروف جديد" onClose={saved ? onDone : onClose}>
       <SelectField label="النوع" value={f.categoryId} onChange={(e) => setF({ ...f, categoryId: e.target.value })}>
         <option value="">اختر...</option>
         {categories
@@ -164,19 +184,26 @@ function ExpenseModal({
         <option value="part">مدفوع جزئياً والباقي علينا</option>
         <option value="none">لم يُدفع شيء (علينا كاملاً)</option>
       </SelectField>
-      {f.paid === 'part' && (
+      {f.paid === 'part' && !byCheque && (
         <TextField label="المدفوع (₪)" inputMode="decimal" dir="ltr" className="text-right" value={f.paidAmount} onChange={(e) => setF({ ...f, paidAmount: e.target.value })} />
       )}
       {f.paid !== 'none' && <MethodSelect value={f.method} onChange={(method) => setF({ ...f, method })} />}
+      {byCheque && <ChequePayPanel value={cq} onChange={setCq} remaining={parseShekelsSafe(f.amount)} onError={setError} />}
       <TextAreaField label="ملاحظة (اختياري)" value={f.description} maxLength={500} onChange={(e) => setF({ ...f, description: e.target.value })} />
       {error && <Alert tone="error">{error}</Alert>}
       <div className="flex flex-wrap gap-3">
-        <Button busy={busy} onClick={() => void submit()}>
-          حفظ المصروف
-        </Button>
-        <Button variant="secondary" onClick={onClose}>
-          رجوع
-        </Button>
+        {saved ? (
+          <Button onClick={onDone}>إغلاق</Button>
+        ) : (
+          <>
+            <Button busy={busy} onClick={() => void submit()}>
+              حفظ المصروف
+            </Button>
+            <Button variant="secondary" onClick={onClose}>
+              رجوع
+            </Button>
+          </>
+        )}
       </div>
     </Modal>
   )
@@ -189,9 +216,23 @@ function PayModal({ e, onClose, onDone }: { e: Expense; onClose: () => void; onD
     day: todayInput(),
     note: '',
   })
+  const [cq, setCq] = useState<ChequePay>(emptyChequePay())
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const byCheque = f.method === 'CHEQUE'
   async function submit() {
+    if (byCheque) {
+      if (!f.day) return setError('اختر تاريخ الدفعة')
+      if (isFutureDay(f.day)) return setError(FUTURE_DAY_ERROR)
+      setBusy(true)
+      setError(null)
+      const problem = await payBillWithCheque(e.id, cq, e.remaining, paidAtIso(f.day))
+      if (problem) {
+        setError(problem)
+        setBusy(false)
+      } else onDone()
+      return
+    }
     const r = buildExpensePayment(f, e.remaining)
     if ('error' in r) return setError(r.error)
     setBusy(true)
@@ -209,10 +250,11 @@ function PayModal({ e, onClose, onDone }: { e: Expense; onClose: () => void; onD
       <p className="text-sm text-muted">
         {e.supplier?.name ?? e.category.name} · المتبقي: <Money agorot={e.remaining} />
       </p>
-      <TextField label="المبلغ (₪)" inputMode="decimal" dir="ltr" className="text-right" value={f.amount} onChange={(x) => setF({ ...f, amount: x.target.value })} />
+      {!byCheque && <TextField label="المبلغ (₪)" inputMode="decimal" dir="ltr" className="text-right" value={f.amount} onChange={(x) => setF({ ...f, amount: x.target.value })} />}
       <MethodSelect value={f.method} onChange={(method) => setF({ ...f, method })} />
+      {byCheque && <ChequePayPanel value={cq} onChange={setCq} remaining={e.remaining} onError={setError} />}
       <TextField label="تاريخ الدفعة" type="date" max={todayInput()} value={f.day} onChange={(x) => setF({ ...f, day: x.target.value })} />
-      <TextAreaField label="ملاحظة (اختياري)" value={f.note} maxLength={300} onChange={(x) => setF({ ...f, note: x.target.value })} />
+      {!byCheque && <TextAreaField label="ملاحظة (اختياري)" value={f.note} maxLength={300} onChange={(x) => setF({ ...f, note: x.target.value })} />}
       {error && <Alert tone="error">{error}</Alert>}
       <div className="flex flex-wrap gap-3">
         <Button busy={busy} onClick={() => void submit()}>
@@ -274,7 +316,7 @@ function Stat({ label, children, tone }: { label: string; children: React.ReactN
   )
 }
 
-function ExpenseRow({ e, onPay, onVoid }: { e: Expense; onPay: () => void; onVoid: (t: VoidTarget) => void }) {
+function ExpenseRow({ e, onPay, onVoid, onCheque }: { e: Expense; onPay: () => void; onVoid: (t: VoidTarget) => void; onCheque: (id: string) => void }) {
   const voided = e.status === 'VOIDED'
   return (
     <li className="flex flex-col gap-2 py-3" data-testid={`expense-${e.description ?? e.category.name}`}>
@@ -325,6 +367,18 @@ function ExpenseRow({ e, onPay, onVoid }: { e: Expense; onPay: () => void; onVoi
                 · {METHOD_LABELS[p.method]}
                 {p.note ? ` · ${p.note}` : ''}
               </span>
+              {(p.cheques ?? []).map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  data-testid="expense-cheque"
+                  onClick={() => onCheque(c.id)}
+                  className="cursor-pointer rounded-full bg-[#e8eefc] px-3 py-1 text-xs font-bold text-[#2a4a9b]"
+                >
+                  {c.direction === 'OUTGOING' ? 'شك صادر' : 'محوّل من شك مريض'}
+                  {c.dueDate ? ` · يُصرف ${formatDate(c.dueDate)}` : ''} · {STATUS_LABELS[c.status]}
+                </button>
+              ))}
               {p.status === 'VOIDED' ? (
                 <span className="text-muted">(ملغية: {p.voidReason})</span>
               ) : (
@@ -347,6 +401,8 @@ export default function ExpensesPage() {
   const [date, setDate] = useState(todayInput())
   const [supplierId, setSupplierId] = useState<string | null>(null)
   const [modal, setModal] = useState<'new' | { pay: Expense } | { void: VoidTarget } | null>(null)
+  const [openCheque, setOpenCheque] = useState<string | null>(null)
+  const chequeBox = useLoad(getChequeSummary, [])
 
   const summary = useLoad(() => getSummary(period, date), [period, date])
   const cats = useLoad(listCategories, [])
@@ -362,6 +418,7 @@ export default function ExpensesPage() {
     summary.reload()
     sups.reload()
     list.reload()
+    chequeBox.reload()
   }
   function reloadLists() {
     cats.reload()
@@ -451,6 +508,30 @@ export default function ExpensesPage() {
               </Stat>
             </div>
             <p className="text-sm text-muted">الربح = ما قبضناه من المرضى − ما دفعناه فعلاً. ما لم يُدفع بعد يظهر تحت «علينا» ولا يُخصم إلا عند صرفه.</p>
+            {(s.incomeByCheque > 0 || s.expensesByCheque > 0) && (
+              <p className="text-sm font-semibold text-[#2a4a9b]" data-testid="by-cheque">
+                منها بالشكات: دخل <Money agorot={s.incomeByCheque} /> · مصاريف <Money agorot={s.expensesByCheque} />
+              </p>
+            )}
+            {chequeBox.data && (
+              <Card title="الشكات">
+                <div className="flex flex-wrap items-center justify-between gap-3" data-testid="cheque-box">
+                  <span className="flex flex-col gap-1 text-[15px]">
+                    <span>
+                      بالإيد (لم تُصرف): <strong><Money agorot={chequeBox.data.pending.amount} /></strong> · {chequeBox.data.pending.count} شك
+                    </span>
+                    {chequeBox.data.outgoing && (
+                      <span>
+                        صادرة لم تُصرف: <strong><Money agorot={chequeBox.data.outgoing.pending.amount} /></strong> · {chequeBox.data.outgoing.pending.count} شك
+                      </span>
+                    )}
+                  </span>
+                  <Link to="/cheques" className="text-sm font-bold text-brand-dark underline">
+                    فتح الشكات
+                  </Link>
+                </div>
+              </Card>
+            )}
             {s.byCategory.length > 0 && (
               <Card title="حسب النوع">
                 <ul className="flex flex-col divide-y divide-line">
@@ -519,7 +600,7 @@ export default function ExpensesPage() {
           ) : (
             <ul className="flex flex-col divide-y divide-line">
               {list.data.map((e) => (
-                <ExpenseRow key={e.id} e={e} onPay={() => setModal({ pay: e })} onVoid={(t) => setModal({ void: t })} />
+                <ExpenseRow key={e.id} e={e} onPay={() => setModal({ pay: e })} onVoid={(t) => setModal({ void: t })} onCheque={setOpenCheque} />
               ))}
             </ul>
           )}
@@ -551,6 +632,7 @@ export default function ExpensesPage() {
       )}
       {modal && typeof modal === 'object' && 'pay' in modal && <PayModal e={modal.pay} onClose={() => setModal(null)} onDone={reloadAll} />}
       {modal && typeof modal === 'object' && 'void' in modal && <VoidModal target={modal.void} onClose={() => setModal(null)} onDone={reloadAll} />}
+      {openCheque && <ChequeModal id={openCheque} onClose={() => setOpenCheque(null)} onChanged={() => { summary.reload(); list.reload(); chequeBox.reload() }} />}
     </>
   )
 }

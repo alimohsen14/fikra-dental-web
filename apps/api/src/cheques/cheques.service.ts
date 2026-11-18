@@ -6,7 +6,8 @@ import type { Prisma } from '../generated/prisma/client.js';
 import { localDate } from '../scheduling/clinic-time.js';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service.js';
 import { paidTotal } from '../treatments/money.js';
-import type { CreateChequeDto, ListChequesQuery, UpdateChequeDto } from './cheques.dto.js';
+import { releaseChequesOf } from './cash-income.js';
+import type { CreateChequeDto, CreateOutgoingChequeDto, EndorseChequesDto, ListChequesQuery, UpdateChequeDto } from './cheques.dto.js';
 import { ChequeStorage } from './cheques.storage.js';
 
 type Tx = Prisma.TransactionClient;
@@ -31,12 +32,16 @@ const SELECT = {
   patientId: true,
   treatmentId: true,
   paymentId: true,
+  expensePaymentId: true,
+  endorsedAt: true,
   cashedAt: true,
   returnedAt: true,
   returnReason: true,
   createdAt: true,
   patient: { select: { id: true, fullName: true } },
   treatment: { select: { id: true, description: true, doctorId: true } },
+  // the bill this cheque pays (outgoing) or was handed over for (endorsed): owner only, bills are the owner's
+  expensePayment: { select: { expense: { select: { id: true, description: true, category: { select: { name: true } }, supplier: { select: { id: true, name: true } } } } } },
 } satisfies Prisma.ChequeSelect;
 
 type Row = Prisma.ChequeGetPayload<{ select: typeof SELECT }>;
@@ -72,8 +77,10 @@ export class ChequesService {
 
   /** A doctor sees and handles only cheques of treatments registered under their own name. */
   private async scope(user: AuthUser): Promise<Prisma.ChequeWhereInput> {
+    if (user.role === 'OWNER') return {};
     const own = await this.ownDoctorId(user);
-    return own ? { treatment: { is: { doctorId: own } } } : {};
+    // bills (and so the cheques that pay them) are the owner's: everyone else only meets the cheques patients gave
+    return own ? { direction: 'INCOMING', treatment: { is: { doctorId: own } } } : { direction: 'INCOMING' };
   }
 
   private async assertDoctorOwns(user: AuthUser, doctorId: string) {
@@ -81,11 +88,15 @@ export class ChequesService {
     if (own && own !== doctorId) throw new ForbiddenException('هذا العلاج غير مسجل باسمك');
   }
 
-  private present(c: Row, today: string) {
-    const { image, treatment, ...rest } = c;
+  private present(c: Row, today: string, isOwner: boolean) {
+    const { image, treatment, expensePayment, expensePaymentId, ...rest } = c;
     const due = day(c.dueDate);
+    const bill = isOwner ? expensePayment?.expense : undefined;
     return {
       ...rest,
+      // what it paid for (owner only): the bill, and who it was paid to
+      bill: bill ? { id: bill.id, description: bill.description, category: bill.category.name, supplier: bill.supplier } : null,
+      forBill: expensePaymentId !== null,
       dueDate: due,
       amount: c.amount,
       treatment: treatment ? { id: treatment.id, description: treatment.description } : null,
@@ -111,10 +122,10 @@ export class ChequesService {
   }
 
   /** The same physical cheque must not be recorded twice (same number on the same account). A returned one may come back. */
-  private async assertNotDuplicate(chequeNumber: string | null | undefined, accountNumber: string | null | undefined, bankName: string | null | undefined, exceptId?: string) {
+  private async assertNotDuplicate(chequeNumber: string | null | undefined, accountNumber: string | null | undefined, bankName: string | null | undefined, exceptId?: string, direction: 'INCOMING' | 'OUTGOING' = 'INCOMING') {
     if (!chequeNumber || !accountNumber) return;
     const dup = await this.tenant.db.cheque.findFirst({
-      where: { direction: 'INCOMING', chequeNumber, accountNumber, ...(bankName ? { bankName } : {}), status: { in: ['PENDING', 'CASHED'] }, ...(exceptId ? { id: { not: exceptId } } : {}) },
+      where: { direction, chequeNumber, accountNumber, ...(bankName ? { bankName } : {}), status: { in: ['PENDING', 'CASHED'] }, ...(exceptId ? { id: { not: exceptId } } : {}) },
       select: { id: true },
     });
     if (dup) throw new ConflictException('هذا الشك (نفس الرقم والحساب) مسجل من قبل');
@@ -165,7 +176,7 @@ export class ChequesService {
   async update(user: AuthUser, id: string, dto: UpdateChequeDto) {
     const clinicId = user.clinicId!;
     const before = await this.load(user, id);
-    if (before.direction !== 'INCOMING') throw new BadRequestException('غير مدعوم');
+    if (before.direction === 'OUTGOING') return this.updateOutgoing(user, id, before, dto);
     if (before.status !== 'PENDING') throw new ConflictException('لا يمكن تعديل شك بعد صرفه أو ارتجاعه');
     if (!before.treatmentId || !before.patientId) throw new ConflictException('الشك غير مربوط بعلاج');
     await this.assertNotDuplicate(dto.chequeNumber === undefined ? before.chequeNumber : dto.chequeNumber, dto.accountNumber === undefined ? before.accountNumber : dto.accountNumber, dto.bankName === undefined ? before.bankName : dto.bankName, id);
@@ -224,6 +235,7 @@ export class ChequesService {
   async returnCheque(user: AuthUser, id: string, reason: string | undefined) {
     const clinicId = user.clinicId!;
     const c = await this.load(user, id);
+    if (c.direction === 'OUTGOING') throw new BadRequestException('الشك الصادر يُلغى ولا يُرجَع');
     if (c.status !== 'PENDING') throw new ConflictException('يمكن إرجاع الشك قبل صرفه فقط');
     await this.prisma.$transaction(async (tx) => {
       const t = c.treatmentId ? await this.lock(tx, clinicId, c.treatmentId) : null;
@@ -243,6 +255,7 @@ export class ChequesService {
   async cancel(user: AuthUser, id: string) {
     const clinicId = user.clinicId!;
     const c = await this.load(user, id);
+    if (c.direction === 'OUTGOING') return this.cancelOutgoing(user, id, c);
     if (c.status !== 'PENDING' || c.paymentId) throw new ConflictException('لا يمكن إلغاء هذا الشك: استخدم «مرتجع» بدلاً من ذلك');
     await this.prisma.$transaction(async (tx) => {
       const done = await tx.cheque.updateMany({ where: { id, clinicId, status: 'PENDING', paymentId: null }, data: { status: 'CANCELLED' } });
@@ -252,19 +265,124 @@ export class ChequesService {
     return this.get(user, id);
   }
 
+
+  // ---------------------------------------------------------------- paying a bill with a cheque (the owner's side)
+  /** Locks the bill row until this transaction ends, so two requests can never both pass the same check. */
+  private async lockExpense(tx: Tx, clinicId: string, id: string) {
+    const touched = await tx.expense.updateMany({ where: { id, clinicId }, data: { updatedAt: new Date() } });
+    if (touched.count !== 1) throw new NotFoundException('المصروف غير موجود');
+    return tx.expense.findFirstOrThrow({ where: { id, clinicId }, include: { payments: true } });
+  }
+
+  private assertPaidAt(paidAt: Date) {
+    if (paidAt.getTime() > Date.now() + GRACE_MS) throw new BadRequestException('تاريخ الدفعة في المستقبل');
+  }
+
+  /** The clinic writes a cheque to pay (part of) a bill. The bill is paid down at once and it counts as an expense of the day it was handed over; the day it will be cashed is kept for information. */
+  async issueForExpense(user: AuthUser, expenseId: string, dto: CreateOutgoingChequeDto) {
+    const clinicId = user.clinicId!;
+    const paidAt = dto.paidAt ?? new Date();
+    this.assertPaidAt(paidAt);
+    await this.assertNotDuplicate(dto.chequeNumber, dto.accountNumber, dto.bankName, undefined, 'OUTGOING');
+    const id = await this.prisma.$transaction(async (tx) => {
+      const e = await this.lockExpense(tx, clinicId, expenseId);
+      if (e.status !== 'ACTIVE') throw new ConflictException('المصروف ملغي');
+      if (dto.amount > e.amount - paidTotal(e.payments)) throw new BadRequestException('المبلغ أكبر من المتبقي على المصروف');
+      const p = await tx.expensePayment.create({ data: { clinicId, expenseId, amount: dto.amount, method: 'CHEQUE', paidAt, createdByUserId: user.id } });
+      const c = await tx.cheque.create({
+        data: {
+          clinicId,
+          direction: 'OUTGOING',
+          amount: dto.amount,
+          dueDate: new Date(`${dto.dueDate}T00:00:00Z`),
+          chequeNumber: dto.chequeNumber ?? null,
+          bankName: dto.bankName ?? null,
+          accountNumber: dto.accountNumber ?? null,
+          drawerName: dto.drawerName ?? null,
+          drawerPhone: dto.drawerPhone ?? null,
+          notes: dto.notes ?? null,
+          expensePaymentId: p.id,
+          createdByUserId: user.id,
+        },
+        select: { id: true },
+      });
+      await tx.auditLog.create({ data: { clinicId, actorUserId: user.id, action: 'EXPENSE_PAYMENT_CREATED', entityType: 'ExpensePayment', entityId: p.id, after: { expenseId, amount: dto.amount, method: 'CHEQUE', chequeId: c.id } } });
+      await tx.auditLog.create({ data: { clinicId, actorUserId: user.id, action: 'CHEQUE_ISSUED', entityType: 'Cheque', entityId: c.id, after: { expenseId, amount: dto.amount, dueDate: dto.dueDate } } });
+      return c.id;
+    });
+    return this.get(user, id);
+  }
+
+  /**
+   * Cheques patients gave us (still in hand) are handed over to pay a bill: one or several, together not more than what is left of it.
+   * They leave "not cashed yet", become "handed on" (an outgoing cheque), and count as income AND as expense of that day, so the profit does not move.
+   */
+  async handOverForExpense(user: AuthUser, expenseId: string, dto: EndorseChequesDto) {
+    const clinicId = user.clinicId!;
+    const paidAt = dto.paidAt ?? new Date();
+    this.assertPaidAt(paidAt);
+    const ids = [...new Set(dto.chequeIds)];
+    const out = await this.prisma.$transaction(async (tx) => {
+      const e = await this.lockExpense(tx, clinicId, expenseId);
+      if (e.status !== 'ACTIVE') throw new ConflictException('المصروف ملغي');
+      const found = await tx.cheque.findMany({ where: { id: { in: ids }, clinicId, direction: 'INCOMING', status: 'PENDING', amount: { not: null }, dueDate: { not: null } }, select: { id: true, amount: true } });
+      if (found.length !== ids.length) throw new ConflictException('بعض الشكات غير متاحة للتحويل (انصرفت أو أُرجعت أو لم تكتمل بياناتها)');
+      const total = found.reduce((t, c) => t + c.amount!, 0);
+      if (total > e.amount - paidTotal(e.payments)) throw new BadRequestException('مجموع الشكات أكبر من المتبقي على المصروف');
+      const p = await tx.expensePayment.create({ data: { clinicId, expenseId, amount: total, method: 'CHEQUE', paidAt, createdByUserId: user.id } });
+      const moved = await tx.cheque.updateMany({ where: { id: { in: ids }, clinicId, status: 'PENDING' }, data: { status: 'ENDORSED', endorsedAt: paidAt, expensePaymentId: p.id } });
+      if (moved.count !== ids.length) throw new ConflictException('بعض الشكات تغيّرت حالتها للتو، حاول مرة أخرى');
+      await tx.auditLog.create({ data: { clinicId, actorUserId: user.id, action: 'EXPENSE_PAYMENT_CREATED', entityType: 'ExpensePayment', entityId: p.id, after: { expenseId, amount: total, method: 'CHEQUE', chequeIds: ids } } });
+      for (const c of found) await tx.auditLog.create({ data: { clinicId, actorUserId: user.id, action: 'CHEQUE_ENDORSED', entityType: 'Cheque', entityId: c.id, after: { expenseId, amount: c.amount } } });
+      return { count: ids.length, total };
+    });
+    return out;
+  }
+
+  private async updateOutgoing(user: AuthUser, id: string, before: Row, dto: UpdateChequeDto) {
+    const clinicId = user.clinicId!;
+    if (user.role !== 'OWNER') throw new ForbiddenException();
+    if (before.status !== 'PENDING') throw new ConflictException('لا يمكن تعديل شك بعد صرفه أو إلغائه');
+    if (dto.amount !== undefined && dto.amount !== before.amount) throw new BadRequestException('لا يمكن تغيير مبلغ شك صادر: ألغِه واكتب شكاً جديداً');
+    await this.assertNotDuplicate(dto.chequeNumber === undefined ? before.chequeNumber : dto.chequeNumber, dto.accountNumber === undefined ? before.accountNumber : dto.accountNumber, dto.bankName === undefined ? before.bankName : dto.bankName, id, 'OUTGOING');
+    const { amount: _a, dueDate, ...texts } = dto;
+    await this.prisma.$transaction(async (tx) => {
+      const moved = await tx.cheque.updateMany({ where: { id, clinicId, status: 'PENDING' }, data: { ...texts, ...(dueDate ? { dueDate: new Date(`${dueDate}T00:00:00Z`) } : {}) } });
+      if (moved.count !== 1) throw new ConflictException('لا يمكن تعديل شك بعد صرفه أو إلغائه');
+      await tx.auditLog.create({ data: { clinicId, actorUserId: user.id, action: 'CHEQUE_UPDATED', entityType: 'Cheque', entityId: id, before: { dueDate: day(before.dueDate) }, after: { dueDate: dueDate ?? day(before.dueDate) } } });
+    });
+    return this.get(user, id);
+  }
+
+  /** Cancelling a cheque we wrote: its payment on the bill is voided (the bill is owed again). Only while it has not been cashed. */
+  private async cancelOutgoing(user: AuthUser, id: string, c: Row) {
+    const clinicId = user.clinicId!;
+    if (user.role !== 'OWNER') throw new ForbiddenException();
+    if (c.status !== 'PENDING' || !c.expensePaymentId) throw new ConflictException('لا يمكن إلغاء هذا الشك');
+    const payment = await this.tenant.db.expensePayment.findUnique({ where: { id: c.expensePaymentId }, select: { expenseId: true } });
+    if (!payment) throw new NotFoundException('الدفعة غير موجودة');
+    await this.prisma.$transaction(async (tx) => {
+      await this.lockExpense(tx, clinicId, payment.expenseId);
+      const done = await tx.cheque.updateMany({ where: { id, clinicId, status: 'PENDING' }, data: { status: 'CANCELLED' } });
+      if (done.count !== 1) throw new ConflictException('لا يمكن إلغاء هذا الشك');
+      await tx.expensePayment.updateMany({ where: { id: c.expensePaymentId!, clinicId, status: 'ACTIVE' }, data: { status: 'VOIDED', voidedAt: new Date(), voidReason: 'شك صادر مُلغى', voidedByUserId: user.id } });
+      await tx.auditLog.create({ data: { clinicId, actorUserId: user.id, action: 'CHEQUE_CANCELLED', entityType: 'Cheque', entityId: id, after: { expensePaymentId: c.expensePaymentId } } });
+    });
+    return this.get(user, id);
+  }
+
   // ---------------------------------------------------------------- reading
   async get(user: AuthUser, id: string) {
     const today = localDate(new Date(), await this.tz(user.clinicId!));
-    return this.present(await this.load(user, id), today);
+    return this.present(await this.load(user, id), today, user.role === 'OWNER');
   }
 
   async list(user: AuthUser, q: ListChequesQuery) {
     const scope = await this.scope(user);
     const today = localDate(new Date(), await this.tz(user.clinicId!));
-    const where: Prisma.ChequeWhereInput = {
-      ...scope,
-      ...(q.direction ? { direction: q.direction } : {}),
+    const filters: Prisma.ChequeWhereInput = {
       ...(q.status ? { status: q.status } : {}),
+      ...(q.dueDate ? { dueDate: new Date(`${q.dueDate}T00:00:00Z`) } : {}),
       ...(q.treatmentId ? { treatmentId: q.treatmentId } : {}),
       ...(q.patientId ? { patientId: q.patientId } : {}),
       ...(q.incomplete ? { status: 'PENDING', OR: [{ amount: null }, { dueDate: null }] } : {}),
@@ -277,12 +395,17 @@ export class ChequesService {
                   { chequeNumber: { contains: q.q } },
                   { bankName: { contains: q.q, mode: 'insensitive' } },
                   { patient: { is: { fullName: { contains: q.q, mode: 'insensitive' } } } },
+                  // what we paid with it (the owner only ever has these: others' scope shows incoming cheques, whose bill is hidden anyway)
+                  ...(user.role === 'OWNER' ? [{ expensePayment: { is: { expense: { is: { supplier: { is: { name: { contains: q.q, mode: 'insensitive' as const } } } } } } } }] : []),
                 ],
               },
             ],
           }
         : {}),
     };
+    // the "outgoing" tab also holds the incoming cheques we handed over to pay a bill (owner only)
+    const dir: Prisma.ChequeWhereInput = !q.direction ? {} : q.direction === 'OUTGOING' && user.role === 'OWNER' ? { OR: [{ direction: 'OUTGOING' }, { status: 'ENDORSED' }] } : { direction: q.direction };
+    const where: Prisma.ChequeWhereInput = { AND: [scope, filters, dir] }; // the scope can never be widened by a filter
     const finished = q.status === 'CASHED' || q.status === 'RETURNED' || q.status === 'CANCELLED';
     const items = await this.tenant.db.cheque.findMany({
       where,
@@ -290,7 +413,11 @@ export class ChequesService {
       orderBy: [{ dueDate: { sort: finished ? 'desc' : 'asc', nulls: 'first' } }, { createdAt: 'desc' }, { id: 'asc' }],
       take: 300,
     });
-    return { items: items.map((c) => this.present(c, today)), totals: await this.totals(scope, q.direction ?? 'INCOMING', today) };
+    return { items: items.map((c) => this.present(c, today, user.role === 'OWNER')),
+      totals: await this.totals(scope, 'INCOMING', today),
+      // what we wrote ourselves to pay bills: the owner's only
+      outgoing: user.role === 'OWNER' ? await this.totals(scope, 'OUTGOING', today) : null,
+    };
   }
 
   /** The "cheques box": what is still in hand, what was cashed, what came back; plus what needs attention today. */
@@ -327,8 +454,10 @@ export class ChequesService {
   /** For the home page: only what needs attention. */
   async summary(user: AuthUser) {
     const today = localDate(new Date(), await this.tz(user.clinicId!));
-    const t = await this.totals(await this.scope(user), 'INCOMING', today);
-    return { incomplete: t.incomplete, dueToday: t.dueToday, overdue: t.overdue, pending: t.pending };
+    const scope = await this.scope(user);
+    const t = await this.totals(scope, 'INCOMING', today);
+    const o = user.role === 'OWNER' ? await this.totals(scope, 'OUTGOING', today) : null;
+    return { incomplete: t.incomplete, dueToday: t.dueToday, overdue: t.overdue, pending: t.pending, outgoing: o ? { dueToday: o.dueToday, overdue: o.overdue, pending: o.pending } : null };
   }
 
   // ---------------------------------------------------------------- photo

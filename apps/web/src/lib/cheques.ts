@@ -19,6 +19,11 @@ export interface ChequeRow {
   patientId: string | null
   treatmentId: string | null
   paymentId: string | null
+  /** Handed over to pay a bill (incoming, ENDORSED) or written to pay one (outgoing). */
+  forBill: boolean
+  /** What it paid for: the owner only. */
+  bill: { id: string; description: string | null; category: string; supplier: { id: string; name: string } | null } | null
+  endorsedAt: string | null
   cashedAt: string | null
   returnedAt: string | null
   returnReason: string | null
@@ -49,13 +54,21 @@ export interface ChequeSummary {
   dueToday: Box
   overdue: Box
   pending: Box
+  /** The cheques we wrote that wait for their day: the owner only (null for everyone else). */
+  outgoing: { dueToday: Box; overdue: Box; pending: Box } | null
 }
 export interface ChequeList {
   items: ChequeRow[]
+  /** Cheques patients gave us. */
   totals: ChequeTotals
+  /** Cheques we wrote to pay bills: the owner only (null for everyone else). */
+  outgoing: ChequeTotals | null
 }
 
-export const STATUS_LABELS: Record<ChequeStatus, string> = { PENDING: 'لم يُصرف بعد', CASHED: 'مصروف', RETURNED: 'مرتجع', ENDORSED: 'مُظهَّر', CANCELLED: 'ملغي' }
+export const STATUS_LABELS: Record<ChequeStatus, string> = { PENDING: 'لم يُصرف بعد', CASHED: 'مصروف', RETURNED: 'مرتجع', ENDORSED: 'محوّل لصادر', CANCELLED: 'ملغي' }
+/** A cheque we wrote is "outgoing": say so next to its state. */
+export const statusLabelOf = (c: Pick<ChequeRow, 'status' | 'direction'>): string =>
+  c.direction === 'OUTGOING' ? `صادر · ${STATUS_LABELS[c.status]}` : c.status === 'ENDORSED' ? `وارد · ${STATUS_LABELS.ENDORSED}` : STATUS_LABELS[c.status]
 export const STATUS_STYLE: Record<ChequeStatus, string> = {
   PENDING: 'bg-[#fff4d6] text-[#7a5200]',
   CASHED: 'bg-[#e2f5e9] text-[#14693a]',
@@ -64,12 +77,26 @@ export const STATUS_STYLE: Record<ChequeStatus, string> = {
   CANCELLED: 'bg-page text-muted',
 }
 
-export type ChequeFilter = 'ALL' | 'PENDING' | 'CASHED' | 'RETURNED' | 'INCOMPLETE'
-export const FILTER_LABELS: Record<ChequeFilter, string> = { ALL: 'الكل', PENDING: 'لم تُصرف', CASHED: 'مصروفة', RETURNED: 'مرتجعة', INCOMPLETE: 'ناقصة' }
+export type ChequeFilter = 'ALL' | 'PENDING' | 'CASHED' | 'RETURNED' | 'ENDORSED' | 'INCOMPLETE'
+export const FILTER_LABELS: Record<ChequeFilter, string> = { ALL: 'الكل', PENDING: 'لم تُصرف', CASHED: 'مصروفة', RETURNED: 'مرتجعة', ENDORSED: 'محوّلة لصادر', INCOMPLETE: 'ناقصة' }
 export const filterQuery = (f: ChequeFilter): string => (f === 'ALL' ? '' : f === 'INCOMPLETE' ? 'incomplete=true' : `status=${f}`)
+
+export type DirectionFilter = 'ALL' | 'INCOMING' | 'OUTGOING'
+export const DIRECTION_LABELS: Record<DirectionFilter, string> = { ALL: 'الكل', INCOMING: 'الواردة (من المرضى)', OUTGOING: 'الصادرة (للمصاريف)' }
+/** The list address for a direction tab, a status tab and a search word. */
+export function chequeQuery(direction: DirectionFilter, filter: ChequeFilter, q: string): string {
+  return [direction === 'ALL' ? '' : `direction=${direction}`, filterQuery(filter), q.trim() ? `q=${encodeURIComponent(q.trim())}` : ''].filter(Boolean).join('&')
+}
 
 export const listCheques = (query = '') => request<ChequeList>(`/cheques${query ? `?${query}` : ''}`)
 export const listTreatmentCheques = (treatmentId: string) => request<ChequeList>(`/cheques?treatmentId=${treatmentId}`)
+/** Cheques we wrote that fall due on one day (to warn before writing another for the same day). */
+export const listOutgoingDueOn = (day: string) => listCheques(`direction=OUTGOING&status=PENDING&dueDate=${day}`)
+/** Pay a bill with a cheque we write now. */
+export const issueChequeForExpense = (expenseId: string, body: ChequeBody & { paidAt?: string }) => request<ChequeRow>(`/expenses/${expenseId}/cheques`, { method: 'POST', body })
+/** Pay a bill with cheques patients gave us that are still in hand. */
+export const handOverCheques = (expenseId: string, chequeIds: string[], paidAt?: string) =>
+  request<{ count: number; total: number }>(`/expenses/${expenseId}/hand-over-cheques`, { method: 'POST', body: { chequeIds, ...(paidAt ? { paidAt } : {}) } })
 export const getChequeSummary = () => request<ChequeSummary>('/cheques/summary')
 export const getCheque = (id: string) => request<ChequeRow>(`/cheques/${id}`)
 export const createCheque = (treatmentId: string, body: ChequeBody) => request<ChequeRow>(`/treatments/${treatmentId}/cheques`, { method: 'POST', body })

@@ -37,7 +37,7 @@ export class IncomeService {
     const rows = await this.tenant.db.payment.findMany({
       where: { ...cashIncomeWhere({ gte: instantAt(r.from, 0, tz), lt: instantAt(r.to, 0, tz) }), treatment: { doctorId } },
       orderBy: [{ paidAt: 'desc' }, { id: 'asc' }],
-      select: { id: true, amount: true, method: true, paidAt: true, treatmentId: true, cheque: { select: { cashedAt: true } }, patient: { select: { id: true, fullName: true } } },
+      select: { id: true, amount: true, method: true, paidAt: true, treatmentId: true, cheque: { select: { status: true, cashedAt: true, endorsedAt: true } }, patient: { select: { id: true, fullName: true } } },
     });
     return {
       period,
@@ -56,7 +56,7 @@ export class IncomeService {
     const tz = await this.tz(user.clinicId!);
     const rows = await this.tenant.db.payment.findMany({
       where: { ...cashIncomeWhere({ gte: instantAt(`${year}-01-01`, 0, tz), lt: instantAt(`${year + 1}-01-01`, 0, tz) }), treatment: { doctorId } },
-      select: { amount: true, paidAt: true, method: true, cheque: { select: { cashedAt: true } } },
+      select: { amount: true, paidAt: true, method: true, cheque: { select: { status: true, cashedAt: true, endorsedAt: true } } },
     });
     const out = Array.from({ length: 12 }, (_, i) => ({ month: `${year}-${String(i + 1).padStart(2, '0')}`, income: 0 }));
     for (const p of rows) {

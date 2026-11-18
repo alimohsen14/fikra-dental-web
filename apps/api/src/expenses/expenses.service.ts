@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import type { AuthUser } from '../auth/auth.types.js';
-import { cashAt, cashIncomeWhere } from '../cheques/cash-income.js';
+import { cashAt, cashIncomeWhere, releaseChequesOf } from '../cheques/cash-income.js';
 import { PrismaService } from '../database/prisma.service.js';
 import type { Prisma } from '../generated/prisma/client.js';
 import { addDaysTo, instantAt, localDate } from '../scheduling/clinic-time.js';
@@ -31,7 +31,10 @@ const SELECT = {
   createdAt: true,
   category: { select: { id: true, name: true } },
   supplier: { select: { id: true, name: true } },
-  payments: { orderBy: [{ paidAt: 'asc' }, { createdAt: 'asc' }], select: { id: true, amount: true, method: true, paidAt: true, note: true, status: true, voidedAt: true, voidReason: true } },
+  payments: {
+    orderBy: [{ paidAt: 'asc' }, { createdAt: 'asc' }],
+    select: { id: true, amount: true, method: true, paidAt: true, note: true, status: true, voidedAt: true, voidReason: true, cheques: { select: { id: true, direction: true, status: true, dueDate: true, chequeNumber: true } } },
+  },
 } satisfies Prisma.ExpenseSelect;
 
 /** What is still owed on a bill; a voided bill owes nothing. */
@@ -210,6 +213,7 @@ export class ExpensesService {
         where: { expenseId: id, clinicId, status: 'ACTIVE' },
         data: { status: 'VOIDED', voidedAt: new Date(), voidReason: `أُلغي المصروف: ${reason}`, voidedByUserId: user.id },
       });
+      await releaseChequesOf(tx, clinicId, e.payments.filter((p) => p.status === 'ACTIVE').map((p) => p.id));
       await this.audit(tx, clinicId, user.id, 'EXPENSE_VOIDED', id, { before: { amount: e.amount, paid: paidTotal(e.payments) }, after: { reason } });
     });
     return this.get(id);
@@ -237,6 +241,7 @@ export class ExpensesService {
       await this.lock(tx, clinicId, p.expenseId);
       const done = await tx.expensePayment.updateMany({ where: { id: paymentId, clinicId, status: 'ACTIVE' }, data: { status: 'VOIDED', voidedAt: new Date(), voidReason: reason, voidedByUserId: user.id } });
       if (done.count !== 1) throw new ConflictException('هذه الدفعة ملغية من قبل');
+      await releaseChequesOf(tx, clinicId, [paymentId]);
       await this.audit(tx, clinicId, user.id, 'EXPENSE_PAYMENT_VOIDED', paymentId, { before: { amount: p.amount, expenseId: p.expenseId }, after: { reason } });
     });
     return this.get(p.expenseId);
@@ -253,8 +258,8 @@ export class ExpensesService {
     const r = periodRange(period, date);
     const range = { gte: instantAt(r.from, 0, tz), lt: instantAt(r.to, 0, tz) };
     const [income, paidOut, incurred, categories, owed, salaryPaid] = await Promise.all([
-      this.tenant.db.payment.findMany({ where: cashIncomeWhere(range), select: { amount: true } }),
-      this.tenant.db.expensePayment.findMany({ where: { status: 'ACTIVE', paidAt: range }, select: { amount: true, expense: { select: { categoryId: true } } } }),
+      this.tenant.db.payment.findMany({ where: cashIncomeWhere(range), select: { amount: true, method: true } }),
+      this.tenant.db.expensePayment.findMany({ where: { status: 'ACTIVE', paidAt: range }, select: { amount: true, method: true, expense: { select: { categoryId: true } } } }),
       this.tenant.db.expense.findMany({ where: { status: 'ACTIVE', incurredAt: range }, select: { amount: true, categoryId: true } }),
       this.tenant.db.expenseCategory.findMany({ select: { id: true, name: true } }),
       this.debts(),
@@ -274,6 +279,9 @@ export class ExpensesService {
       to: addDaysTo(r.to, -1), // the last day, included
       income: incomeTotal,
       incomeCount: income.length,
+      // how much of it moved by cheque (income: cheques cashed or handed on in this period; expenses: bills paid by cheque in this period)
+      incomeByCheque: income.filter((p) => p.method === 'CHEQUE').reduce((t, p) => t + p.amount, 0),
+      expensesByCheque: paidOut.filter((p) => p.method === 'CHEQUE').reduce((t, p) => t + p.amount, 0),
       expensesPaid,
       expensesIncurred: incurred.reduce((t, e) => t + e.amount, 0) + salaries,
       profit: incomeTotal - expensesPaid,
@@ -299,7 +307,7 @@ export class ExpensesService {
     const last = list[list.length - 1]!;
     const range = { gte: instantAt(`${list[0]}-01`, 0, tz), lt: instantAt(shiftMonth(last, 1) + '-01', 0, tz) };
     const [income, expenses, salaries] = await Promise.all([
-      this.tenant.db.payment.findMany({ where: cashIncomeWhere(range), select: { amount: true, paidAt: true, method: true, cheque: { select: { cashedAt: true } } } }),
+      this.tenant.db.payment.findMany({ where: cashIncomeWhere(range), select: { amount: true, paidAt: true, method: true, cheque: { select: { status: true, cashedAt: true, endorsedAt: true } } } }),
       this.tenant.db.expensePayment.findMany({ where: { status: 'ACTIVE', paidAt: range }, select: { amount: true, paidAt: true } }),
       this.tenant.db.salaryPayment.findMany({ where: { status: 'ACTIVE', paidAt: range }, select: { amount: true, paidAt: true } }),
     ]);

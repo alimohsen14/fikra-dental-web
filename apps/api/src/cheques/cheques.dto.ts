@@ -16,18 +16,22 @@ const given = (max: number, digits = false) =>
 const editable = (max: number, digits = false) =>
   z.preprocess((v) => (typeof v === 'string' ? (v.trim() === '' ? null : digits ? toLatinDigits(v.trim()) : v.trim()) : v), z.string().max(max).nullable().optional());
 
-export const createChequeSchema = z
-  .object({
-    amount: money.optional(),
-    dueDate: dateOnly.optional(),
-    chequeNumber: given(40, true),
-    bankName: given(80),
-    accountNumber: given(40, true),
-    drawerName: given(120),
-    drawerPhone: given(30, true),
-    notes: given(500),
-  })
-  .strict();
+const chequeShape = {
+  chequeNumber: given(40, true),
+  bankName: given(80),
+  accountNumber: given(40, true),
+  drawerName: given(120),
+  drawerPhone: given(30, true),
+  notes: given(500),
+};
+
+export const createChequeSchema = z.object({ amount: money.optional(), dueDate: dateOnly.optional(), ...chequeShape }).strict();
+
+/** A cheque the clinic writes to pay a bill: amount and the day it will be cashed are required. `paidAt` = the day it was handed over (default now). */
+export const createOutgoingChequeSchema = z.object({ amount: money, dueDate: dateOnly, paidAt: instant.optional(), ...chequeShape }).strict();
+
+/** Incoming cheques (still in hand) handed over to pay a bill. */
+export const endorseChequesSchema = z.object({ chequeIds: z.array(idSchema).min(1).max(20), paidAt: instant.optional() }).strict();
 
 export const updateChequeSchema = z
   .object({
@@ -53,10 +57,13 @@ export const listChequesSchema = z
     incomplete: z.literal('true').optional(),
     treatmentId: idSchema.optional(),
     patientId: idSchema.optional(),
+    dueDate: dateOnly.optional(),
     q: z.string().trim().max(80).optional(),
   })
   .strict();
 
 export type CreateChequeDto = z.infer<typeof createChequeSchema>;
+export type CreateOutgoingChequeDto = z.infer<typeof createOutgoingChequeSchema>;
+export type EndorseChequesDto = z.infer<typeof endorseChequesSchema>;
 export type UpdateChequeDto = z.infer<typeof updateChequeSchema>;
 export type ListChequesQuery = z.infer<typeof listChequesSchema>;

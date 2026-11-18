@@ -6,7 +6,7 @@ import type { AuthUser } from '../auth/auth.types.js';
 import { RequiresPayments, Roles } from '../auth/roles.decorator.js';
 import { readBody } from '../clinic/logo.js';
 import { idSchema } from '../treatments/treatments.dto.js';
-import { cashChequeSchema, createChequeSchema, listChequesSchema, returnChequeSchema, updateChequeSchema } from './cheques.dto.js';
+import { cashChequeSchema, createChequeSchema, createOutgoingChequeSchema, endorseChequesSchema, listChequesSchema, returnChequeSchema, updateChequeSchema } from './cheques.dto.js';
 import { CHEQUE_MAX_BYTES, ChequesService } from './cheques.service.js';
 
 // A cheque is a kind of payment: the same people (owner, or the payments key; a doctor only on their own treatments).
@@ -19,6 +19,20 @@ export class ChequesController {
   @Post('treatments/:id/cheques')
   create(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: unknown) {
     return this.cheques.createIncoming(user, parseBody(idSchema, id), parseBody(createChequeSchema, body));
+  }
+
+  // The owner's side: paying a bill with a cheque (a new one we write, or cheques patients gave us handed over).
+  @Roles('OWNER')
+  @Post('expenses/:id/cheques')
+  issue(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: unknown) {
+    return this.cheques.issueForExpense(user, parseBody(idSchema, id), parseBody(createOutgoingChequeSchema, body));
+  }
+
+  @Roles('OWNER')
+  @Post('expenses/:id/hand-over-cheques')
+  @HttpCode(200)
+  handOver(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: unknown) {
+    return this.cheques.handOverForExpense(user, parseBody(idSchema, id), parseBody(endorseChequesSchema, body));
   }
 
   @Get('cheques')

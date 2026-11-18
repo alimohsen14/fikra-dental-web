@@ -32,6 +32,8 @@ export interface ExpensePaymentRow {
   status: 'ACTIVE' | 'VOIDED'
   voidedAt: string | null
   voidReason: string | null
+  /** The cheques behind a payment made by cheque. */
+  cheques?: { id: string; direction: 'INCOMING' | 'OUTGOING'; status: 'PENDING' | 'CASHED' | 'RETURNED' | 'ENDORSED' | 'CANCELLED'; dueDate: string | null; chequeNumber: string | null }[]
 }
 export interface Expense {
   id: string
@@ -54,6 +56,9 @@ export interface Summary {
   to: string
   income: number
   incomeCount: number
+  /** How much of the income / of the paid expenses moved by cheque. */
+  incomeByCheque: number
+  expensesByCheque: number
   expensesPaid: number
   expensesIncurred: number
   profit: number

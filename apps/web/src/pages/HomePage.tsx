@@ -63,7 +63,7 @@ export default function HomePage() {
         <>
           {showDoctors && <DoctorCards days={doctorDays(doctors.data, all, Date.now())} value={doctorId} onChange={setDoctorId} />}
           <StatusCards list={mine} value={filter} onChange={setFilter} />
-          {chq && (chq.incomplete > 0 || chq.dueToday.count > 0 || chq.overdue.count > 0) && (
+          {chq && (chq.incomplete > 0 || chq.dueToday.count > 0 || chq.overdue.count > 0 || (chq.outgoing?.dueToday.count ?? 0) > 0 || (chq.outgoing?.overdue.count ?? 0) > 0) && (
             <Card title="تنبيه: شكات تحتاج متابعة">
               <div className="flex flex-col gap-3" data-testid="cheque-alerts">
                 {chq.overdue.count > 0 && (
@@ -74,6 +74,16 @@ export default function HomePage() {
                 {chq.dueToday.count > 0 && (
                   <p className="font-bold text-[#7a5200]" data-testid="alert-today">
                     اليوم موعد صرف {chq.dueToday.count} شك ولم تصرفها بعد (<Money agorot={chq.dueToday.amount} />).
+                  </p>
+                )}
+                {chq.outgoing && chq.outgoing.dueToday.count > 0 && (
+                  <p className="font-bold text-[#2a4a9b]" data-testid="alert-out-today">
+                    اليوم موعد صرف {chq.outgoing.dueToday.count} شك صادر كتبته (<Money agorot={chq.outgoing.dueToday.amount} />): تأكد أن الرصيد يكفي.
+                  </p>
+                )}
+                {chq.outgoing && chq.outgoing.overdue.count > 0 && (
+                  <p className="font-bold text-[#2a4a9b]" data-testid="alert-out-overdue">
+                    {chq.outgoing.overdue.count} شك صادر فات موعد صرفه ولم تؤشّر عليه «تم الصرف» (<Money agorot={chq.outgoing.overdue.amount} />).
                   </p>
                 )}
                 {chq.incomplete > 0 && (

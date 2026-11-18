@@ -440,6 +440,8 @@ model Cheque {
   patientId       String?         @db.Uuid
   treatmentId     String?         @db.Uuid
   paymentId       String?         @unique @db.Uuid
+  expensePaymentId String?        @db.Uuid // outgoing: the bill payment it makes; incoming and endorsed: the bill payment it was handed over for
+  endorsedAt      DateTime?       @db.Timestamptz(3) // the day an incoming cheque was handed on to pay a bill
   cashedAt        DateTime?       @db.Timestamptz(3)
   returnedAt      DateTime?       @db.Timestamptz(3)
   returnReason    String?
@@ -451,8 +453,10 @@ model Cheque {
   patient   Patient?   @relation(fields: [patientId], references: [id])
   treatment Treatment? @relation(fields: [treatmentId], references: [id])
   payment   Payment?   @relation(fields: [paymentId], references: [id])
+  expensePayment ExpensePayment? @relation(fields: [expensePaymentId], references: [id])
 
   @@index([clinicId, status, dueDate])
+  @@index([expensePaymentId])
   @@index([clinicId, patientId])
   @@index([treatmentId])
 }
@@ -619,6 +623,7 @@ model ExpensePayment {
 
   clinic  Clinic  @relation(fields: [clinicId], references: [id])
   expense Expense @relation(fields: [expenseId], references: [id])
+  cheques Cheque[]
 
   @@index([clinicId, paidAt])
   @@index([expenseId])
