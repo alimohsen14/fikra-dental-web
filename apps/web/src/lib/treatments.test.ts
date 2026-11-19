@@ -56,7 +56,7 @@ describe('create form', () => {
     expect(err({ doctorId: '' })).toBe('اختر الدكتور')
     expect(err({ teeth: [E(16, '')] })).toBe('السن 3: اختر نوع العلاج')
     expect(err({ teeth: [E(16), E(11, 'crown')] })).toBe('السن 8: اختر النوع الفرعي') // each tooth is checked, and named the way the clinic reads it
-    expect(err({ teeth: [E(55, 'crown', 'por')] })).toBe('السن A: هذا النوع الفرعي موقوف، اختر غيره')
+    expect(err({ teeth: [E(55, 'crown', 'por')] })).toBe('السن 1: هذا النوع الفرعي موقوف، اختر غيره')
     expect(err({ teeth: [] })).toMatch(/سن/)
     expect(err({ cost: '' })).toMatch(/التكلفة/)
     expect(err({ cost: 'abc' })).toMatch(/التكلفة/)

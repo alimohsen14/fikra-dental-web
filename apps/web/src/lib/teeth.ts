@@ -1,5 +1,5 @@
 // Teeth are STORED with FDI codes: permanent 11-18, 21-28, 31-38, 41-48; baby 51-55, 61-65, 71-75, 81-85.
-// They are SHOWN with the universal numbering the clinic knows: permanent 1-32, baby teeth A-T.
+// They are SHOWN as numbers in the universal order, from the upper right: permanent teeth 1-32, baby teeth 1-20 (the old A-T).
 // Charts are drawn the way the dentist looks at the patient: the patient's right side is on the viewer's left.
 
 export type ToothSet = 'adult' | 'kids' | 'both'
@@ -39,9 +39,7 @@ export function setOfTeeth(codes: number[]): ToothSet {
   return baby && permanent ? 'both' : baby ? 'kids' : 'adult'
 }
 
-const BABY_LETTERS = 'ABCDEFGHIJKLMNOPQRST'
-
-/** Position of a tooth in the universal numbering: permanent 0-31 (tooth 1 is 0), baby 32-51 (A is 32). Also the sort order of the chart. */
+/** Position of a tooth in the universal order: permanent 0-31 (tooth 1 is 0), baby 32-51 (51 is 32). Also the sort order of the chart. */
 export function toothOrder(code: number): number {
   const quadrant = Math.floor(code / 10)
   const pos = code % 10
@@ -57,12 +55,12 @@ export function toothOrder(code: number): number {
   }
 }
 
-/** What the clinic sees on a tooth: "16" (universal 1-32) or a letter "E" for baby teeth. FDI 16 is universal 3. */
-export const toothLabel = (code: number): string => (isBabyTooth(code) ? BABY_LETTERS[toothOrder(code) - 32]! : String(toothOrder(code) + 1))
+/** What the clinic sees on a tooth: "3" (universal 1-32; FDI 16 is universal 3), or a baby tooth 1-20 (FDI 55 is 1, 65 is 10, 75 is 11, 85 is 20). */
+export const toothLabel = (code: number): string => (isBabyTooth(code) ? String(toothOrder(code) - 31) : String(toothOrder(code) + 1))
 
 export const sortTeeth = (codes: number[]): number[] => [...codes].sort((a, b) => toothOrder(a) - toothOrder(b))
 
-/** "1 · 3 · E" : the teeth the way the clinic reads them, in chart order. */
+/** "1 · 3 · 11" : the teeth the way the clinic reads them, in chart order. */
 export const teethText = (codes: number[]): string => sortTeeth(codes).map(toothLabel).join(' · ')
 
 export const toggleTooth = (list: number[], code: number): number[] => (list.includes(code) ? list.filter((c) => c !== code) : sortTeeth([...list, code]))
@@ -79,7 +77,7 @@ export function toothKind(code: number): ToothKind {
 }
 const KIND_LABELS: Record<ToothKind, string> = { incisor: 'قاطع', canine: 'ناب', premolar: 'ضاحك', molar: 'ضرس' }
 
-/** "3 · ضرس علوي أيمن" (universal number); baby teeth show a letter and "(لبني)". */
+/** "3 · ضرس علوي أيمن" (universal number); baby teeth show their number (1-20) and "(لبني)". */
 export function toothName(code: number): string {
   const quadrant = Math.floor(code / 10)
   const side = SIDES[quadrant > 4 ? quadrant - 4 : quadrant] ?? ''

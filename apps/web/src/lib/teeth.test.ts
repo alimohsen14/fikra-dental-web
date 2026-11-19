@@ -52,7 +52,7 @@ describe('picking teeth', () => {
     expect(toothKind(53)).toBe('canine')
     expect(toothKind(54)).toBe('molar')
     expect(toothName(16)).toBe('3 · ضرس علوي أيمن')
-    expect(toothName(85)).toBe('T · ضرس سفلي أيمن (لبني)')
+    expect(toothName(85)).toBe('20 · ضرس سفلي أيمن (لبني)')
     expect(isBabyTooth(55)).toBe(true)
     expect(isBabyTooth(48)).toBe(false)
   })
@@ -66,22 +66,22 @@ describe('universal numbering (what the clinic sees)', () => {
     expect(toothLabel(16)).toBe('3')
     expect(toothLabel(46)).toBe('30')
   })
-  it('letters the baby teeth A to T the same way', () => {
-    expect(KIDS_UPPER.map(toothLabel).join('')).toBe('ABCDEFGHIJ')
-    expect(KIDS_LOWER.map(toothLabel).join('')).toBe('TSRQPONMLK')
-    expect(toothLabel(55)).toBe('A')
-    expect(toothLabel(65)).toBe('J')
-    expect(toothLabel(75)).toBe('K')
-    expect(toothLabel(85)).toBe('T')
+  it('numbers the baby teeth 1 to 20 from the upper right, the same order the letters had', () => {
+    expect(KIDS_UPPER.map(toothLabel)).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'])
+    expect(KIDS_LOWER.map(toothLabel)).toEqual(['20', '19', '18', '17', '16', '15', '14', '13', '12', '11'])
+    expect(toothLabel(55)).toBe('1')
+    expect(toothLabel(65)).toBe('10')
+    expect(toothLabel(75)).toBe('11')
+    expect(toothLabel(85)).toBe('20')
   })
   it('every tooth has its own place in the chart order', () => {
     const all = [...ADULT_UPPER, ...ADULT_LOWER, ...KIDS_UPPER, ...KIDS_LOWER]
     expect(new Set(all.map(toothOrder)).size).toBe(52)
     expect(Math.min(...all.map(toothOrder))).toBe(0)
     expect(Math.max(...all.map(toothOrder))).toBe(51)
-    expect(new Set(all.map(toothLabel)).size).toBe(52 - 0) // 32 numbers + 20 letters
+    expect(new Set(all.map(toothLabel)).size).toBe(32) // baby teeth reuse 1-20, so only the pair (set, number) is unique
   })
   it('lists teeth in chart order', () => {
-    expect(teethText([48, 55, 16, 21])).toBe('3 · 9 · 32 · A')
+    expect(teethText([48, 55, 16, 21])).toBe('3 · 9 · 32 · 1')
   })
 })
