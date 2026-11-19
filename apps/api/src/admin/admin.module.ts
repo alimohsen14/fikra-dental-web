@@ -1,12 +1,14 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module.js';
 import { ClinicModule } from '../clinic/clinic.module.js';
+import { ChequeStorage } from '../cheques/cheques.storage.js';
+import { AdminChequesService } from './admin-cheques.service.js';
 import { AdminController } from './admin.controller.js';
 import { AdminService } from './admin.service.js';
 
 @Module({
   imports: [AuthModule, ClinicModule],
   controllers: [AdminController],
-  providers: [AdminService],
+  providers: [AdminService, AdminChequesService, ChequeStorage],
 })
 export class AdminModule {}

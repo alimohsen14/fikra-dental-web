@@ -381,7 +381,7 @@ export class AdminService {
     const periods = await this.prisma.subscriptionPeriod.findMany({
       where: { clinicId: id },
       orderBy: { startsAt: 'desc' },
-      include: { payments: { orderBy: [{ paidAt: 'desc' }, { createdAt: 'desc' }] } },
+      include: { payments: { orderBy: [{ paidAt: 'desc' }, { createdAt: 'desc' }], include: { cheque: { select: { id: true, status: true, dueDate: true, chequeNumber: true } } } } },
     });
     return {
       ...billingSummary(periods),
@@ -405,6 +405,8 @@ export class AdminService {
             voidedAt: x.voidedAt,
             voidReason: x.voidReason,
             createdAt: x.createdAt,
+            method: x.method,
+            cheque: x.cheque ? { id: x.cheque.id, status: x.cheque.status, dueDate: x.cheque.dueDate.toISOString().slice(0, 10), chequeNumber: x.cheque.chequeNumber } : null,
           })),
         };
       }),
@@ -414,6 +416,7 @@ export class AdminService {
   /** Records money received from a clinic (cash, transfer...). Cannot exceed what is still owed. */
   async addPayment(actorId: string, id: string, dto: z.infer<typeof addPaymentSchema>) {
     await this.mustFind(id);
+    let chequeId: string | null = null;
     await this.prisma.$transaction(async (tx) => {
       const period = dto.periodId
         ? await tx.subscriptionPeriod.findFirst({ where: { id: dto.periodId, clinicId: id } })
@@ -441,9 +444,17 @@ export class AdminService {
           amount: dto.amount,
           paidAt: dto.paidAt ?? new Date(),
           note: dto.note ?? null,
+          method: dto.method,
           createdByUserId: actorId,
         },
       });
+      if (dto.cheque) {
+        const { dueDate, ...info } = dto.cheque;
+        const ch = await tx.subscriptionCheque.create({
+          data: { clinicId: id, paymentId: payment.id, amount: dto.amount, dueDate: new Date(`${dueDate}T00:00:00Z`), createdByUserId: actorId, ...info },
+        });
+        chequeId = ch.id;
+      }
       await tx.auditLog.create({
         data: {
           clinicId: id,
@@ -451,11 +462,11 @@ export class AdminService {
           action: 'SUBSCRIPTION_PAYMENT_ADDED',
           entityType: 'SubscriptionPayment',
           entityId: payment.id,
-          after: { periodId: period.id, amount: payment.amount, paidAt: payment.paidAt.toISOString() },
+          after: { periodId: period.id, amount: payment.amount, paidAt: payment.paidAt.toISOString(), method: dto.method },
         },
       });
     });
-    return this.getBilling(id);
+    return { ...(await this.getBilling(id)), createdChequeId: chequeId };
   }
 
   /** A payment is never deleted. A wrong one is cancelled with a reason and stops counting. */
@@ -469,6 +480,8 @@ export class AdminService {
         data: { voidedAt: new Date(), voidReason: dto.reason, voidedByUserId: actorId },
       });
       if (claimed.count === 0) throw new ConflictException('هذه الدفعة ملغاة من قبل');
+      // the cheque behind a voided payment no longer counts (a returned one is already RETURNED)
+      await tx.subscriptionCheque.updateMany({ where: { paymentId, status: { in: ['PENDING', 'CASHED'] } }, data: { status: 'CANCELLED' } });
       await tx.auditLog.create({
         data: {
           clinicId: id,

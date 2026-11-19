@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { NavLink } from 'react-router'
+import { NavLink, useLocation } from 'react-router'
 import { logout } from '../lib/api.ts'
 import { Icon } from '../components/icons.tsx'
 import type { IconName } from '../components/icons.tsx'
@@ -8,10 +8,13 @@ export interface NavItem {
   to: string
   label: string
   icon: IconName
+  /** Highlight only on these paths (and below them); by default a link is active for everything under its `to`. */
+  activeOn?: string[]
 }
 
 /** Colored sidebar. The color comes from the active theme (Fikra blue for admin, clinic color for clinics). */
 export function Sidebar({ className, header, items, footer }: { className: string; header: ReactNode; items: NavItem[]; footer?: ReactNode }) {
+  const { pathname } = useLocation()
   return (
     <aside className={`flex flex-1 basis-[248px] flex-col gap-6 px-4 py-6 text-on-brand md:sticky md:top-0 md:h-screen md:max-w-[280px] md:self-start md:overflow-y-auto ${className}`}>
       <div className="px-2">{header}</div>
@@ -20,7 +23,7 @@ export function Sidebar({ className, header, items, footer }: { className: strin
           <NavLink
             key={item.to}
             to={item.to}
-            className={({ isActive }) => `flex items-center gap-2.5 rounded-[10px] p-3 text-[15px] ${isActive ? 'bg-(--brand-active) font-semibold' : 'hover:bg-(--brand-active)/60'}`}
+            className={({ isActive }) => `flex items-center gap-2.5 rounded-[10px] p-3 text-[15px] ${(item.activeOn ? pathname === item.to || item.activeOn.some((p) => pathname === p || pathname.startsWith(`${p}/`)) : isActive) ? 'bg-(--brand-active) font-semibold' : 'hover:bg-(--brand-active)/60'}`}
           >
             <Icon name={item.icon} />
             {item.label}

@@ -2,8 +2,9 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Badge, Card, DateText, Loading, Money } from '../../components/admin-ui.tsx'
 import { Alert, Button, SelectField, TextField } from '../../components/ui.tsx'
-import { addPayment, getBilling, voidPayment } from '../../lib/admin.ts'
-import type { BillingStatus, Period } from '../../lib/admin.ts'
+import { SubChequeBadge, SubChequeFields, SubChequeModal, buildSubCheque, emptySubChequeForm, uploadSubChequePhoto } from '../../components/sub-cheque-ui.tsx'
+import { PAY_METHOD_LABELS, addPayment, getBilling, voidPayment } from '../../lib/admin.ts'
+import type { BillingStatus, PayMethod, Period } from '../../lib/admin.ts'
 import { ApiError } from '../../lib/api.ts'
 import { formatMoney, todayInput } from '../../lib/format.ts'
 import { buildPaymentInput } from '../../lib/forms.ts'
@@ -18,12 +19,15 @@ const BILLING_STYLE: Record<BillingStatus, { label: string; bg: string; fg: stri
 
 const messageOf = (e: unknown) => (e instanceof ApiError ? e.message : 'حدث خطأ غير متوقع، حاول مرة أخرى')
 
-function AddPayment({ clinicId, periods, onDone }: { clinicId: string; periods: Period[]; onDone: () => void }) {
+function AddPayment({ clinicId, periods, onDone }: { clinicId: string; periods: Period[]; onDone: (notice?: string) => void }) {
   const open = periods.filter((p) => p.remaining > 0)
   const [periodId, setPeriodId] = useState(open[0]?.id ?? '')
   const [amount, setAmount] = useState('')
   const [day, setDay] = useState(todayInput())
   const [note, setNote] = useState('')
+  const [method, setMethod] = useState<PayMethod>('CASH')
+  const [chq, setChq] = useState(emptySubChequeForm())
+  const [photo, setPhoto] = useState<File | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const current = open.find((p) => p.id === periodId) ?? open[0]
@@ -34,13 +38,24 @@ function AddPayment({ clinicId, periods, onDone }: { clinicId: string; periods: 
     e.preventDefault()
     const r = buildPaymentInput({ amount, day, periodId: current!.id, note }, current!.remaining)
     if ('error' in r) return setError(r.error)
+    let cheque
+    if (method === 'CHEQUE') {
+      const c = buildSubCheque(chq)
+      if ('error' in c) return setError(c.error)
+      cheque = c.cheque
+    }
     setError(null)
     setBusy(true)
     try {
-      await addPayment(clinicId, r.input)
+      const saved = await addPayment(clinicId, { ...r.input, method, ...(cheque ? { cheque } : {}) })
       setAmount('')
       setNote('')
-      onDone()
+      setChq(emptySubChequeForm())
+      const hadPhoto = photo
+      setPhoto(null)
+      setMethod('CASH')
+      const problem = hadPhoto && saved.createdChequeId ? await uploadSubChequePhoto(saved.createdChequeId, hadPhoto) : null
+      onDone(problem ? `حُفظت الدفعة والشك، لكن تعذّر رفع الصورة: ${problem}. افتح الشك وأضفها.` : undefined)
     } catch (err) {
       setError(messageOf(err))
     } finally {
@@ -63,8 +78,16 @@ function AddPayment({ clinicId, periods, onDone }: { clinicId: string; periods: 
           </SelectField>
         )}
         <TextField label="المبلغ (₪)" hint={`المتبقي على هذه الفترة: ${formatMoney(current.remaining)}`} inputMode="decimal" dir="ltr" className="text-right" value={amount} onChange={(e) => setAmount(e.target.value)} />
+        <SelectField label="طريقة الدفع" value={method} onChange={(e) => setMethod(e.target.value as PayMethod)}>
+          {(Object.keys(PAY_METHOD_LABELS) as PayMethod[]).map((m) => (
+            <option key={m} value={m}>
+              {PAY_METHOD_LABELS[m]}
+            </option>
+          ))}
+        </SelectField>
         <TextField label="تاريخ الدفع" type="date" dir="ltr" max={todayInput()} className="text-right" value={day} onChange={(e) => setDay(e.target.value)} />
         <TextField label="ملاحظة (اختياري)" placeholder="مثال: تحويل بنكي" value={note} onChange={(e) => setNote(e.target.value)} />
+        {method === 'CHEQUE' && <SubChequeFields f={chq} setF={setChq} photo={photo} setPhoto={setPhoto} onError={setError} />}
       </div>
       <Button type="submit" size="sm" busy={busy} className="self-start">
         تسجيل الدفعة
@@ -74,6 +97,7 @@ function AddPayment({ clinicId, periods, onDone }: { clinicId: string; periods: 
 }
 
 function PaymentRow({ clinicId, p, onDone }: { clinicId: string; p: Period['payments'][number]; onDone: () => void }) {
+  const [openCheque, setOpenCheque] = useState(false)
   const [asking, setAsking] = useState(false)
   const [reason, setReason] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -97,8 +121,15 @@ function PaymentRow({ clinicId, p, onDone }: { clinicId: string; p: Period['paym
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className={p.voided ? 'text-muted line-through' : 'font-semibold'}>
           <Money agorot={p.amount} /> · <DateText value={p.paidAt} />
+          · {PAY_METHOD_LABELS[p.method]}
           {p.note ? ` · ${p.note}` : ''}
         </span>
+        {p.cheque && (
+          <button type="button" data-testid="payment-cheque" className="flex cursor-pointer items-center gap-2" onClick={() => setOpenCheque(true)}>
+            <SubChequeBadge c={p.cheque} />
+            <span className="text-xs text-[#2a4a9b] underline">يُصرف <DateText value={p.cheque.dueDate} /> · فتح الشك</span>
+          </button>
+        )}
         {p.voided ? (
           <Badge label={`ملغاة: ${p.voidReason ?? ''}`} bg="#e8ecf1" fg="#3d4b60" />
         ) : (
@@ -109,6 +140,7 @@ function PaymentRow({ clinicId, p, onDone }: { clinicId: string; p: Period['paym
           )
         )}
       </div>
+      {openCheque && p.cheque && <SubChequeModal id={p.cheque.id} onClose={() => setOpenCheque(false)} onChanged={onDone} />}
       {asking && !p.voided && (
         <div className="flex flex-col gap-2 rounded-lg bg-[#fdf3f3] p-3">
           {error && <Alert tone="error">{error}</Alert>}
@@ -130,7 +162,9 @@ function PaymentRow({ clinicId, p, onDone }: { clinicId: string; p: Period['paym
 /** Terms, what was paid and what is left, and the payment log of one clinic. */
 export function BillingSection({ clinicId, version, onChanged }: { clinicId: string; version: number; onChanged: () => void }) {
   const { data, error, reload } = useLoad(() => getBilling(clinicId), [clinicId, version])
-  const changed = () => {
+  const [notice, setNotice] = useState<string | null>(null)
+  const changed = (msg?: string) => {
+    setNotice(msg ?? null)
     reload()
     onChanged()
   }
@@ -156,6 +190,7 @@ export function BillingSection({ clinicId, version, onChanged }: { clinicId: str
               </div>
             ))}
           </div>
+          {notice && <Alert tone="warning">{notice}</Alert>}
           <AddPayment key={data.periods.map((p) => p.id + p.remaining).join()} clinicId={clinicId} periods={data.periods} onDone={changed} />
           {data.periods.map((p) => (
             <div key={p.id} className="flex flex-col rounded-xl border border-line p-4">

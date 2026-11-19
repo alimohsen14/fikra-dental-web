@@ -1,21 +1,28 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Put, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Put, Query, Req, Res } from '@nestjs/common';
+import type { Request, Response } from 'express';
 import { CurrentUser } from '../auth/auth.decorators.js';
 import { parseBody } from '../auth/auth.dto.js';
 import type { AuthUser } from '../auth/auth.types.js';
 import { Roles } from '../auth/roles.decorator.js';
 import { adminUpdateClinicSchema } from '../clinic/clinic.dto.js';
 import { ClinicService } from '../clinic/clinic.service.js';
+import { readBody } from '../clinic/logo.js';
 import {
   addPaymentSchema,
   auditQuerySchema,
+  cashQuerySchema,
   createClinicSchema,
   idSchema,
   listClinicsSchema,
+  listSubscriptionChequesSchema,
   renewSchema,
+  returnSubscriptionChequeSchema,
   statusChangeSchema,
+  updateSubscriptionChequeSchema,
   voidPaymentSchema,
   whatsappSchema,
 } from './admin.dto.js';
+import { AdminChequesService } from './admin-cheques.service.js';
 import { AdminService } from './admin.service.js';
 
 // The platform panel. Only PLATFORM_ADMIN (you). Clinic users get 403 on every route here.
@@ -25,6 +32,7 @@ export class AdminController {
   constructor(
     private readonly admin: AdminService,
     private readonly clinics: ClinicService,
+    private readonly cheques: AdminChequesService,
   ) {}
 
   @Post('clinics')
@@ -110,6 +118,54 @@ export class AdminController {
       parseBody(idSchema, paymentId),
       parseBody(voidPaymentSchema, body),
     );
+  }
+
+  // ---- cheques clinics paid with (incoming only) and the platform's cash page
+  @Get('cheques')
+  listCheques(@Query() query: unknown) {
+    return this.cheques.list(parseBody(listSubscriptionChequesSchema, query));
+  }
+
+  @Get('cheques/:id')
+  getCheque(@Param('id') id: string) {
+    return this.cheques.get(parseBody(idSchema, id));
+  }
+
+  @Patch('cheques/:id')
+  updateCheque(@CurrentUser() actor: AuthUser, @Param('id') id: string, @Body() body: unknown) {
+    return this.cheques.update(actor.id, parseBody(idSchema, id), parseBody(updateSubscriptionChequeSchema, body));
+  }
+
+  @Post('cheques/:id/cash')
+  @HttpCode(200)
+  cashCheque(@CurrentUser() actor: AuthUser, @Param('id') id: string) {
+    return this.cheques.cash(actor.id, parseBody(idSchema, id));
+  }
+
+  @Post('cheques/:id/return')
+  @HttpCode(200)
+  returnCheque(@CurrentUser() actor: AuthUser, @Param('id') id: string, @Body() body: unknown) {
+    return this.cheques.giveBack(actor.id, parseBody(idSchema, id), parseBody(returnSubscriptionChequeSchema, body));
+  }
+
+  @Post('cheques/:id/image')
+  @HttpCode(200)
+  async chequeImage(@CurrentUser() actor: AuthUser, @Param('id') id: string, @Req() req: Request) {
+    return this.cheques.setImage(actor.id, parseBody(idSchema, id), await readBody(req, 10 * 1024 * 1024, 'الصورة كبيرة، الحد الأقصى 10 ميجابايت'));
+  }
+
+  @Get('cheques/:id/image')
+  async chequeImageFile(@Param('id') id: string, @Res() res: Response) {
+    const { path, mime } = await this.cheques.imageOf(parseBody(idSchema, id));
+    res.set({ 'Content-Type': mime, 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'private, max-age=3600' });
+    res.sendFile(path, (err) => {
+      if (err && !res.headersSent) res.status(404).end();
+    });
+  }
+
+  @Get('cash')
+  cashPage(@Query() query: unknown) {
+    return this.cheques.cashPage(parseBody(cashQuerySchema, query));
   }
 
   @Get('audit')

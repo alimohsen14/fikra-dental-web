@@ -69,7 +69,12 @@ export interface Payment {
   voided: boolean
   voidedAt: string | null
   voidReason: string | null
+  method: PayMethod
+  cheque: { id: string; status: SubChequeStatus; dueDate: string; chequeNumber: string | null } | null
 }
+
+export type PayMethod = 'CASH' | 'CARD' | 'TRANSFER' | 'OTHER' | 'CHEQUE'
+export const PAY_METHOD_LABELS: Record<PayMethod, string> = { CASH: 'كاش', TRANSFER: 'تحويل بنكي', CARD: 'بطاقة', OTHER: 'أخرى', CHEQUE: 'شك' }
 
 export interface Period {
   id: string
@@ -112,8 +117,17 @@ export const renewClinic = (id: string, body: { months: number; price?: number }
   request<ClinicDetail>(`/admin/clinics/${id}/renew`, { method: 'POST', body })
 export const resetOwnerPassword = (id: string) => request<TempCredentials>(`/admin/clinics/${id}/reset-owner-password`, { method: 'POST' })
 export const getBilling = (id: string) => request<Billing>(`/admin/clinics/${id}/billing`)
-export const addPayment = (id: string, body: { amount: number; paidAt?: string; periodId?: string; note?: string }) =>
-  request<Billing>(`/admin/clinics/${id}/payments`, { method: 'POST', body })
+export interface SubChequeInput {
+  dueDate: string
+  chequeNumber?: string
+  bankName?: string
+  accountNumber?: string
+  drawerName?: string
+  drawerPhone?: string
+  notes?: string
+}
+export const addPayment = (id: string, body: { amount: number; paidAt?: string; periodId?: string; note?: string; method?: PayMethod; cheque?: SubChequeInput }) =>
+  request<Billing & { createdChequeId: string | null }>(`/admin/clinics/${id}/payments`, { method: 'POST', body })
 export const voidPayment = (id: string, paymentId: string, reason: string) =>
   request<Billing>(`/admin/clinics/${id}/payments/${paymentId}/void`, { method: 'POST', body: { reason } })
 
@@ -127,3 +141,68 @@ export const getWhatsapp = (id: string) => request<WhatsappSettings>(`/admin/cli
 export const saveWhatsapp = (id: string, body: { phoneNumberId: string; businessAccountId: string | null; accessToken?: string }) =>
   request<WhatsappSettings>(`/admin/clinics/${id}/whatsapp`, { method: 'PUT', body })
 export const removeWhatsapp = (id: string) => request<WhatsappSettings>(`/admin/clinics/${id}/whatsapp`, { method: 'DELETE' })
+
+// ---- cheques clinics paid with (incoming only) and the platform's cash page
+export type SubChequeStatus = 'PENDING' | 'CASHED' | 'RETURNED' | 'CANCELLED'
+export const SUB_CHEQUE_LABELS: Record<SubChequeStatus, string> = { PENDING: 'لم يُصرف بعد', CASHED: 'مصروف', RETURNED: 'مرتجع', CANCELLED: 'ملغى' }
+export const SUB_CHEQUE_STYLE: Record<SubChequeStatus, { bg: string; fg: string }> = {
+  PENDING: { bg: '#fff1d6', fg: '#7a4a00' },
+  CASHED: { bg: '#e3f5ea', fg: '#0b6b3a' },
+  RETURNED: { bg: '#fde8e8', fg: '#9b1c1c' },
+  CANCELLED: { bg: '#e8ecf1', fg: '#3d4b60' },
+}
+export interface SubCheque {
+  id: string
+  clinic: { id: string; name: string }
+  status: SubChequeStatus
+  amount: number
+  dueDate: string
+  due: 'later' | 'today' | 'overdue' | 'done'
+  chequeNumber: string | null
+  bankName: string | null
+  accountNumber: string | null
+  drawerName: string | null
+  drawerPhone: string | null
+  notes: string | null
+  hasImage: boolean
+  cashedAt: string | null
+  returnedAt: string | null
+  returnReason: string | null
+  createdAt: string
+}
+export interface Sum {
+  amount: number
+  count: number
+}
+export interface SubChequeList {
+  items: SubCheque[]
+  totals: { pending: Sum; dueToday: Sum; overdue: Sum; cashed: Sum; returned: Sum }
+}
+export const listSubCheques = (status: SubChequeStatus | 'ALL', q: string) => {
+  const p = [status !== 'ALL' ? `status=${status}` : '', q.trim() ? `q=${encodeURIComponent(q.trim())}` : ''].filter(Boolean).join('&')
+  return request<SubChequeList>('/admin/cheques' + (p ? `?${p}` : ''))
+}
+export const getSubCheque = (id: string) => request<SubCheque>(`/admin/cheques/${id}`)
+export const cashSubCheque = (id: string) => request<SubCheque>(`/admin/cheques/${id}/cash`, { method: 'POST' })
+export const returnSubCheque = (id: string, reason: string) => request<SubCheque>(`/admin/cheques/${id}/return`, { method: 'POST', body: { reason } })
+export const uploadSubChequeImage = (id: string, image: Blob) => request<SubCheque>(`/admin/cheques/${id}/image`, { method: 'POST', file: image })
+export const fetchSubChequeImage = (id: string) => request<Blob>(`/admin/cheques/${id}/image`, { blob: true })
+
+export interface CashRow {
+  id: string
+  clinic: { id: string; name: string }
+  amount: number
+  method: PayMethod
+  at: string
+  note: string | null
+  fromCheque: boolean
+  chequeNumber: string | null
+}
+export interface CashPage {
+  from: string
+  to: string
+  total: number
+  fromCheques: number
+  items: CashRow[]
+}
+export const getCashPage = (from: string, to: string) => request<CashPage>(`/admin/cash?from=${from}&to=${to}`)

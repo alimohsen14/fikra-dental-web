@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { toLatinDigits } from '../common/digits.js';
 
 export const idSchema = z.string().uuid();
 
@@ -72,6 +73,26 @@ export const auditQuerySchema = z
 
 const notInFuture = (d: Date) => d.getTime() <= Date.now() + 5 * 60 * 1000;
 
+const dateOnly = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .refine((v) => !Number.isNaN(Date.parse(`${v}T00:00:00Z`)) && new Date(`${v}T00:00:00Z`).toISOString().startsWith(v), 'invalid date');
+const given = (max: number, digits = false) =>
+  z.preprocess((v) => (typeof v === 'string' ? (v.trim() === '' ? undefined : digits ? toLatinDigits(v.trim()) : v.trim()) : v), z.string().max(max).optional());
+const editable = (max: number, digits = false) =>
+  z.preprocess((v) => (typeof v === 'string' ? (v.trim() === '' ? null : digits ? toLatinDigits(v.trim()) : v.trim()) : v), z.string().max(max).nullable().optional());
+
+/** The cheque a clinic pays with: the amount is the payment's amount; only the day it can be cashed is required. */
+const chequeInfoShape = {
+  chequeNumber: given(40, true),
+  bankName: given(80),
+  accountNumber: given(40, true),
+  drawerName: given(120),
+  drawerPhone: given(30, true),
+  notes: given(500),
+};
+export const subscriptionChequeSchema = z.object({ dueDate: dateOnly, ...chequeInfoShape }).strict();
+
 export const addPaymentSchema = z
   .object({
     amount: z.number().int().min(1).max(MAX_MONEY),
@@ -83,6 +104,39 @@ export const addPaymentSchema = z
       .optional(),
     periodId: idSchema.optional(), // default: the latest term
     note: z.string().trim().min(1).max(300).optional(),
+    method: z.enum(['CASH', 'CARD', 'TRANSFER', 'OTHER', 'CHEQUE']).default('CASH'),
+    cheque: subscriptionChequeSchema.optional(), // required with CHEQUE, not allowed otherwise
+  })
+  .strict()
+  .refine((v) => (v.method === 'CHEQUE') === (v.cheque !== undefined), { message: 'cheque details go with method CHEQUE only' });
+
+export const updateSubscriptionChequeSchema = z
+  .object({
+    dueDate: dateOnly.optional(),
+    chequeNumber: editable(40, true),
+    bankName: editable(80),
+    accountNumber: editable(40, true),
+    drawerName: editable(120),
+    drawerPhone: editable(30, true),
+    notes: editable(500),
+  })
+  .strict();
+
+export const returnSubscriptionChequeSchema = z.object({ reason: z.string().trim().min(2).max(200) }).strict();
+
+export const listSubscriptionChequesSchema = z
+  .object({
+    status: z.enum(['PENDING', 'CASHED', 'RETURNED', 'CANCELLED']).optional(),
+    clinicId: idSchema.optional(),
+    q: z.string().trim().max(80).optional(),
+  })
+  .strict();
+
+export const cashQuerySchema = z
+  .object({
+    from: dateOnly.optional(), // local days, both included; default: this month
+    to: dateOnly.optional(),
+    clinicId: idSchema.optional(),
   })
   .strict();
 

@@ -4,6 +4,8 @@ import { homePathFor } from './auth/paths.ts'
 import { RequireAuth } from './auth/RequireAuth.tsx'
 import AdminLayout from './layouts/AdminLayout.tsx'
 import ClinicLayout from './layouts/ClinicLayout.tsx'
+import AdminCashPage from './pages/admin/AdminCashPage.tsx'
+import AdminChequesPage from './pages/admin/AdminChequesPage.tsx'
 import ClinicPage from './pages/admin/ClinicPage.tsx'
 import ClinicsPage from './pages/admin/ClinicsPage.tsx'
 import CreateClinicPage from './pages/admin/CreateClinicPage.tsx'
@@ -53,6 +55,8 @@ export default function App() {
             <Route element={<AdminLayout />}>
               <Route path="/admin" element={<ClinicsPage />} />
               <Route path="/admin/clinics/new" element={<CreateClinicPage />} />
+              <Route path="/admin/cash" element={<AdminCashPage />} />
+              <Route path="/admin/cheques" element={<AdminChequesPage />} />
               <Route path="/admin/clinics/:id" element={<ClinicPage />} />
             </Route>
           </Route>

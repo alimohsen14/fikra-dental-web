@@ -27,6 +27,7 @@ export const TENANT_MODELS = new Set([
   'Cheque',
   'SubscriptionPeriod',
   'SubscriptionPayment',
+  'SubscriptionCheque',
 ]);
 
 type Args = Record<string, unknown>;

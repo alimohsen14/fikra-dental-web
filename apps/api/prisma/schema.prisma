@@ -124,6 +124,7 @@ model Clinic {
 
   subscriptionPeriods  SubscriptionPeriod[]
   subscriptionPayments SubscriptionPayment[]
+  subscriptionCheques  SubscriptionCheque[]
 }
 
 // WhatsApp credentials per clinic. The token is stored encrypted and never reaches the frontend.
@@ -541,12 +542,47 @@ model SubscriptionPayment {
   voidedByUserId  String?   @db.Uuid
   createdByUserId String?   @db.Uuid
   createdAt       DateTime  @default(now()) @db.Timestamptz(3)
+  method          PaymentMethod @default(CASH) // CHEQUE: it owns a SubscriptionCheque and only counts as cash from the day that cheque is cashed
 
   period SubscriptionPeriod @relation(fields: [periodId], references: [id])
   clinic Clinic             @relation(fields: [clinicId], references: [id])
+  cheque SubscriptionCheque?
 
   @@index([periodId])
   @@index([clinicId, paidAt])
+}
+
+// A cheque a clinic paid its subscription with (incoming only: the platform never writes cheques). It owns a SubscriptionPayment of method
+// CHEQUE, so what the clinic owes drops at once, but it only counts as the platform's cash from the day it is cashed. A returned cheque
+// voids that payment, so the clinic owes the money again. Not granted to fikra_app, like the other subscription tables.
+model SubscriptionCheque {
+  id            String       @id @default(uuid()) @db.Uuid
+  clinicId      String       @db.Uuid
+  paymentId     String       @unique @db.Uuid
+  status        ChequeStatus @default(PENDING) // PENDING / CASHED / RETURNED / CANCELLED
+  amount        Int
+  dueDate       DateTime     @db.Date
+  chequeNumber  String?
+  bankName      String?
+  accountNumber String?
+  drawerName    String?
+  drawerPhone   String?
+  notes         String?
+  image         String?
+  imageMime     String?
+  imageSize     Int?
+  cashedAt      DateTime?    @db.Timestamptz(3)
+  returnedAt    DateTime?    @db.Timestamptz(3)
+  returnReason  String?
+  createdByUserId String?    @db.Uuid
+  createdAt     DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime     @updatedAt @db.Timestamptz(3)
+
+  clinic  Clinic              @relation(fields: [clinicId], references: [id])
+  payment SubscriptionPayment @relation(fields: [paymentId], references: [id])
+
+  @@index([clinicId, status, dueDate])
+  @@index([status, dueDate])
 }
 
 // ---------------------------------------------------------------- expenses (owner only)

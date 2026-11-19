@@ -4,7 +4,11 @@ import { ThemeScope } from '../theme/ThemeScope.tsx'
 import { Sidebar } from './Sidebar.tsx'
 import type { NavItem } from './Sidebar.tsx'
 
-const ITEMS: NavItem[] = [{ to: '/admin', label: 'العيادات', icon: 'clinics' }]
+const ITEMS: NavItem[] = [
+  { to: '/admin', label: 'العيادات', icon: 'clinics', activeOn: ['/admin/clinics'] },
+  { to: '/admin/cash', label: 'الكاش', icon: 'wallet' },
+  { to: '/admin/cheques', label: 'الشكات', icon: 'wallet' },
+]
 
 export default function AdminLayout() {
   const { session } = useAuth()
