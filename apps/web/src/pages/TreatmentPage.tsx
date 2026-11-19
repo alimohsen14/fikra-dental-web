@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useLocation, useParams } from 'react-router'
+import { Link, useLocation, useNavigate, useParams } from 'react-router'
 import { useAuth } from '../auth/AuthContext.tsx'
 import { Badge, Card, DateText, Loading, Money } from '../components/admin-ui.tsx'
 import { AppointmentDialog } from '../components/AppointmentDialog.tsx'
@@ -61,7 +61,8 @@ function CompleteSessionModal({ t, s, onClose, onDone }: { t: Treatment; s: Sess
 }
 
 /** Closing is always a button: it appears once a session is done and everything is paid. Sessions not done are dropped. */
-function CloseCard({ t, onChanged }: { t: Treatment; onChanged: () => void }) {
+function CloseCard({ t }: { t: Treatment }) {
+  const navigate = useNavigate()
   const left = t.sessions.length - sessionsDone(t)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -70,7 +71,7 @@ function CloseCard({ t, onChanged }: { t: Treatment; onChanged: () => void }) {
     setError(null)
     try {
       await closeTreatment(t.id)
-      onChanged()
+      void navigate('/treatments') // closed: back to the list
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'حدث خطأ غير متوقع، حاول مرة أخرى')
     } finally {
@@ -495,7 +496,7 @@ export default function TreatmentPage() {
       <SessionsCard t={t} canEdit={canEdit} onChanged={reload} />
       <XraysCard treatmentId={t.id} canAdd={canEditTreatments(session.user) && t.status !== 'CANCELLED'} />
       <MoneyCard t={t} isOwner={session.user.role === 'OWNER'} onChanged={reload} />
-      {canEdit && canClose(t) && <CloseCard t={t} onChanged={reload} />}
+      {canEdit && canClose(t) && <CloseCard t={t} />}
     </>
   )
 }

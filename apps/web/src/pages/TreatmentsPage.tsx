@@ -22,7 +22,7 @@ export default function TreatmentsPage() {
   const { session } = useAuth()
   const [tab, setTab] = useState<TreatmentStatus | 'ALL'>('OPEN')
   const [q, setQ] = useState('')
-  const [mine, setMine] = useState(false)
+  const [mine, setMine] = useState(session?.user.role === 'OWNER') // the owner starts with their own treatments and can switch to the whole clinic
   const { data, error } = useLoad(() => listTreatments({ mine }), [mine])
   if (!session) return null
   if (!canSeeTreatments(session.user)) return <Loading error="ليس لديك صلاحية لهذه الصفحة." />
@@ -35,7 +35,7 @@ export default function TreatmentsPage() {
     <>
       <ClinicBanner
         title="العلاجات"
-        subtitle={isDoctor ? 'علاجاتك أنت: دفعاتها وجلساتها. تجد علاجات بقية الأطباء في ملف المريض.' : 'كل علاجات العيادة ودفعاتها وجلساتها.'}
+        subtitle={isDoctor ? 'علاجاتك أنت: دفعاتها وجلساتها. تجد علاجات بقية الأطباء في ملف المريض.' : isOwner ? 'علاجاتك أنت، وتقدر تعرض علاجات بقية الأطباء من «علاجات العيادة».' : 'كل علاجات العيادة ودفعاتها وجلساتها.'}
         action={
           canEditTreatments(session.user) ? (
             <BannerLink to="/treatments/new">
@@ -59,8 +59,8 @@ export default function TreatmentsPage() {
           <div role="tablist" aria-label="نطاق العلاجات" className="flex gap-2">
             {(
               [
-                [false, 'علاجات العيادة'],
                 [true, 'علاجاتك'],
+                [false, 'علاجات العيادة (كل الأطباء)'],
               ] as const
             ).map(([v, label]) => (
               <button
