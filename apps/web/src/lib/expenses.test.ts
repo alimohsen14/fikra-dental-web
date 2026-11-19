@@ -57,10 +57,10 @@ describe('buildExpenseBody', () => {
 })
 
 describe('buildExpensePayment', () => {
-  const f = { amount: '50', method: 'CARD' as const, day: '2020-01-15', note: ' x ' }
+  const f = { amount: '50', method: 'CASH' as const, day: '2020-01-15', note: ' x ' }
   it('builds a payment', () => {
     const r = buildExpensePayment(f, 10000)
-    expect('body' in r && r.body).toMatchObject({ amount: 5000, method: 'CARD', note: 'x' })
+    expect('body' in r && r.body).toMatchObject({ amount: 5000, method: 'CASH', note: 'x' })
   })
   it('never above the remaining', () => {
     expect(buildExpensePayment({ ...f, amount: '101' }, 10000)).toHaveProperty('error')

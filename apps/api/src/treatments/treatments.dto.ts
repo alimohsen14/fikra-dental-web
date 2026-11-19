@@ -52,7 +52,7 @@ export const cancelTreatmentSchema = z.object({ reason: z.preprocess(emptyToUnde
 export const createPaymentSchema = z
   .object({
     amount: z.number().int().min(1).max(MAX_MONEY),
-    method: z.enum(['CASH', 'CARD', 'TRANSFER', 'OTHER']),
+    method: z.enum(['CASH']), // two ways to pay only: cash, or a cheque (a cheque has its own endpoints)
     paidAt: instant,
     note: z.preprocess(emptyToUndefined, z.string().trim().max(300).optional()),
   })

@@ -3,7 +3,7 @@ import type { FormEvent } from 'react'
 import { Badge, Card, DateText, Loading, Money } from '../../components/admin-ui.tsx'
 import { Alert, Button, SelectField, TextField } from '../../components/ui.tsx'
 import { SubChequeBadge, SubChequeFields, SubChequeModal, buildSubCheque, emptySubChequeForm, uploadSubChequePhoto } from '../../components/sub-cheque-ui.tsx'
-import { PAY_METHOD_LABELS, addPayment, getBilling, voidPayment } from '../../lib/admin.ts'
+import { PAY_METHODS, PAY_METHOD_LABELS, addPayment, getBilling, voidPayment } from '../../lib/admin.ts'
 import type { BillingStatus, PayMethod, Period } from '../../lib/admin.ts'
 import { ApiError } from '../../lib/api.ts'
 import { formatMoney, todayInput } from '../../lib/format.ts'
@@ -79,7 +79,7 @@ function AddPayment({ clinicId, periods, onDone }: { clinicId: string; periods: 
         )}
         <TextField label="المبلغ (₪)" hint={`المتبقي على هذه الفترة: ${formatMoney(current.remaining)}`} inputMode="decimal" dir="ltr" className="text-right" value={amount} onChange={(e) => setAmount(e.target.value)} />
         <SelectField label="طريقة الدفع" value={method} onChange={(e) => setMethod(e.target.value as PayMethod)}>
-          {(Object.keys(PAY_METHOD_LABELS) as PayMethod[]).map((m) => (
+          {PAY_METHODS.map((m) => (
             <option key={m} value={m}>
               {PAY_METHOD_LABELS[m]}
             </option>

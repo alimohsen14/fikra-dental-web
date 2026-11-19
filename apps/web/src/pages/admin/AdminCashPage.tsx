@@ -16,7 +16,7 @@ export default function AdminCashPage() {
 
   return (
     <>
-      <PageBanner title="الكاش" subtitle="ما استلمناه فعلاً من العيادات (كاش وتحويل وغيره) والشكات بعد صرفها. الشكات التي لم تُصرف بعد في صفحة «الشكات»." />
+      <PageBanner title="الكاش" subtitle="ما استلمناه فعلاً من العيادات (نقداً) والشكات بعد صرفها. الشكات التي لم تُصرف بعد في صفحة «الشكات»." />
       <Card>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <TextField label="من" type="date" value={from} max={to} onChange={(e) => setFrom(e.target.value)} />

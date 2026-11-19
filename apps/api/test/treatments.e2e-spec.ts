@@ -289,9 +289,9 @@ describe('Treatments, sessions and payments (e2e)', () => {
     const c = await makeClinic('pay');
     const o = c.users.OWNER.token;
     const t = (await create(o, c, { totalCost: 50_000, plannedSessions: 1 }).expect(201)).body;
-    const first = await pay(o, t.id, { amount: 20_000, method: 'CARD', note: 'دفعة أولى' }).expect(201);
+    const first = await pay(o, t.id, { amount: 20_000, method: 'CASH', note: 'دفعة أولى' }).expect(201);
     expect(first.body).toMatchObject({ paid: 20_000, remaining: 30_000, status: 'OPEN' });
-    expect(first.body.payments[0]).toMatchObject({ amount: 20_000, method: 'CARD', status: 'ACTIVE', note: 'دفعة أولى' });
+    expect(first.body.payments[0]).toMatchObject({ amount: 20_000, method: 'CASH', status: 'ACTIVE', note: 'دفعة أولى' });
     await pay(o, t.id, { amount: 30_001 }).expect(400);
     for (const bad of [{ amount: 0 }, { amount: -5 }, { amount: 10.5 }, { amount: '100' }, { method: 'BITCOIN' }, { paidAt: 'yesterday' }, { paidAt: new Date(Date.now() + 86_400_000).toISOString() }, { treatmentId: randomUUID() }]) {
       await pay(o, t.id, bad).expect(400);

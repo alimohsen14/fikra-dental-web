@@ -86,6 +86,8 @@ export const TREATMENT_STYLE: Record<TreatmentStatus, { bg: string; fg: string }
   CLOSED: { bg: '#e3f5ea', fg: '#0b4f2c' },
   CANCELLED: { bg: '#eceff3', fg: '#4a5a70' },
 }
+/** The two ways to pay. Older payments may carry another method: METHOD_LABELS still names it for display. */
+export const PAY_METHODS: PaymentMethod[] = ['CASH', 'CHEQUE']
 export const METHOD_LABELS: Record<PaymentMethod, string> = { CASH: 'نقداً', CARD: 'بطاقة', TRANSFER: 'تحويل', OTHER: 'أخرى', CHEQUE: 'شك' }
 
 // ---------------------------------------------------------------- helpers

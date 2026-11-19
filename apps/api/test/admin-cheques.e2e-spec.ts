@@ -93,12 +93,13 @@ describe('Subscription cheques (e2e)', () => {
   it('cash payments are on the cash page by their paid day, separate from cheques', async () => {
     const c = await newClinic('chq2');
     await pay(c, { amount: 25_000 }).expect(201); // default method: cash
-    await pay(c, { amount: 10_000, method: 'TRANSFER' }).expect(201);
+    await pay(c, { amount: 10_000, method: 'CASH' }).expect(201);
+    await pay(c, { amount: 1_000, method: 'TRANSFER' }).expect(400); // only cash or cheque now
     const chq = await pay(c, { amount: 5_000, method: 'CHEQUE', cheque: { dueDate: dayOf(3) } }).expect(201);
     const page = await cash(`?clinicId=${c}`);
     expect(page.total).toBe(35_000);
     expect(page.fromCheques).toBe(0);
-    expect(page.items.map((x: { method: string }) => x.method).sort()).toEqual(['CASH', 'TRANSFER']);
+    expect(page.items.map((x: { method: string }) => x.method).sort()).toEqual(['CASH', 'CASH']);
     const list = (await asAdmin(http().get(`/admin/cheques?clinicId=${c}`)).expect(200)).body;
     expect(list.items).toHaveLength(1);
     expect(list.items[0].id).toBe(chq.body.createdChequeId);

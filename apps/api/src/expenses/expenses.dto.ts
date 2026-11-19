@@ -7,7 +7,7 @@ const emptyToNull = (v: unknown) => (typeof v === 'string' && v.trim() === '' ? 
 const instant = z.string().datetime({ offset: true }).transform((s) => new Date(s));
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const money = z.number().int().min(1).max(MAX_MONEY);
-const method = z.enum(['CASH', 'CARD', 'TRANSFER', 'OTHER']);
+const method = z.enum(['CASH']); // two ways to pay only: cash, or a cheque (a cheque has its own endpoints)
 const text = (max: number) => z.preprocess(emptyToUndefined, z.string().trim().max(max).optional());
 
 export const createCategorySchema = z.object({ name: z.string().trim().min(2).max(60) }).strict();

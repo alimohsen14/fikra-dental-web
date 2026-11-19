@@ -74,7 +74,8 @@ export interface Payment {
 }
 
 export type PayMethod = 'CASH' | 'CARD' | 'TRANSFER' | 'OTHER' | 'CHEQUE'
-export const PAY_METHOD_LABELS: Record<PayMethod, string> = { CASH: 'كاش', TRANSFER: 'تحويل بنكي', CARD: 'بطاقة', OTHER: 'أخرى', CHEQUE: 'شك' }
+export const PAY_METHODS: PayMethod[] = ['CASH', 'CHEQUE'] // the only two ways to pay now; older payments may carry another method (still labeled)
+export const PAY_METHOD_LABELS: Record<PayMethod, string> = { CASH: 'نقداً', TRANSFER: 'تحويل بنكي', CARD: 'بطاقة', OTHER: 'أخرى', CHEQUE: 'شك' }
 
 export interface Period {
   id: string

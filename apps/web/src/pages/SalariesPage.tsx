@@ -31,7 +31,7 @@ import type { PaymentMethod } from '../lib/treatments.ts'
 import { useLoad } from '../lib/useLoad.ts'
 
 const messageOf = (e: unknown) => (e instanceof ApiError ? e.message : 'حدث خطأ غير متوقع، حاول مرة أخرى')
-const METHODS = (Object.keys(METHOD_LABELS) as PaymentMethod[]).filter((m) => m !== 'CHEQUE') // cheques for bills come later
+const METHODS: PaymentMethod[] = ['CASH'] // salaries are paid in cash only
 
 /** Paying the month's salary. */
 function PayModal({ entry, onClose, onDone }: { entry: SalaryEntry; onClose: () => void; onDone: () => void }) {

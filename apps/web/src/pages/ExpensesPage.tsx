@@ -30,14 +30,14 @@ import {
 import type { Category, Expense, ExpensePaymentRow, Period, Supplier } from '../lib/expenses.ts'
 import { getChequeSummary, STATUS_LABELS } from '../lib/cheques.ts'
 import { formatDate, FUTURE_DAY_ERROR, isFutureDay, paidAtIso, parseShekels, todayInput } from '../lib/format.ts'
-import { METHOD_LABELS } from '../lib/treatments.ts'
+import { METHOD_LABELS, PAY_METHODS } from '../lib/treatments.ts'
 import type { PaymentMethod } from '../lib/treatments.ts'
 import { useLoad } from '../lib/useLoad.ts'
 
 /** The amount typed so far, or a very large number while it is empty or not a number (the server checks the real bill). */
 const parseShekelsSafe = (s: string): number => parseShekels(s) ?? Number.MAX_SAFE_INTEGER
 const messageOf = (e: unknown) => (e instanceof ApiError ? e.message : 'حدث خطأ غير متوقع، حاول مرة أخرى')
-const METHODS = Object.keys(METHOD_LABELS) as PaymentMethod[]
+const METHODS = PAY_METHODS
 
 function MethodSelect({ value, onChange }: { value: PaymentMethod; onChange: (m: PaymentMethod) => void }) {
   return (
@@ -499,7 +499,7 @@ export default function ExpensesPage() {
               {(
                 [
                   ['ALL', 'الكل'],
-                  ['CASH', 'كاش وتحويل وغيره'],
+                  ['CASH', 'نقداً'],
                   ['CHEQUE', 'شكات فقط'],
                 ] as const
               ).map(([v, label]) => (

@@ -104,7 +104,7 @@ export const addPaymentSchema = z
       .optional(),
     periodId: idSchema.optional(), // default: the latest term
     note: z.string().trim().min(1).max(300).optional(),
-    method: z.enum(['CASH', 'CARD', 'TRANSFER', 'OTHER', 'CHEQUE']).default('CASH'),
+    method: z.enum(['CASH', 'CHEQUE']).default('CASH'),
     cheque: subscriptionChequeSchema.optional(), // required with CHEQUE, not allowed otherwise
   })
   .strict()

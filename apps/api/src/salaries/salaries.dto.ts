@@ -20,7 +20,7 @@ export const salaryPaymentSchema = z
   .object({
     kind: z.enum(['SALARY', 'ADVANCE']),
     amount: z.number().int().min(1).max(MAX_MONEY),
-    method: z.enum(['CASH', 'CARD', 'TRANSFER', 'OTHER']),
+    method: z.enum(['CASH']), // salaries are paid in cash only (no cheques)
     paidAt: instant,
     note: z.preprocess(emptyToUndefined, z.string().trim().max(300).optional()),
   })

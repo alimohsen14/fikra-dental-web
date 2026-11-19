@@ -200,7 +200,7 @@ describe('Expenses (e2e)', () => {
     expect(empty).toMatchObject({ income: 0, expensesPaid: 0, profit: 0, byCategory: [] });
     // a later payment counts on the day it is paid, not the day of the bill
     const old = (await spend(c, { categoryId: k1, amount: 7_000, paidAmount: 0, incurredAt: '2020-01-15T09:00:00+02:00' }).expect(201)).body;
-    await http().post(`/expenses/${old.id}/payments`).set(o).send({ amount: 7_000, method: 'CARD', paidAt: now() }).expect(201);
+    await http().post(`/expenses/${old.id}/payments`).set(o).send({ amount: 7_000, method: 'CASH', paidAt: now() }).expect(201);
     expect((await summary(c, 'day', '2020-01-15')).expensesPaid).toBe(0);
     expect((await summary(c, 'day', '2020-01-15')).expensesIncurred).toBe(7_000);
     expect((await summary(c, 'day', today())).expensesPaid).toBe(19_000);

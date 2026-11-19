@@ -18,7 +18,7 @@ import { buildChequeCreate, createCheque, emptyChequeForm, listTreatmentCheques,
 import type { ChequeForm } from '../lib/cheques.ts'
 import { ChequeFields, ChequeModal, PhotoPicker } from '../components/cheque-ui.tsx'
 import { XRAY_MAX_BYTES, prepareXray } from '../lib/xrays.ts'
-import { addPayment, canBookSession, canClose, closeTreatment, completeSession, getTreatment, METHOD_LABELS, nextBookable, sessionCaption, sessionsDone, STATUS_TEXT, TREATMENT_STYLE, typeLabel, typeLabels, voidPayment } from '../lib/treatments.ts'
+import { addPayment, canBookSession, canClose, closeTreatment, completeSession, getTreatment, METHOD_LABELS, nextBookable, PAY_METHODS, sessionCaption, sessionsDone, STATUS_TEXT, TREATMENT_STYLE, typeLabel, typeLabels, voidPayment } from '../lib/treatments.ts'
 import type { PaymentMethod, PaymentRow, SessionRow, Treatment } from '../lib/treatments.ts'
 import { useLoad } from '../lib/useLoad.ts'
 
@@ -217,7 +217,7 @@ function PaymentModal({ t, remaining, onClose, onDone }: { t: Treatment; remaini
         المتبقي على العلاج: <Money agorot={remaining} />
       </p>
       <SelectField label="طريقة الدفع" value={f.method} onChange={(e) => setF({ ...f, method: e.target.value as PaymentMethod })}>
-        {(Object.keys(METHOD_LABELS) as PaymentMethod[]).map((m) => (
+        {PAY_METHODS.map((m) => (
           <option key={m} value={m}>
             {METHOD_LABELS[m]}
           </option>
